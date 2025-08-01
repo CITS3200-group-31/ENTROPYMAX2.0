@@ -9,17 +9,23 @@
 
 ### 1. Create GitHub Organization "Group-31"
 
-1. Go to https://github.com/organizations/new
-2. Fill in the following details:
-   - **Organization name**: `Group-31`
-   - **Contact email**: [Your email]
-   - **Plan**: Choose "Free" (unless you need paid features)
-3. Click "Create organization"
+✅ **Browser opened automatically** to https://github.com/organizations/new
+
+Fill in the following details:
+- **Organization name**: `Group-31`
+- **Contact email**: [Your email]
+- **Plan**: Choose "Free" (unless you need paid features)
+- Click "Create organization"
 
 ### 2. Transfer Repository to Organization
 
-Once the organization is created:
+Once the organization is created, you can transfer the repository using the GitHub CLI:
 
+```bash
+gh repo transfer ENTROPYMAX2.0 Group-31 --yes
+```
+
+Alternatively, you can do it through the web interface:
 1. Go to https://github.com/unixthat/ENTROPYMAX2.0
 2. Click on "Settings" tab
 3. Scroll down to "Danger Zone"
@@ -74,4 +80,4 @@ ENTROPYMAX2.0/
 
 ## Contact
 
-For any issues with the setup process, contact the Group 31 team. 
+For any issues with the setup process, contact the Group 31 team.
