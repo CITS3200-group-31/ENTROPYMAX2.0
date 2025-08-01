@@ -37,10 +37,10 @@ The original VB6 application is preserved in the `legacy/` directory for referen
 This project is currently in the initial planning and setup phase. The legacy codebase has been organized and the new project structure is being established.
 
 ### Project Setup Status
-✅ Repository created and transferred to cits3002-group-31 organization  
-✅ Legacy VB6 code organized and preserved  
-✅ Modern project structure established  
-✅ Git repository configured and ready for development  
+✅ Repository created and transferred to cits3002-group-31 organization
+✅ Legacy VB6 code organized and preserved
+✅ Modern project structure established
+✅ Git repository configured and ready for development
 
 ### Next Development Steps
 1. Analyze the legacy VB6 code to understand the entropy analysis algorithms
