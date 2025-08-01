@@ -38,7 +38,9 @@ This project is currently in the initial planning and setup phase. The legacy co
 
 ## Contributing
 
-This project is part of CITS3002 Group 31. Please refer to the contribution guidelines for development standards and procedures.
+This project is part of CITS3002 Group 31. The repository is hosted at: https://github.com/cits3002-group-31/ENTROPYMAX2.0
+
+Please refer to the contribution guidelines for development standards and procedures.
 
 ## License
 
