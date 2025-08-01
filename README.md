@@ -1,6 +1,6 @@
 # ENTROPYMAX2.0
 
-A modernized version of the EntropyMax application for entropy analysis and data processing.
+A modernized version of the EntropyMax application for geological and geophysical analysis and data processing.
 
 ## Project Overview
 
