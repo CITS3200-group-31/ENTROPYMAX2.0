@@ -38,7 +38,7 @@ This project is currently in the initial planning and setup phase. The legacy co
 
 ## Contributing
 
-This project is part of Group 31. Please refer to the contribution guidelines for development standards and procedures.
+This project is part of CITS3002 Group 31. Please refer to the contribution guidelines for development standards and procedures.
 
 ## License
 
@@ -46,4 +46,4 @@ This project is part of Group 31. Please refer to the contribution guidelines fo
 
 ## Contact
 
-For questions or contributions, please contact the Group 31 team.
+For questions or contributions, please contact the CITS3002 Group 31 team.

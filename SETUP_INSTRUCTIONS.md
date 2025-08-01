@@ -4,48 +4,43 @@
 ✅ Repository created: https://github.com/unixthat/ENTROPYMAX2.0
 ✅ Code pushed to repository
 ✅ Project structure organized
+✅ Organization created: cits3002-group-31
 
 ## Next Steps
 
-### 1. Create GitHub Organization "Group-31"
+### 1. Create GitHub Organization "cits3002-group-31"
 
-✅ **Browser opened automatically** to https://github.com/organizations/new
+✅ **Organization created successfully**
 
-Fill in the following details:
-- **Organization name**: `Group-31`
+Organization details:
+- **Organization name**: `cits3002-group-31`
 - **Contact email**: [Your email]
-- **Plan**: Choose "Free" (unless you need paid features)
-- Click "Create organization"
+- **Plan**: Free
 
 ### 2. Transfer Repository to Organization
 
-Once the organization is created, you can transfer the repository using the GitHub CLI:
+✅ **Repository transferred successfully**
 
+Transfer completed using GitHub API:
 ```bash
-gh repo transfer ENTROPYMAX2.0 Group-31 --yes
+gh api --method POST /repos/unixthat/ENTROPYMAX2.0/transfer -f new_owner=cits3002-group-31
 ```
 
-Alternatively, you can do it through the web interface:
-1. Go to https://github.com/unixthat/ENTROPYMAX2.0
-2. Click on "Settings" tab
-3. Scroll down to "Danger Zone"
-4. Click "Transfer ownership"
-5. Enter `Group-31/ENTROPYMAX2.0` as the new owner
-6. Confirm the transfer
+Repository is now available at: https://github.com/cits3002-group-31/ENTROPYMAX2.0
 
 ### 3. Add Team Members
 
 After the repository is transferred to the organization:
 
-1. Go to the organization settings: https://github.com/organizations/Group-31/settings
+1. Go to the organization settings: https://github.com/organizations/cits3002-group-31/settings
 2. Navigate to "Teams" in the sidebar
 3. Create a new team for the project
 4. Add the six team members (including yourself)
 
 ### 4. Repository Access
 
-Once transferred, the repository will be available at:
-https://github.com/Group-31/ENTROPYMAX2.0
+✅ **Repository successfully transferred and accessible at:**
+https://github.com/cits3002-group-31/ENTROPYMAX2.0
 
 ## Project Structure Summary
 
