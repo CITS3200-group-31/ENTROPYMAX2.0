@@ -55,3 +55,7 @@ secrets.json
 *.dll
 *.tlb
 *.bat
+
+# Potentially Sensitive
+*.xlsx
+*.zip
