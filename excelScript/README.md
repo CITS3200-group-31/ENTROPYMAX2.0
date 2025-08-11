@@ -1,217 +1,143 @@
 # CITS3200 Team Leader Spreadsheet Automation
 
-## Project Overview
-This Python script automates the conversion of Google Sheets data to Excel (.xlsx) deliverables for CITS3200 team leader weekly reports at the University of Western Australia. The automation handles the complete workflow from data extraction to file generation and cloud storage.
+Automates weekly deliverables from a master Google Sheet into Excel files and uploads them to Google Drive.
 
-## Purpose
-- **Input**: Master Google Sheet accessible by the whole team
-- **Output**: 7 Excel files (6 booked hours sheets + 1 group hours sheet) + cloud backup
-- **Problem Solved**: Google Sheets formulas don't translate well to Excel format
-- **Workflow**: Complete automation from data fetch to cloud upload
-
-## Requirements
-
-### Input Data
-- **Master Google Sheet**: `CITS3200/CITS3200_Group_31.xlsx` (accessed via rclone)
-- **Template Files**:
-  - `templates/TimeSheet_GroupX_WkY.xlsx` - Group timesheet template
-  - `templates/Booked_Hours_YourName.xlsx` - Individual booked hours template
-- **Access**: Google Drive via rclone (mounted at `~/gdrive`)
-
-### Master File Structure
-The master file contains 12 sheets:
-1. **Instructions** - Project guidelines and setup
-2. **General Tasks** - Overall project task tracking
-3. **Requirements** - Software requirements tracking
-4. **PerPerson** - Weekly hours summary for all team members
-5. **Steve** - Individual hours tracking for Steve
-6. **Ben** - Individual hours tracking for Ben
-7. **Dongkai** - Individual hours tracking for Dongkai
-8. **William** - Individual hours tracking for William
-9. **Jeremy** - Individual hours tracking for Jeremy
-10. **Noah** - Individual hours tracking for Noah
-11. **Results** - Overall project statistics and budget tracking
-12. **Contact** - Team contact information
-
-### Team Information
-- **Group**: 31
-- **Team Members**:
-  - Steve (Team Leader)
-  - William
-  - Dongkai
-  - Jeremy
-  - Noah
-  - Ben
-
-## Output Files
-
-### Local Files (in `output/` directory)
-1. **1 Group Timesheet** (`TimeSheet_Group31_WkY.xlsx`) - Overall team hour summary
-2. **6 Individual Timesheets** (`Booked_Hours_[Name].xlsx`) - Individual team member hour tracking
-3. **1 Zip File** (`Booked_Group31_WkY.zip`) - Contains all 6 individual timesheets
-
-### Cloud Files (in Google Drive)
-- **Upload Location**: `CITS3200/WeekY/` directory
-- **Uploaded Files**:
-  - `TimeSheet_Group31_WkY.xlsx` - Group timesheet
-  - `Booked_Group31_WkY.zip` - Individual timesheets archive
-
-## Key Features
-- **Cell Value Transfer**: Reads actual cell values, not formulas
-- **Name Updates**: Automatically updates team member names
-- **Template-Based**: Uses provided Excel templates as base
-- **Automated Processing**: Single script execution generates all deliverables
-- **Google Drive Integration**: Automatically uploads deliverables to Google Drive
-- **Cleanup**: Removes temporary files after processing
-- **Dynamic Mapping**: Programmatically identifies and maps data between sheets
-- **Week-Specific Organization**: Creates week directories in Google Drive
-
-## Technical Stack
-- **Python 3.8+**: Core automation language
-- **rclone**: Google Drive file access and synchronization
-- **openpyxl**: Excel file reading/writing (with `data_only=True` for values)
-- **zipfile**: Built-in Python module for archive creation
-- **subprocess**: Command-line tool execution
-- **os/shutil**: File system operations
-
-## File Structure
-```
-excelScript/
-├── README.md                    # Project documentation
-├── main.py                      # Main automation script
-├── requirements.txt             # Python dependencies
-├── templates/                   # Excel template files
-│   ├── TimeSheet_GroupX_WkY.xlsx
-│   └── Booked_Hours_YourName.xlsx
-├── output/                      # Generated deliverables
-│   ├── TimeSheet_Group31_WkY.xlsx
-│   ├── Booked_Hours_[Name].xlsx (6 files)
-│   └── Booked_Group31_WkY.zip
-├── config/                      # Configuration directory
-├── venv/                       # Python virtual environment
-└── .DS_Store                   # macOS system file
-```
-
-## Installation & Setup
+### What it does
+- Copies the master workbook from Google Drive via `rclone`.
+- Generates a group timesheet from `templates/TimeSheet_GroupX_WkY.xlsx`:
+  - Transfers `PerPerson` weekly totals (weeks 2–11) using exact, case‑insensitive name matching.
+  - Copies key metrics from `Results` (B2–B6).
+- Generates six individual timesheets from `templates/Booked_Hours_YourName.xlsx`.
+- Creates a zip archive with all individual timesheets.
+- Uploads outputs to `REMOTE:BASE_PATH/WeekY/` using `rclone mkdir` and `rclone copy`.
 
 ### Prerequisites
-1. **Python 3.8+** installed
-2. **rclone** configured for Google Drive access
-3. **Template files** placed in `templates/` directory
+- Python 3.8+
+- `rclone` installed and configured with a Google Drive remote.
+- Templates present in `templates/`:
+  - `TimeSheet_GroupX_WkY.xlsx` with sheets: `PerPerson`, `Results`.
+  - `Booked_Hours_YourName.xlsx` with sheet: `BookedHours`.
 
-### Environment Setup
+### Install
 ```bash
-# Create virtual environment
+cd excelScript
 python3 -m venv venv
-
-# Activate virtual environment
 source venv/bin/activate
-
-# Install dependencies
 pip install -r requirements.txt
 ```
 
-## Usage
+### Configuration (optional)
+You can configure via environment variables or a YAML file (pass with `--config path/to/config.yaml`).
 
-### Basic Usage
+- Remote and paths:
+  - `REMOTE_NAME` (default: `gdrive`)
+  - `REMOTE_BASE_PATH` (default: `CITS3200`)
+- Filenames and locations:
+  - `MASTER_FILE` (default: `CITS3200_Group_31.xlsx`)
+  - `GROUP_TEMPLATE` (default: `templates/TimeSheet_GroupX_WkY.xlsx`)
+  - `INDIVIDUAL_TEMPLATE` (default: `templates/Booked_Hours_YourName.xlsx`)
+  - `OUTPUT_DIR` (default: `output`)
+- Team metadata:
+  - `GROUP_NUMBER` (default: `31`)
+  - `TEAM_MEMBERS` (comma‑separated, default: `Steve,Ben,Dongkai,William,Jeremy,Noah`)
+
+YAML keys mirror the variable names above.
+
+### Run
 ```bash
-# Activate virtual environment
-source venv/bin/activate
-
-# Run the automation script
+# Prompt for week
 python main.py
+
+# Specify week (2–11)
+python main.py --week 7
+
+# Dry‑run (no writes/uploads)
+python main.py --week 7 --dry-run
+
+# With config file
+python main.py --week 7 --config config.yaml
 ```
 
-### Complete Workflow
-The script performs the following steps:
+### Outputs
+- Local (`OUTPUT_DIR`):
+  - `TimeSheet_Group<group>_Wk<week>.xlsx`
+  - `Booked_Hours_<Name>.xlsx` (for each team member)
+  - `Booked_Group<group>_Wk<week>.zip`
+- Cloud: uploaded to `REMOTE_NAME:REMOTE_BASE_PATH/Week<week>/`.
 
-1. **📝 Prompt for week number** (2-11)
-2. **📥 Copy master file** from Google Drive (`gdrive:CITS3200/CITS3200_Group_31.xlsx`)
-3. **📊 Create group timesheet** (`TimeSheet_Group31_WkY.xlsx`)
-   - Transfer PerPerson data with dynamic row mapping
-   - Transfer Results data
-4. **👥 Create 6 individual timesheets** (`Booked_Hours_[Name].xlsx`)
-   - One for each team member
-   - Transfer individual hour data
-5. **📦 Create zip archive** (`Booked_Group31_WkY.zip`)
-   - Contains all 6 individual timesheets
-6. **🧹 Clean up** downloaded master file from project directory
-7. **☁️ Upload to Google Drive** in `CITS3200/WeekY/` directory
-   - Creates week directory if it doesn't exist
-   - Uploads group timesheet and zip file
-8. **💾 Save local copies** in `output/` directory
+### Behaviour and guarantees
+- Exact, case‑insensitive matching for member names between master and templates.
+- Value‑only reads from the master (no formula copying).
+- Validates required templates and sheets before running; fails fast with non‑zero exit code.
+- Structured logging to console; `--dry-run` prints planned actions without side effects.
 
-### Output Summary
-After execution, you'll have:
-- **Local files**: 8 files in `output/` directory
-- **Cloud files**: 2 files in `gdrive:CITS3200/WeekY/`
-- **Clean project**: No temporary files left behind
+### Dependencies
+Pinned in `requirements.txt`:
+- `openpyxl`, `rich`, `PyYAML`, `python-dotenv`
 
-## Configuration
+System:
+- `rclone` configured with the desired remote.
 
-### Template Files
-- **Location**: `templates/` directory
-- **Pre-processing**: Templates have been cleaned up:
-  - Removed extraneous sheets (Sheet2, Sheet3) from booked hours template
-  - Updated team member names in group template
-  - Configured for dynamic data mapping
+### Troubleshooting
+- “Group/Individual template not found” → ensure the files exist under `templates/` and contain the required sheet names.
+- “Failed to copy master file” → check `rclone` remote name and base path; verify the file exists in Drive.
+- “Upload failed” → ensure the remote is authenticated and you have permission to write to the target path.
 
-### Output Configuration
-- **Local Output**: `output/` directory
-- **Cloud Output**: `gdrive:CITS3200/WeekY/` directory
-- **File Naming**: Consistent naming convention with week numbers
+## Implementation Review
 
-## Dependencies
+### Exactly what the script does
+Based on `main.py`, the automation performs the following end‑to‑end workflow:
 
-### Required Python Packages
-```
-openpyxl>=3.0.0
-pandas>=1.3.0
-```
+1. Prompts for a week number (2–11). The week number is used in output file names and the Google Drive week folder name (`WeekY`).
+2. Copies `gdrive:CITS3200/CITS3200_Group_31.xlsx` locally via `rclone copy` using a remote named `gdrive`.
+3. Creates a group timesheet:
+   - Copies `templates/TimeSheet_GroupX_WkY.xlsx` to `output/TimeSheet_Group31_WkY.xlsx`.
+   - Loads the master (`data_only=True`) and output workbooks and transfers:
+     - `PerPerson` weekly totals for the six team members by dynamically mapping rows (columns B–L).
+     - Five key `Results` cells: B2–B6.
+4. Creates six individual timesheets:
+   - For each of `Steve, Ben, Dongkai, William, Jeremy, Noah`, copies `templates/Booked_Hours_YourName.xlsx` to `output/Booked_Hours_[Name].xlsx`.
+   - In each file, updates cell A1 title to include the member’s name and transfers row data from the member’s sheet in the master (rows 4–≤100, columns 1–8), if that sheet exists.
+5. Creates `output/Booked_Group31_WkY.zip` containing all six individual timesheets.
+6. Deletes the downloaded master file from the working directory.
+7. Uploads to Google Drive under `gdrive:CITS3200/WeekY/` using `rclone`:
+   - Checks for the `WeekY` folder by calling `rclone ls`; if missing, attempts to create it by copying a temporary `README.md` and deleting it.
+   - Uploads the group timesheet and the zip archive.
+8. Prints a summary of created files in `output/`.
 
-### System Requirements
-- **Python**: 3.8 or higher
-- **rclone**: Configured for Google Drive access
-- **Operating System**: macOS, Linux, or Windows
+### Does it do it well? What’s missing?
+- Overall, the core flow executes correctly and is reasonably robust: it guards for missing sheets, reads values (not formulae), and produces the required local and cloud artefacts.
+- The dynamic row mapping in `PerPerson` and the value‑only reads are appropriate to avoid formula translation issues.
+- Missing or fragile aspects:
+  - The Google Drive folder creation uses a brittle workaround (copying/deleting a file) instead of `rclone mkdir`. It also assumes `README.md` exists in the current working directory.
+  - The week number is not used to filter data; it only affects file/folder names. If week‑specific extraction is expected, this is currently missing.
+  - Name matching for `PerPerson` uses substring matching and may mis‑map similar names (e.g. “Ben” vs “Benji”).
+  - Assumes a fixed remote name `gdrive` and fixed file `CITS3200_Group_31.xlsx` with hard‑coded team members; not configurable.
+  - Error handling is print‑based without clear exit codes or structured logs; failures in intermediate steps do not always abort the run.
+  - Imports and dependencies are out of sync: `pandas`, `datetime`, and `json` are imported but unused; `gspread`/Google Auth packages are listed but not used.
+  - Documentation mismatches: mentions a `config/` directory (not present) and a mounted path, whereas the code uses `rclone` remote commands.
 
-## Technical Details
+### Improvements aligned to the requirements
+- Google Drive operations
+  - Use `rclone mkdir gdrive:CITS3200/WeekY` for folder creation instead of the copy/delete hack.
+  - Make the remote name and base path configurable (env var or CLI flag), e.g. `--remote gdrive --base-path CITS3200`.
+- Configuration and inputs
+  - Add CLI flags (with sensible defaults) alongside the interactive prompt: `--week`, `--group`, `--members`, `--master`, `--remote`, `--output`, `--no-upload`.
+  - Externalise team members, group number, and file names into a small config file (e.g. `config.yaml`) or environment variables.
+- Data handling
+  - Optionally restrict transfers to the selected week (e.g. copy only column for week Y in `PerPerson`, and filter individual rows by week).
+  - Switch to exact, case‑insensitive name matching (or a mapping table) to avoid substring collisions.
+- Robustness and UX
+  - Fail fast on critical errors (return non‑zero exit on failure), and use structured logging (or at least consistent prefixes) for easier diagnostics.
+  - Validate template presence and expected sheet names up front before processing.
+  - Add a dry‑run mode that skips file writes and uploads while printing the planned actions.
+- Code and dependencies
+  - Remove unused imports; pin dependency versions; drop unused packages from `requirements.txt` (`gspread` and Google Auth libs) if not adopting the Sheets API.
+  - Prefer `pathlib` over `os.path` for path operations.
 
-### Data Transfer Method
-- **Cell Values Only**: Uses `openpyxl.load_workbook(data_only=True)` to read actual values
-- **Dynamic Mapping**: Programmatically finds team member rows in both source and target sheets
-- **Error Handling**: Comprehensive try-catch blocks for robust operation
+### Documentation corrections (to align with current implementation)
+- Access method: the script uses `rclone` remote commands (e.g. `rclone copy gdrive:...`), not a mounted filesystem at `~/gdrive`. Update wording accordingly, or add both options with the current default being the remote.
+- Dependencies: `pandas` is not used; `gspread`/Google Auth libraries are not used. Either document future intent or remove from `requirements.txt`.
+- File structure: `config/` is not present; either create it for future configuration or remove from the tree in this document.
+- Name updates: names are updated in the individual timesheet title cell only; the group template assumes correct names already exist. Clarify this expectation.
 
-### Google Drive Integration
-- **Directory Creation**: Automatically creates week-specific directories
-- **File Upload**: Uploads group timesheet and zip file
-- **Error Handling**: Graceful handling of network and permission issues
-
-### Cleanup Process
-- **Temporary File Removal**: Deletes downloaded master file after processing
-- **Project Hygiene**: Maintains clean project directory
-
-## Troubleshooting
-
-### Common Issues
-1. **rclone not configured**: Ensure rclone is set up for Google Drive access
-2. **Template files missing**: Verify templates are in `templates/` directory
-3. **Permission errors**: Check Google Drive permissions and rclone configuration
-4. **Python environment**: Ensure virtual environment is activated
-
-### Error Messages
-- `❌ Error copying master file`: Check rclone configuration and file path
-- `❌ Error transferring data`: Verify template file structure
-- `❌ Error uploading to Google Drive`: Check network connection and permissions
-
-## Notes
-- **Cell Values**: Script reads cell values, not formulas, to avoid translation issues
-- **Team Names**: Team member names are automatically updated from master sheet
-- **Templates**: Templates serve as the base format for all output files
-- **Week Numbers**: Only supports weeks 2-11 (typical CITS3200 semester)
-- **Backup Strategy**: Files are stored both locally and in Google Drive
-
-## Future Enhancements
-- Support for different semester configurations
-- Additional output formats (PDF, CSV)
-- Email notification of completion
-- Batch processing for multiple weeks
