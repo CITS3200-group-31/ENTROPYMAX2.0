@@ -38,15 +38,14 @@ ENTROPYMAX2/
 ├── scripts/
 │  ├── build_backend.sh              # cmake -S backend -B backend/build && cmake --build backend/build
 │  └── dev_run.sh                    # python -m app
-├── backend/                         # C library (reworked algorithm)
+├── backend/                         # Modular C backend
 │  ├── CMakeLists.txt
-│  ├── include/
-│  │  └── backend.h                  # FFI‑friendly C API
+│  ├── include/                      # headers: backend.h, algo.h, csv.h, parquet.h, util.h
 │  ├── src/
-│  │  ├── backend.c                  # core algorithm
-│  │  ├── csv_reader.c               # optional
-│  │  ├── parquet_writer.c           # optional
-│  │  └── util.c
+│  │  ├── algo/                      # core algorithm implementation
+│  │  ├── io/                        # csv_reader.c, parquet_writer.c
+│  │  ├── util/                      # helpers
+│  │  └── cli/                       # emx_cli: CSV -> Parquet pipeline
 │  └── tests/
 │     └── test_backend.c
 ├── src/                             # Python package (src layout)
