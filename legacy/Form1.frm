@@ -249,6 +249,11 @@ Private Declare Function HtmlHelp Lib "HHCtrl.ocx" Alias "HtmlHelpA" _
      ByVal uCommand As Long, _
      dwData As Any) As Long
 
+' Orchestrates the full analysis pipeline:
+' 1) Read CSV into arrays (titles + data)
+' 2) Optional row normalisation; grand-total normalisation
+' 3) Compute means/SD and total inequality
+' 4) Sweep k, optimise grouping, compute CH/Rs, select optimum
 Private Sub calculate()
 DoEvents
 '
@@ -354,6 +359,7 @@ If chkLog.Value = Checked Then
 End If
 End Sub
 
+' Compute between-group inequality given current assignments.
 Sub BETWEENinquality(jobs%, nvar%, ng%, member1%(), result(), sData(), Y(), bineq)
 '
 'calculate between-region inequality
@@ -400,6 +406,7 @@ Sub BETWEENinquality(jobs%, nvar%, ng%, member1%(), result(), sData(), Y(), bine
           Next JJ
 End Sub
 
+' Load CSV into memory: CLtitle (headers), RWTitle (row IDs), result & sData (matrix).
 Sub FileK3(Title$, jobs%, nvar%, CLtitle$(), RWTitle$(), result(), sData(), bexit As Boolean)
 Dim i%
 Dim j%
@@ -452,6 +459,7 @@ confirm:
 
 End Sub
 
+' Grand-total normalisation (percentage of grand total per cell).
 Sub GDTLproportion(Title$, jobs%, nvar%, CLtitle$(), RWTitle$(), result(), sData())
         '
         'express cell values as proportion of grand total
@@ -478,6 +486,7 @@ Sub GDTLproportion(Title$, jobs%, nvar%, CLtitle$(), RWTitle$(), result(), sData
         Next i
 End Sub
 
+' Initialise equal-sized groups; remainder assigned to last group.
 Sub INITIALgroup(jobs%, nvar%, ng, member1%())
         '
         'initialize classes to classify observations
@@ -511,6 +520,7 @@ Sub INITIALgroup(jobs%, nvar%, ng, member1%())
 50      '
 End Sub
 
+' Sweep group sizes k; for each k, optimise assignments and record metrics.
 Private Sub LOOPgroupsize(Title$, CLtitle$(), RWTitle$(), jobs%, nvar%, result(), sData(), Y(), tineq, TM(), SD())
 '
 'Loop group sizes from minimum to maximum
@@ -672,6 +682,7 @@ rent:           Message = "Enter a new minimum number of groups"   ' Set prompt.
 49
 End Sub
 
+' Compute per-variable means (TM) and standard deviations (SD) with small negative variance guard.
 Sub MeansSTdev(CLtitle$(), jobs%, nvar%, result(), sData(), TM(), SD())
         '
         'find means and standard deviations
@@ -727,6 +738,7 @@ Sub MeansSTdev(CLtitle$(), jobs%, nvar%, result(), sData(), TM(), SD())
         '
 End Sub
 
+' Accept or revert a tentative reassignment based on Rs improvement; recompute group means.
 Sub OPTIMALgroup(jobs%, nvar%, ng%, result(), sData(), member1%(), istore%, olstat, pineq, mingrp%, ind%, i%, sumx())
 '
 'find optimum
@@ -771,6 +783,7 @@ Sub OPTIMALgroup(jobs%, nvar%, ng%, result(), sData(), member1%(), istore%, olst
 39      olstat = pineq 'set olstat to pineq
 End Sub
 
+' Optional per-row normalisation to proportions if checkbox is enabled.
 Sub Proportion(Title$, jobs%, nvar%, CLtitle$(), RWTitle$(), result(), sData())
         '
         'check if to take proportions across rows
@@ -793,6 +806,7 @@ Dim j%
         Next i
 End Sub
 
+' Compute per-group Z statistics from group means vs overall means/SD; writes to file in VB6.
 Private Sub RITE(CLtitle$(), statmx, jobs%, nvar%, result(), sData(), ZT(), SD(), TM(), TheGroup As GroupData)
 '
 'print all intermediate groups
@@ -869,6 +883,7 @@ Private Sub RITE(CLtitle$(), statmx, jobs%, nvar%, result(), sData(), ZT(), SD()
         Next i
 99 End Sub
 
+' Explained percentage Rs = 100 * between / total with special-case handling.
 Sub RSstatistic(tineq, bineq, pineq, ixout%)
 '
 'calculate RS statistic
@@ -1027,6 +1042,7 @@ Dim k%, i%, j%, N%
     Next i
 End Sub
 
+' Greedy reassignment: for each sample and each group, try moving and keep if Rs improves.
 Sub SWITCHgroup(CLtitle$(), ixout%, jobs%, nvar%, ng%, member1%(), result(), sData(), mingrp%, tineq, bineq, pineq, Y(), TM(), SD(), intmed%, sumx())
 '
 'switch groups to find optimum
@@ -1086,6 +1102,7 @@ ReDim fGroupOut(jobs, nvar + 1)
         End If
 End Sub
 
+' Compute total inequality across variables using base‑2 logs.
 Sub TOTALinequality(jobs%, nvar%, result(), sData(), Y(), tineq)
         '
         'find total inequality: tineq
@@ -1119,6 +1136,7 @@ Sub TOTALinequality(jobs%, nvar%, result(), sData(), Y(), tineq)
         Next j
 End Sub
 
+' Calinski–Harabasz pseudo‑F; optional permutations loop estimates mean CH and p-value.
 Private Sub CHTest(dat(), Samples%, Classes%, k%, CH, sstt, sset, fCHpermF, fCHPermP)
 Dim totsum()
 Dim totav()

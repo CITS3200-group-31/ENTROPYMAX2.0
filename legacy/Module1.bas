@@ -1,5 +1,6 @@
 Attribute VB_Name = "Module1"
 Option Explicit
+' Windows API interop used only for UI cursor positioning; not part of core algorithm.
 Public Declare Function SetCursorPos Lib "USER32" (ByVal X As Long, ByVal Y As Long) As Long
 Public Type POINTAPI
         X As Long
@@ -7,6 +8,10 @@ Public Type POINTAPI
 End Type
 Public bRs As Boolean
 Public nOutputType As Integer
+' Group metadata used in output/reporting:
+'  - ngrps: number of groups (k)
+'  - fGmean: per‑group per‑variable mean values
+'  - member2: per‑sample group assignment (1..k)
 Public Type GroupData
     ngrps As Integer           '
     fGmean() As Single  '
@@ -17,8 +22,8 @@ Public Type GroupSetData
 End Type
 
 Public Sub GetSaveFile(nFileType As Integer, sFilename As String, sFileTitle As String, bexit As Boolean)
-'This subroutine displays the save dialog and checks
-'whether a file exists
+' Windows common dialog helper (Open/Save); UI only, not part of the algorithm.
+' Shows an open or save dialog and returns selected path; sets bexit=True on cancel.
 Dim nResult As Integer
 Dim spath$
 On Error GoTo ErrHandler
