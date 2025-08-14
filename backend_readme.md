@@ -128,7 +128,7 @@ void csv_free_table(csv_table_t *t);
 - Add unit tests in `backend/tests/` and wire them in CTest (already configured).
 
 ## Notes
-- The C library is designed for a stable ABI so Python bindings (cffi/Cython) can link without churn.
+- The C library is designed for a stable ABI so Python bindings (cffi, if we decide to use it) can link without churn.
 - No temp files are used; data flows in‑memory from CSV to Parquet.
 - Error handling is via integer return codes (0 success, non‑zero error); an error enum will be added when CSV/Parquet are implemented.
 
