@@ -31,15 +31,81 @@ Project work is organised into three sprints aligned with UWA Semester 2 202
 ## Project Structure
 
 ```
-ENTROPYMAX2.0/
-├── legacy/                # Original VB6 application (read‑only)
-├── src/                   # Modern rewrite (language & frameworks TBD)
-├── tests/                 # Automated tests (framework TBD)
-├── docs/                  # Design docs & user guides
-└── examples/              # Sample datasets and walkthroughs
+ENTROPYMAX2/
+├── README.md
+├── .gitignore
+├── pyproject.toml                   # Python deps & build (PyQt6, numpy, cffi, etc.)
+├── scripts/
+│  ├── build_backend.sh              # cmake -S backend -B backend/build && cmake --build backend/build
+│  └── dev_run.sh                    # python -m app
+├── backend/                         # C library (reworked algorithm)
+│  ├── CMakeLists.txt
+│  ├── include/
+│  │  └── backend.h                  # FFI‑friendly C API
+│  ├── src/
+│  │  ├── backend.c                  # core algorithm
+│  │  ├── csv_reader.c               # optional
+│  │  ├── parquet_writer.c           # optional
+│  │  └── util.c
+│  └── tests/
+│     └── test_backend.c
+├── src/                             # Python package (src layout)
+│  └── app/
+│     ├── __init__.py
+│     ├── __main__.py                # entrypoint: `python -m app`
+│     ├── config.py
+│     ├── core/
+│     │  ├── datastore.py            # NumPy/Arrow table access
+│     │  └── io.py                   # CSV/Parquet loaders
+│     ├── bindings/
+│     │  ├── __init__.py
+│     │  ├── _lib.py                 # locate & dlopen lib across OSes
+│     │  ├── cffi_backend.py         # cffi wrapper (start here)
+│     │  └── cython_backend/
+│     │     ├── __init__.py
+│     │     └── wrapper_cy.pyx
+│     ├── gui/
+│     │  ├── main_window.py          # QMainWindow, menus, actions
+│     │  ├── worker.py               # QThread worker calling backend
+│     │  ├── plot_view.py            # PyQtGraph plotting widget(s)
+│     │  ├── map_view.py             # QWebEngineView bridge
+│     │  └── assets/
+│     │     ├── map.html             # minimal Leaflet page
+│     │     └── qrc/                 # icons, qss, etc.
+│     └── lib/                       # (optional) ship native libs with wheel/app
+├── tests/
+│  ├── python/
+│  │  ├── test_cffi_wrapper.py
+│  │  ├── test_datastore.py
+│  │  └── test_gui_smoke.py
+│  └── data/
+│     ├── sample_raw.csv
+│     └── sample_processed.parquet
+├── data/
+│  ├── raw/
+│  └── processed/
+└── legacy/                           # Original VB6 sources (read‑only)
 ```
 
-*Directory layout and tooling will evolve once the technology stack is finalised.*
+## Quick start (dev)
+
+Build the C backend:
+
+```bash
+chmod +x scripts/build_backend.sh
+./scripts/build_backend.sh
+```
+
+Run the PyQt app:
+
+```bash
+chmod +x scripts/dev_run.sh
+./scripts/dev_run.sh
+```
+
+Notes
+- Python deps are declared in `pyproject.toml`.
+- The tree is scaffolded; implementations are being filled in during Sprint 1.
 
 ## Development Status
 
