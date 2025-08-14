@@ -373,6 +373,70 @@ class CITS3200Automation:
             logger.error(f"❌ Error creating zip file: {e}")
             return None
 
+    def create_merged_timesheet(self, individual_files: List[Path]) -> Optional[Path]:
+        """Create a single Excel file with all individual timesheets as separate sheets."""
+        logger.info("📋 Creating merged timesheet...")
+
+        merged_filename = self.output_dir / f"Booked_Hours_All.xlsx"
+
+        if self.dry_run:
+            logger.info(f"[cyan]DRY-RUN[/cyan] Would create merged timesheet → {merged_filename}")
+            return merged_filename
+
+        try:
+            from openpyxl import Workbook
+            merged_wb = Workbook()
+            # Remove the default sheet
+            merged_wb.remove(merged_wb.active)
+
+            for file_path in individual_files:
+                member_name = file_path.stem.replace("Booked_Hours_", "")
+                logger.info(f"  📝 Adding {member_name} sheet...")
+
+                # Load the individual timesheet with data_only=True to get values, not formulas
+                individual_wb = load_workbook(file_path, data_only=True)
+                if "BookedHours" in individual_wb.sheetnames:
+                    source_sheet = individual_wb["BookedHours"]
+
+                    # Create new sheet in merged workbook
+                    new_sheet = merged_wb.create_sheet(title=member_name)
+
+                    # Copy all data from source sheet
+                    for row in source_sheet.iter_rows(values_only=True):
+                        new_sheet.append(row)
+
+                    logger.info(f"    ✅ {member_name} sheet added")
+                else:
+                    logger.warning(f"    ⚠️  BookedHours sheet not found in {file_path}")
+
+            merged_wb.save(merged_filename)
+            logger.info(f"✅ Merged timesheet created: {merged_filename}")
+            return merged_filename
+
+        except Exception as e:
+            logger.error(f"❌ Error creating merged timesheet: {e}")
+            return None
+
+    def cleanup_individual_files(self, individual_files: List[Path]) -> None:
+        """Remove individual timesheet files after creating merged timesheet."""
+        logger.info("🧹 Cleaning up individual timesheet files...")
+
+        if self.dry_run:
+            for file_path in individual_files:
+                logger.info(f"[cyan]DRY-RUN[/cyan] Would remove: {file_path}")
+            return
+
+        try:
+            for file_path in individual_files:
+                if file_path.exists():
+                    file_path.unlink()
+                    logger.info(f"  ✅ Removed: {file_path.name}")
+                else:
+                    logger.warning(f"  ⚠️  File not found: {file_path}")
+            logger.info("✅ Individual timesheet files cleaned up")
+        except Exception as e:
+            logger.error(f"❌ Error cleaning up individual files: {e}")
+
     def cleanup_master_file(self) -> None:
         """Remove the downloaded master file from the project directory"""
         logger.info("🧹 Cleaning up downloaded master file...")
@@ -519,11 +583,17 @@ class CITS3200Automation:
         # Step 5: Create zip file
         zip_file = self.create_zip_file(individual_files)
 
-        # Step 6: Clean up downloaded master file
+        # Step 6: Create merged timesheet
+        merged_file = self.create_merged_timesheet(individual_files)
+
+        # Step 7: Clean up individual timesheet files
+        self.cleanup_individual_files(individual_files)
+
+        # Step 8: Clean up downloaded master file
         self.cleanup_master_file()
 
-        # Step 7: Prompt for upload to Google Drive
-        if group_file and zip_file:
+        # Step 9: Prompt for upload to Google Drive
+        if group_file and zip_file and merged_file:
             if self.dry_run:
                 logger.info("[cyan]DRY-RUN[/cyan] Would prompt for upload to Google Drive; skipping in dry-run.")
             else:
@@ -539,11 +609,11 @@ class CITS3200Automation:
                 else:
                     logger.info("📦 Upload skipped by user.")
 
+        # Step 10: List created files
         logger.info("\n" + "=" * 50)
         logger.info("✅ Automation completed successfully!")
         logger.info(f"📁 Output files created in: {self.output_dir}")
 
-        # List created files
         if not self.dry_run:
             output_files = sorted(p.name for p in self.output_dir.iterdir())
             logger.info(f"📄 Created {len(output_files)} files:")

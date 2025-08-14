@@ -47,7 +47,7 @@ The project is currently in **Sprint 1 – planning phase**. No concrete insta
 
 ## Contributing
 
-We welcome feedback, bug reports and feature ideas via **GitHub Issues** or **Discussions** from interested external parties. Please note that **pull requests will not be considered** until the assessed component of UWA’s CITS3002 unit concludes (late October 2025) to preserve academic integrity *and our sanity*.
+We welcome feedback, bug reports and feature ideas via **GitHub Issues** or **Discussions** from interested external parties. Please note that **pull requests will not be considered** until the assessed component of UWA’s CITS3200 unit concludes (late October 2025) to preserve academic integrity *and our sanity*.
 
 ## License
 
@@ -55,4 +55,4 @@ MIT (provisional) — subject to final approval.
 
 ## Contact
 
-[CITS3002 Group 31](https://github.com/cits3002-group-31/ENTROPYMAX2.0)
+[CITS3200 Group 31](https://github.com/CITS3200-group-31/ENTROPYMAX2.0)
