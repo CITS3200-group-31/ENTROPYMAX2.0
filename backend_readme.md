@@ -9,13 +9,20 @@ backend/
 ├─ CMakeLists.txt                  # Builds static lib `entropymax` and CLI `emx_cli`
 ├─ include/                        # Public headers (stable C ABI)
 │  ├─ backend.h                    # High‑level config types and future convenience API
-│  ├─ algo.h                       # Algorithm entrypoint (array → Parquet)
+│  ├─ preprocess.h                 # Row/grand‑total normalisation; means/SD
+│  ├─ metrics.h                    # Total inequality; CH; Z statistics
+│  ├─ grouping.h                   # Initial groups; between‑inequality; Rs; optimiser
+│  ├─ sweep.h                      # k‑sweep orchestration and per‑k metrics
 │  ├─ csv.h                        # CSV reader table representation / API
 │  ├─ parquet.h                    # Parquet writer API
 │  └─ util.h                       # Allocation helpers
 ├─ src/
 │  ├─ algo/
-│  │  └─ backend_algo.c           # Core algorithm glue (calls Parquet writer)
+│  │  ├─ backend_algo.c           # Entrypoint glue (preprocess → sweep → write)
+│  │  ├─ preprocess.c             # Noah: transforms and base stats
+│  │  ├─ metrics.c                # Noah: total inequality, CH, Z
+│  │  ├─ grouping.c               # Will: grouping engine & optimiser
+│  │  └─ sweep.c                  # Will: k‑sweep orchestration
 │  ├─ io/
 │  │  ├─ csv_reader.c             # CSV → in‑memory table (placeholder)
 │  │  └─ parquet_writer.c         # Table → Parquet (placeholder)

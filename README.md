@@ -40,9 +40,9 @@ ENTROPYMAX2/
 │  └── dev_run.sh                    # python -m app
 ├── backend/                         # Modular C backend
 │  ├── CMakeLists.txt
-│  ├── include/                      # headers: backend.h, algo.h, csv.h, parquet.h, util.h
+│  ├── include/                      # headers: backend.h, preprocess.h, metrics.h, grouping.h, sweep.h, csv.h, parquet.h, util.h
 │  ├── src/
-│  │  ├── algo/                      # core algorithm implementation
+│  │  ├── algo/                      # core algorithm implementation (glue + modules)
 │  │  ├── io/                        # csv_reader.c, parquet_writer.c
 │  │  ├── util/                      # helpers
 │  │  └── cli/                       # emx_cli: CSV -> Parquet pipeline
