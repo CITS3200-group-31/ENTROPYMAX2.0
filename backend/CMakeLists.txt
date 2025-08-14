@@ -6,6 +6,10 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 add_library(entropymax STATIC
   src/algo/backend_algo.c
+  src/algo/preprocess.c
+  src/algo/metrics.c
+  src/algo/grouping.c
+  src/algo/sweep.c
   src/io/csv_reader.c
   src/io/parquet_writer.c
   src/util/util.c
