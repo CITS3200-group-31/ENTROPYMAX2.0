@@ -1,5 +1,6 @@
 #pragma once
 #include <stdint.h>
+#include <math.h>
 
 // Row-wise proportion normalisation
 int em_proportion(double *data, int32_t rows, int32_t cols);
