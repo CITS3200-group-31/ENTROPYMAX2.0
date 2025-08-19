@@ -32,9 +32,25 @@ int em_proportion(double *data, int32_t rows, int32_t cols) {
 // OWNER: Noah line 463 in Form1
 // VB6 mapping: GDTLproportion → em_gdtl_percent
 int em_gdtl_percent(double *data, int32_t rows, int32_t cols){
-  (void)data; (void)rows; (void)cols;
-  // TODO [Noah]: implement grand-total percent normalisation (VB6 GDTLproportion)
-  return -1; // placeholder
+    if (data == NULL || rows <= 0 || cols <= 0)
+        return -1;
+
+    double grand_total = 0.0;
+
+    // calculate grand total (GDTL)
+    for (int i = 0; i < rows * cols; ++i) {
+        grand_total += data[i];
+    }
+
+    if (grand_total == 0.0)
+        return -2; // divide zero check
+
+    // convert to % 
+    for (int i = 0; i < rows * cols; ++i) {
+        data[i] = (data[i] / grand_total) * 100.0;
+    }
+
+    return 0; // Success
 }
 
 // OWNER: Noah Line 686 in Form1
@@ -66,7 +82,7 @@ int em_means_sd(const double *data, int32_t rows, int32_t cols, double *out_mean
         double avg_sq = out_sd[j] / (double)rows;
         double variance = avg_sq - mean_sq;
 
-        // Handle negative variance guard
+        // Handle negative variance
         if (variance < 0.0 && variance > -0.0001) {
             out_sd[j] = 0.0;
         } else if (variance >= 0.0) {
