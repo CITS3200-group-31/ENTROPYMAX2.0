@@ -1,0 +1,12 @@
+import os
+from convert_csv_to_parquet import convert_csv_to_parquet
+
+def convert(csvfilepath):
+    # In case of wrong file type during testing
+    if not csvfilepath.lower().endswith(".csv"):
+        raise ValueError("Input file must be a .csv")
+
+    # Changes file type to .parquet so it only needs the path of the csv file as an input
+    parquetfilepath = os.path.splitext(csvfilepath)[0] + ".parquet"
+    # Calls the function to convert
+    convert_csv_to_parquet(csvfilepath, parquetfilepath)
