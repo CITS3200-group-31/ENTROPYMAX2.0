@@ -4,7 +4,7 @@
 // VB6 mapping: Proportion → em_proportion
 int em_proportion(double *data, int32_t rows, int32_t cols) {
     if (!data || rows <= 0 || cols <= 0) {
-        return -1;  // Invalid input
+        return -1;
     }
 
     for (int i = 0; i < rows; ++i) {
@@ -16,7 +16,6 @@ int em_proportion(double *data, int32_t rows, int32_t cols) {
         }
 
         if (row_sum == 0.0) {
-            // Avoid divide-by-zero (could optionally skip or return error)
             return -2;
         }
 
