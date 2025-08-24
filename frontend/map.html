@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html>
+<head>
+    
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8" />
+    <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.3/dist/leaflet.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.2/dist/css/bootstrap.min.css"/>
+    <link rel="stylesheet" href="https://netdna.bootstrapcdn.com/bootstrap/3.0.0/css/bootstrap-glyphicons.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.2.0/css/all.min.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Leaflet.awesome-markers/2.0.2/leaflet.awesome-markers.css"/>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/python-visualization/folium/folium/templates/leaflet.awesome.rotate.min.css"/>
+    
+            <meta name="viewport" content="width=device-width,
+                initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+            <style>
+                #map_6fe71ef0774007b902c46920dc409cd8 {
+                    position: relative;
+                    width: 100.0%;
+                    height: 100.0%;
+                    left: 0.0%;
+                    top: 0.0%;
+                }
+                .leaflet-container { font-size: 1rem; }
+            </style>
+
+            <style>html, body {
+                width: 100%;
+                height: 100%;
+                margin: 0;
+                padding: 0;
+            }
+            </style>
+
+            <style>#map {
+                position:absolute;
+                top:0;
+                bottom:0;
+                right:0;
+                left:0;
+                }
+            </style>
+
+            <script>
+                L_NO_TOUCH = false;
+                L_DISABLE_3D = false;
+            </script>
+
+        
+</head>
+<body>
+    
+    
+            <div class="folium-map" id="map_6fe71ef0774007b902c46920dc409cd8" ></div>
+        
+</body>
+<script>
+    
+    
+            var map_6fe71ef0774007b902c46920dc409cd8 = L.map(
+                "map_6fe71ef0774007b902c46920dc409cd8",
+                {
+                    center: [-30.35034, 131.059125],
+                    crs: L.CRS.EPSG3857,
+                    ...{
+  "zoom": 5,
+  "zoomControl": true,
+  "preferCanvas": false,
+}
+
+                }
+            );
+            L.control.scale().addTo(map_6fe71ef0774007b902c46920dc409cd8);
+
+            
+
+        
+    
+            var tile_layer_27a7e406c15d8bd71700b5363b150961 = L.tileLayer(
+                "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+                {
+  "minZoom": 0,
+  "maxZoom": 18,
+  "maxNativeZoom": 18,
+  "noWrap": false,
+  "attribution": "Esri",
+  "subdomains": "abc",
+  "detectRetina": false,
+  "tms": false,
+  "opacity": 1,
+}
+
+            );
+        
+    
+            tile_layer_27a7e406c15d8bd71700b5363b150961.addTo(map_6fe71ef0774007b902c46920dc409cd8);
+        
+    
+            var marker_81cb755bc78247d8d1850736039e2a92 = L.marker(
+                [-31.9523, 115.8613],
+                {
+}
+            ).addTo(map_6fe71ef0774007b902c46920dc409cd8);
+        
+    
+            var icon_b7aba7e61a4eefa4622ef6cca39b0e14 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_2e0fc11db65ed65efae157c53e21e618 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_3f2b2212a1263186e1538777b5e1ef3b = $(`<div id="html_3f2b2212a1263186e1538777b5e1ef3b" style="width: 100.0%; height: 100.0%;">             <div style="font-family: Arial, sans-serif; min-width: 150px;">                 <b>Parakeelya Beach</b><br>                 Location: (-31.9523, 115.8613)<br>                 Group: 1<br>                 <div id="status_Parakeelya_Beach">                     Click marker to select                 </div>             </div>             </div>`)[0];
+                popup_2e0fc11db65ed65efae157c53e21e618.setContent(html_3f2b2212a1263186e1538777b5e1ef3b);
+            
+        
+
+        marker_81cb755bc78247d8d1850736039e2a92.bindPopup(popup_2e0fc11db65ed65efae157c53e21e618)
+        ;
+
+        
+    
+    
+            marker_81cb755bc78247d8d1850736039e2a92.bindTooltip(
+                `<div>
+                     Parakeelya Beach (Group 1)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_81cb755bc78247d8d1850736039e2a92.setIcon(icon_b7aba7e61a4eefa4622ef6cca39b0e14);
+            
+    
+            var marker_12f2d3e65c1dc0c66003551b9e41568f = L.marker(
+                [-32.1234, 115.9876],
+                {
+}
+            ).addTo(map_6fe71ef0774007b902c46920dc409cd8);
+        
+    
+            var icon_0a4f0c0d28b1e39335fcb68cbb296564 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_4643ef574c600d94615873995dbbae10 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_ea8b906ef27cc32671a60776d3570d2a = $(`<div id="html_ea8b906ef27cc32671a60776d3570d2a" style="width: 100.0%; height: 100.0%;">             <div style="font-family: Arial, sans-serif; min-width: 150px;">                 <b>Rockingham</b><br>                 Location: (-32.1234, 115.9876)<br>                 Group: 1<br>                 <div id="status_Rockingham">                     Click marker to select                 </div>             </div>             </div>`)[0];
+                popup_4643ef574c600d94615873995dbbae10.setContent(html_ea8b906ef27cc32671a60776d3570d2a);
+            
+        
+
+        marker_12f2d3e65c1dc0c66003551b9e41568f.bindPopup(popup_4643ef574c600d94615873995dbbae10)
+        ;
+
+        
+    
+    
+            marker_12f2d3e65c1dc0c66003551b9e41568f.bindTooltip(
+                `<div>
+                     Rockingham (Group 1)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_12f2d3e65c1dc0c66003551b9e41568f.setIcon(icon_0a4f0c0d28b1e39335fcb68cbb296564);
+            
+    
+            var marker_e0718d65227ac42efe955b650472847b = L.marker(
+                [-33.861, 121.8891],
+                {
+}
+            ).addTo(map_6fe71ef0774007b902c46920dc409cd8);
+        
+    
+            var icon_f8f3fd50fb6d5a0b29d5b1e355e569ae = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "darkblue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_6341add22c6832249c893d17d43b96c7 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_bba0b014cb4d5d42fdcc428b0881bd43 = $(`<div id="html_bba0b014cb4d5d42fdcc428b0881bd43" style="width: 100.0%; height: 100.0%;">             <div style="font-family: Arial, sans-serif; min-width: 150px;">                 <b>Esperance</b><br>                 Location: (-33.8610, 121.8891)<br>                 Group: 2<br>                 <div id="status_Esperance">                     Click marker to select                 </div>             </div>             </div>`)[0];
+                popup_6341add22c6832249c893d17d43b96c7.setContent(html_bba0b014cb4d5d42fdcc428b0881bd43);
+            
+        
+
+        marker_e0718d65227ac42efe955b650472847b.bindPopup(popup_6341add22c6832249c893d17d43b96c7)
+        ;
+
+        
+    
+    
+            marker_e0718d65227ac42efe955b650472847b.bindTooltip(
+                `<div>
+                     Esperance (Group 2)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_e0718d65227ac42efe955b650472847b.setIcon(icon_f8f3fd50fb6d5a0b29d5b1e355e569ae);
+            
+    
+            var marker_2a047f5f48ae10e0408004d3d8418619 = L.marker(
+                [-35.027, 117.884],
+                {
+}
+            ).addTo(map_6fe71ef0774007b902c46920dc409cd8);
+        
+    
+            var icon_99c3201f93dcec6f95e8d9fd931f2b3d = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "darkblue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_19a21a2e54a0ca67171dcea48c621af3 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_8fc274f0e7d84784697fd71d185a16c1 = $(`<div id="html_8fc274f0e7d84784697fd71d185a16c1" style="width: 100.0%; height: 100.0%;">             <div style="font-family: Arial, sans-serif; min-width: 150px;">                 <b>Albany</b><br>                 Location: (-35.0270, 117.8840)<br>                 Group: 2<br>                 <div id="status_Albany">                     Click marker to select                 </div>             </div>             </div>`)[0];
+                popup_19a21a2e54a0ca67171dcea48c621af3.setContent(html_8fc274f0e7d84784697fd71d185a16c1);
+            
+        
+
+        marker_2a047f5f48ae10e0408004d3d8418619.bindPopup(popup_19a21a2e54a0ca67171dcea48c621af3)
+        ;
+
+        
+    
+    
+            marker_2a047f5f48ae10e0408004d3d8418619.bindTooltip(
+                `<div>
+                     Albany (Group 2)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_2a047f5f48ae10e0408004d3d8418619.setIcon(icon_99c3201f93dcec6f95e8d9fd931f2b3d);
+            
+    
+            var marker_84d40c216b8c85bb232295a187e0aa0e = L.marker(
+                [-34.5678, 118.1234],
+                {
+}
+            ).addTo(map_6fe71ef0774007b902c46920dc409cd8);
+        
+    
+            var icon_af4415b8a89cd49a48d6ac7e26121f5c = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "lightblue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_5cc59e9aa77a842ed4115bb7f3c24799 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_a37ac435ac383f0cef29719eea710e84 = $(`<div id="html_a37ac435ac383f0cef29719eea710e84" style="width: 100.0%; height: 100.0%;">             <div style="font-family: Arial, sans-serif; min-width: 150px;">                 <b>Denmark</b><br>                 Location: (-34.5678, 118.1234)<br>                 Group: 3<br>                 <div id="status_Denmark">                     Click marker to select                 </div>             </div>             </div>`)[0];
+                popup_5cc59e9aa77a842ed4115bb7f3c24799.setContent(html_a37ac435ac383f0cef29719eea710e84);
+            
+        
+
+        marker_84d40c216b8c85bb232295a187e0aa0e.bindPopup(popup_5cc59e9aa77a842ed4115bb7f3c24799)
+        ;
+
+        
+    
+    
+            marker_84d40c216b8c85bb232295a187e0aa0e.bindTooltip(
+                `<div>
+                     Denmark (Group 3)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_84d40c216b8c85bb232295a187e0aa0e.setIcon(icon_af4415b8a89cd49a48d6ac7e26121f5c);
+            
+    
+            var marker_9ace5787220c9edde9de0c7108468eef = L.marker(
+                [-31.789, 115.789],
+                {
+}
+            ).addTo(map_6fe71ef0774007b902c46920dc409cd8);
+        
+    
+            var icon_de4a50b097e9e7af99c385053bef59d5 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_839332cc3fa5da95d691652fe757b64e = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_343b248ff45203e069c0d3738c7fe1a3 = $(`<div id="html_343b248ff45203e069c0d3738c7fe1a3" style="width: 100.0%; height: 100.0%;">             <div style="font-family: Arial, sans-serif; min-width: 150px;">                 <b>Fremantle</b><br>                 Location: (-31.7890, 115.7890)<br>                 Group: 1<br>                 <div id="status_Fremantle">                     Click marker to select                 </div>             </div>             </div>`)[0];
+                popup_839332cc3fa5da95d691652fe757b64e.setContent(html_343b248ff45203e069c0d3738c7fe1a3);
+            
+        
+
+        marker_9ace5787220c9edde9de0c7108468eef.bindPopup(popup_839332cc3fa5da95d691652fe757b64e)
+        ;
+
+        
+    
+    
+            marker_9ace5787220c9edde9de0c7108468eef.bindTooltip(
+                `<div>
+                     Fremantle (Group 1)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_9ace5787220c9edde9de0c7108468eef.setIcon(icon_de4a50b097e9e7af99c385053bef59d5);
+            
+    
+            var marker_e190061ca3df6808bb1d1139c28d5d3a = L.marker(
+                [-32.3456, 116.3456],
+                {
+}
+            ).addTo(map_6fe71ef0774007b902c46920dc409cd8);
+        
+    
+            var icon_69066fefaf6cc64cbd553c5369c36ba9 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "darkblue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_04dd978d39a0dbb767dbbe195b32bc6b = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_c0248e16823039674b3832a2f62a2c79 = $(`<div id="html_c0248e16823039674b3832a2f62a2c79" style="width: 100.0%; height: 100.0%;">             <div style="font-family: Arial, sans-serif; min-width: 150px;">                 <b>Armadale</b><br>                 Location: (-32.3456, 116.3456)<br>                 Group: 2<br>                 <div id="status_Armadale">                     Click marker to select                 </div>             </div>             </div>`)[0];
+                popup_04dd978d39a0dbb767dbbe195b32bc6b.setContent(html_c0248e16823039674b3832a2f62a2c79);
+            
+        
+
+        marker_e190061ca3df6808bb1d1139c28d5d3a.bindPopup(popup_04dd978d39a0dbb767dbbe195b32bc6b)
+        ;
+
+        
+    
+    
+            marker_e190061ca3df6808bb1d1139c28d5d3a.bindTooltip(
+                `<div>
+                     Armadale (Group 2)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_e190061ca3df6808bb1d1139c28d5d3a.setIcon(icon_69066fefaf6cc64cbd553c5369c36ba9);
+            
+    
+            var marker_a8a29d090a3112cdb9bbf7ef95d489f6 = L.marker(
+                [-28.7674, 114.6089],
+                {
+}
+            ).addTo(map_6fe71ef0774007b902c46920dc409cd8);
+        
+    
+            var icon_488ec5b1a263ef3e243b63c972d16f95 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "lightblue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_68cd932651dc4afe435e157aa58a3ede = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_a6f2b142267178a354cc1b487ea5d08e = $(`<div id="html_a6f2b142267178a354cc1b487ea5d08e" style="width: 100.0%; height: 100.0%;">             <div style="font-family: Arial, sans-serif; min-width: 150px;">                 <b>Geraldton</b><br>                 Location: (-28.7674, 114.6089)<br>                 Group: 3<br>                 <div id="status_Geraldton">                     Click marker to select                 </div>             </div>             </div>`)[0];
+                popup_68cd932651dc4afe435e157aa58a3ede.setContent(html_a6f2b142267178a354cc1b487ea5d08e);
+            
+        
+
+        marker_a8a29d090a3112cdb9bbf7ef95d489f6.bindPopup(popup_68cd932651dc4afe435e157aa58a3ede)
+        ;
+
+        
+    
+    
+            marker_a8a29d090a3112cdb9bbf7ef95d489f6.bindTooltip(
+                `<div>
+                     Geraldton (Group 3)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_a8a29d090a3112cdb9bbf7ef95d489f6.setIcon(icon_488ec5b1a263ef3e243b63c972d16f95);
+            
+    
+            var marker_f5674d25db817101cfe2b4027448fa9b = L.marker(
+                [-24.8843, 113.6594],
+                {
+}
+            ).addTo(map_6fe71ef0774007b902c46920dc409cd8);
+        
+    
+            var icon_b9bc3309ea2a3d2ea858ea8b7bf22704 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_e00e7e345abf65b7ee8509eba891c798 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_89bc718fd5e8020eb186d7234b21dd33 = $(`<div id="html_89bc718fd5e8020eb186d7234b21dd33" style="width: 100.0%; height: 100.0%;">             <div style="font-family: Arial, sans-serif; min-width: 150px;">                 <b>Carnarvon</b><br>                 Location: (-24.8843, 113.6594)<br>                 Group: 1<br>                 <div id="status_Carnarvon">                     Click marker to select                 </div>             </div>             </div>`)[0];
+                popup_e00e7e345abf65b7ee8509eba891c798.setContent(html_89bc718fd5e8020eb186d7234b21dd33);
+            
+        
+
+        marker_f5674d25db817101cfe2b4027448fa9b.bindPopup(popup_e00e7e345abf65b7ee8509eba891c798)
+        ;
+
+        
+    
+    
+            marker_f5674d25db817101cfe2b4027448fa9b.bindTooltip(
+                `<div>
+                     Carnarvon (Group 1)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_f5674d25db817101cfe2b4027448fa9b.setIcon(icon_b9bc3309ea2a3d2ea858ea8b7bf22704);
+            
+    
+            var marker_95f011b1e7f55cfd71575a0b18ba7369 = L.marker(
+                [-26.6103, 113.1046],
+                {
+}
+            ).addTo(map_6fe71ef0774007b902c46920dc409cd8);
+        
+    
+            var icon_b81180127927d60d6bf954466814d9f4 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "darkblue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_a6d4fa59981224d5ed4420e2c690915b = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_3a6649e9273cd566b18852edb453fa90 = $(`<div id="html_3a6649e9273cd566b18852edb453fa90" style="width: 100.0%; height: 100.0%;">             <div style="font-family: Arial, sans-serif; min-width: 150px;">                 <b>Shark Bay</b><br>                 Location: (-26.6103, 113.1046)<br>                 Group: 2<br>                 <div id="status_Shark_Bay">                     Click marker to select                 </div>             </div>             </div>`)[0];
+                popup_a6d4fa59981224d5ed4420e2c690915b.setContent(html_3a6649e9273cd566b18852edb453fa90);
+            
+        
+
+        marker_95f011b1e7f55cfd71575a0b18ba7369.bindPopup(popup_a6d4fa59981224d5ed4420e2c690915b)
+        ;
+
+        
+    
+    
+            marker_95f011b1e7f55cfd71575a0b18ba7369.bindTooltip(
+                `<div>
+                     Shark Bay (Group 2)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_95f011b1e7f55cfd71575a0b18ba7369.setIcon(icon_b81180127927d60d6bf954466814d9f4);
+            
+    
+            var marker_5df7ddce91f48eeae5d05ac92d20137e = L.marker(
+                [-27.4718, 153.0251],
+                {
+}
+            ).addTo(map_6fe71ef0774007b902c46920dc409cd8);
+        
+    
+            var icon_9b4b7e0cd9aaaa4bd72867c9bfc14f5d = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "darkblue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_97c8bd68bcaced9f601bd9b5cf21a354 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_598e045918f8086a7421a9486e0f6c23 = $(`<div id="html_598e045918f8086a7421a9486e0f6c23" style="width: 100.0%; height: 100.0%;">             <div style="font-family: Arial, sans-serif; min-width: 150px;">                 <b>Brisbane</b><br>                 Location: (-27.4718, 153.0251)<br>                 Group: 2<br>                 <div id="status_Brisbane">                     Click marker to select                 </div>             </div>             </div>`)[0];
+                popup_97c8bd68bcaced9f601bd9b5cf21a354.setContent(html_598e045918f8086a7421a9486e0f6c23);
+            
+        
+
+        marker_5df7ddce91f48eeae5d05ac92d20137e.bindPopup(popup_97c8bd68bcaced9f601bd9b5cf21a354)
+        ;
+
+        
+    
+    
+            marker_5df7ddce91f48eeae5d05ac92d20137e.bindTooltip(
+                `<div>
+                     Brisbane (Group 2)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_5df7ddce91f48eeae5d05ac92d20137e.setIcon(icon_9b4b7e0cd9aaaa4bd72867c9bfc14f5d);
+            
+    
+            var marker_edf308bcb9375b036e61a976570c76fb = L.marker(
+                [-28.0167, 153.4],
+                {
+}
+            ).addTo(map_6fe71ef0774007b902c46920dc409cd8);
+        
+    
+            var icon_34b5f183f28229e644dc12affce3352d = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "lightblue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_68f113ace8fe2eec59062329ff569bc8 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_9e2ec9c60ddceb2ecaa8b48fa9235551 = $(`<div id="html_9e2ec9c60ddceb2ecaa8b48fa9235551" style="width: 100.0%; height: 100.0%;">             <div style="font-family: Arial, sans-serif; min-width: 150px;">                 <b>Gold Coast</b><br>                 Location: (-28.0167, 153.4000)<br>                 Group: 3<br>                 <div id="status_Gold_Coast">                     Click marker to select                 </div>             </div>             </div>`)[0];
+                popup_68f113ace8fe2eec59062329ff569bc8.setContent(html_9e2ec9c60ddceb2ecaa8b48fa9235551);
+            
+        
+
+        marker_edf308bcb9375b036e61a976570c76fb.bindPopup(popup_68f113ace8fe2eec59062329ff569bc8)
+        ;
+
+        
+    
+    
+            marker_edf308bcb9375b036e61a976570c76fb.bindTooltip(
+                `<div>
+                     Gold Coast (Group 3)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_edf308bcb9375b036e61a976570c76fb.setIcon(icon_34b5f183f28229e644dc12affce3352d);
+            
+    
+            var marker_3c367df3e228eb05397642591e061eb2 = L.marker(
+                [-33.8688, 151.2093],
+                {
+}
+            ).addTo(map_6fe71ef0774007b902c46920dc409cd8);
+        
+    
+            var icon_3c5d4ec1b174ff22cfd72f06aa13876e = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "lightblue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_54f9db85b4de15d3e50cd560f12d036c = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_c48f54b579984e8b7bb98816aa84c707 = $(`<div id="html_c48f54b579984e8b7bb98816aa84c707" style="width: 100.0%; height: 100.0%;">             <div style="font-family: Arial, sans-serif; min-width: 150px;">                 <b>Sydney</b><br>                 Location: (-33.8688, 151.2093)<br>                 Group: 3<br>                 <div id="status_Sydney">                     Click marker to select                 </div>             </div>             </div>`)[0];
+                popup_54f9db85b4de15d3e50cd560f12d036c.setContent(html_c48f54b579984e8b7bb98816aa84c707);
+            
+        
+
+        marker_3c367df3e228eb05397642591e061eb2.bindPopup(popup_54f9db85b4de15d3e50cd560f12d036c)
+        ;
+
+        
+    
+    
+            marker_3c367df3e228eb05397642591e061eb2.bindTooltip(
+                `<div>
+                     Sydney (Group 3)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_3c367df3e228eb05397642591e061eb2.setIcon(icon_3c5d4ec1b174ff22cfd72f06aa13876e);
+            
+    
+            var marker_c670515c3916017e4cedb9af40fcb1e7 = L.marker(
+                [-37.8136, 144.9631],
+                {
+}
+            ).addTo(map_6fe71ef0774007b902c46920dc409cd8);
+        
+    
+            var icon_82decb5413ce5e8ee17e0ba277a7e6e0 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_803349e5405eeaaced18bf1cfb7ae17c = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_3b7b964b85d2d7468a10662b3dee24a1 = $(`<div id="html_3b7b964b85d2d7468a10662b3dee24a1" style="width: 100.0%; height: 100.0%;">             <div style="font-family: Arial, sans-serif; min-width: 150px;">                 <b>Melbourne</b><br>                 Location: (-37.8136, 144.9631)<br>                 Group: 1<br>                 <div id="status_Melbourne">                     Click marker to select                 </div>             </div>             </div>`)[0];
+                popup_803349e5405eeaaced18bf1cfb7ae17c.setContent(html_3b7b964b85d2d7468a10662b3dee24a1);
+            
+        
+
+        marker_c670515c3916017e4cedb9af40fcb1e7.bindPopup(popup_803349e5405eeaaced18bf1cfb7ae17c)
+        ;
+
+        
+    
+    
+            marker_c670515c3916017e4cedb9af40fcb1e7.bindTooltip(
+                `<div>
+                     Melbourne (Group 1)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_c670515c3916017e4cedb9af40fcb1e7.setIcon(icon_82decb5413ce5e8ee17e0ba277a7e6e0);
+            
+    
+            var marker_6ce90b8791b22708c836668ace8b574f = L.marker(
+                [-34.9285, 138.6007],
+                {
+}
+            ).addTo(map_6fe71ef0774007b902c46920dc409cd8);
+        
+    
+            var icon_a8e0ce27d235e8cc3d0758c513b368a1 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "darkblue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_cb9c925eed71ded8e7ca827fc8fe1743 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_4306943235d4a7f9642e99ee0bd02026 = $(`<div id="html_4306943235d4a7f9642e99ee0bd02026" style="width: 100.0%; height: 100.0%;">             <div style="font-family: Arial, sans-serif; min-width: 150px;">                 <b>Adelaide</b><br>                 Location: (-34.9285, 138.6007)<br>                 Group: 2<br>                 <div id="status_Adelaide">                     Click marker to select                 </div>             </div>             </div>`)[0];
+                popup_cb9c925eed71ded8e7ca827fc8fe1743.setContent(html_4306943235d4a7f9642e99ee0bd02026);
+            
+        
+
+        marker_6ce90b8791b22708c836668ace8b574f.bindPopup(popup_cb9c925eed71ded8e7ca827fc8fe1743)
+        ;
+
+        
+    
+    
+            marker_6ce90b8791b22708c836668ace8b574f.bindTooltip(
+                `<div>
+                     Adelaide (Group 2)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_6ce90b8791b22708c836668ace8b574f.setIcon(icon_a8e0ce27d235e8cc3d0758c513b368a1);
+            
+    
+            var marker_25f3eae35d6f537781471993e9c5a54e = L.marker(
+                [-42.8821, 147.3272],
+                {
+}
+            ).addTo(map_6fe71ef0774007b902c46920dc409cd8);
+        
+    
+            var icon_b5a26b8f960c3e46cd4c5d1361ccda26 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_4a90ae2a2b7400e081e01edd86ac6316 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_bf898a24f49b50d9fd0c3ff26a144d65 = $(`<div id="html_bf898a24f49b50d9fd0c3ff26a144d65" style="width: 100.0%; height: 100.0%;">             <div style="font-family: Arial, sans-serif; min-width: 150px;">                 <b>Hobart</b><br>                 Location: (-42.8821, 147.3272)<br>                 Group: 1<br>                 <div id="status_Hobart">                     Click marker to select                 </div>             </div>             </div>`)[0];
+                popup_4a90ae2a2b7400e081e01edd86ac6316.setContent(html_bf898a24f49b50d9fd0c3ff26a144d65);
+            
+        
+
+        marker_25f3eae35d6f537781471993e9c5a54e.bindPopup(popup_4a90ae2a2b7400e081e01edd86ac6316)
+        ;
+
+        
+    
+    
+            marker_25f3eae35d6f537781471993e9c5a54e.bindTooltip(
+                `<div>
+                     Hobart (Group 1)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_25f3eae35d6f537781471993e9c5a54e.setIcon(icon_b5a26b8f960c3e46cd4c5d1361ccda26);
+            
+    
+            var marker_d3349ee557a84948dc88ba58f40a14b5 = L.marker(
+                [-41.4545, 145.9707],
+                {
+}
+            ).addTo(map_6fe71ef0774007b902c46920dc409cd8);
+        
+    
+            var icon_053a83bea357c9452e98b170b8450f52 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "lightblue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_8c2a27aee09cba594b07d2573f274c21 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_e02aebedfb89608dd5e4c9ecb2170a15 = $(`<div id="html_e02aebedfb89608dd5e4c9ecb2170a15" style="width: 100.0%; height: 100.0%;">             <div style="font-family: Arial, sans-serif; min-width: 150px;">                 <b>Burnie</b><br>                 Location: (-41.4545, 145.9707)<br>                 Group: 3<br>                 <div id="status_Burnie">                     Click marker to select                 </div>             </div>             </div>`)[0];
+                popup_8c2a27aee09cba594b07d2573f274c21.setContent(html_e02aebedfb89608dd5e4c9ecb2170a15);
+            
+        
+
+        marker_d3349ee557a84948dc88ba58f40a14b5.bindPopup(popup_8c2a27aee09cba594b07d2573f274c21)
+        ;
+
+        
+    
+    
+            marker_d3349ee557a84948dc88ba58f40a14b5.bindTooltip(
+                `<div>
+                     Burnie (Group 3)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_d3349ee557a84948dc88ba58f40a14b5.setIcon(icon_053a83bea357c9452e98b170b8450f52);
+            
+    
+            var marker_f060b9792980b41f41967a258fb01b08 = L.marker(
+                [-19.259, 146.8169],
+                {
+}
+            ).addTo(map_6fe71ef0774007b902c46920dc409cd8);
+        
+    
+            var icon_0734e570117d032821abdbc02af40e5f = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "darkblue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_91270d9ba577befaf1a52e6377143d6a = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_258e20f8a2d5939f773bd5855153a058 = $(`<div id="html_258e20f8a2d5939f773bd5855153a058" style="width: 100.0%; height: 100.0%;">             <div style="font-family: Arial, sans-serif; min-width: 150px;">                 <b>Townsville</b><br>                 Location: (-19.2590, 146.8169)<br>                 Group: 2<br>                 <div id="status_Townsville">                     Click marker to select                 </div>             </div>             </div>`)[0];
+                popup_91270d9ba577befaf1a52e6377143d6a.setContent(html_258e20f8a2d5939f773bd5855153a058);
+            
+        
+
+        marker_f060b9792980b41f41967a258fb01b08.bindPopup(popup_91270d9ba577befaf1a52e6377143d6a)
+        ;
+
+        
+    
+    
+            marker_f060b9792980b41f41967a258fb01b08.bindTooltip(
+                `<div>
+                     Townsville (Group 2)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_f060b9792980b41f41967a258fb01b08.setIcon(icon_0734e570117d032821abdbc02af40e5f);
+            
+    
+            var marker_2d2942d0b67e9a2d77472d7323387126 = L.marker(
+                [-16.9203, 145.771],
+                {
+}
+            ).addTo(map_6fe71ef0774007b902c46920dc409cd8);
+        
+    
+            var icon_26f61358d738d1a975ebc8c349e244e2 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "blue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_26f2fee43cba04ccb0049bdcaa10da69 = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_1698df5edc5c5ffde539cee866bf11cb = $(`<div id="html_1698df5edc5c5ffde539cee866bf11cb" style="width: 100.0%; height: 100.0%;">             <div style="font-family: Arial, sans-serif; min-width: 150px;">                 <b>Cairns</b><br>                 Location: (-16.9203, 145.7710)<br>                 Group: 1<br>                 <div id="status_Cairns">                     Click marker to select                 </div>             </div>             </div>`)[0];
+                popup_26f2fee43cba04ccb0049bdcaa10da69.setContent(html_1698df5edc5c5ffde539cee866bf11cb);
+            
+        
+
+        marker_2d2942d0b67e9a2d77472d7323387126.bindPopup(popup_26f2fee43cba04ccb0049bdcaa10da69)
+        ;
+
+        
+    
+    
+            marker_2d2942d0b67e9a2d77472d7323387126.bindTooltip(
+                `<div>
+                     Cairns (Group 1)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_2d2942d0b67e9a2d77472d7323387126.setIcon(icon_26f61358d738d1a975ebc8c349e244e2);
+            
+    
+            var marker_8db07268890e432aeb81b6926086cf0c = L.marker(
+                [-12.4634, 130.8456],
+                {
+}
+            ).addTo(map_6fe71ef0774007b902c46920dc409cd8);
+        
+    
+            var icon_c98cb7ea3a0a514e4ccbe1376d5affc7 = L.AwesomeMarkers.icon(
+                {
+  "markerColor": "lightblue",
+  "iconColor": "white",
+  "icon": "info-sign",
+  "prefix": "glyphicon",
+  "extraClasses": "fa-rotate-0",
+}
+            );
+        
+    
+        var popup_f9df744d41244f290eb65d87f38a1d8d = L.popup({
+  "maxWidth": 300,
+});
+
+        
+            
+                var html_ed477ececf63f1598b0fbcf89e89b7ef = $(`<div id="html_ed477ececf63f1598b0fbcf89e89b7ef" style="width: 100.0%; height: 100.0%;">             <div style="font-family: Arial, sans-serif; min-width: 150px;">                 <b>Darwin</b><br>                 Location: (-12.4634, 130.8456)<br>                 Group: 3<br>                 <div id="status_Darwin">                     Click marker to select                 </div>             </div>             </div>`)[0];
+                popup_f9df744d41244f290eb65d87f38a1d8d.setContent(html_ed477ececf63f1598b0fbcf89e89b7ef);
+            
+        
+
+        marker_8db07268890e432aeb81b6926086cf0c.bindPopup(popup_f9df744d41244f290eb65d87f38a1d8d)
+        ;
+
+        
+    
+    
+            marker_8db07268890e432aeb81b6926086cf0c.bindTooltip(
+                `<div>
+                     Darwin (Group 3)
+                 </div>`,
+                {
+  "sticky": true,
+}
+            );
+        
+    
+                marker_8db07268890e432aeb81b6926086cf0c.setIcon(icon_c98cb7ea3a0a514e4ccbe1376d5affc7);
+            
+</script>
+</html>

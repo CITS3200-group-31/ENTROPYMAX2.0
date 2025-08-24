@@ -18,6 +18,7 @@ from components.map_widget import MapWidget
 from components.chart_widget import ChartWidget
 from components.sample_list_widget import SampleListWidget
 from utils.csv_export import export_analysis_results
+from components.graph_widget import MultipleChartWidget
 
 # Import sample data
 from sample_data import EXTENDED_GPS_DATA, SAMPLE_CH_RS_DATA, get_optimal_k
@@ -178,6 +179,26 @@ class EntropyMaxFinal(QMainWindow):
         self.rs_chart = ChartWidget(title="Rs %", ylabel="Rs %")
         rs_layout.addWidget(self.rs_chart)
         bottom_layout.addWidget(rs_box)
+
+        # Group Graphs Box (NEW)
+        group_box = BentoBox(title="Group Graphs")
+        group_layout = QVBoxLayout(group_box)
+        group_layout.setContentsMargins(10, 10, 10, 10)
+
+        group_title = QLabel("Group Graphs")
+        group_title.setStyleSheet("""
+            QLabel {
+                font-size: 15px;
+                font-weight: 600;
+                color: #333;
+                padding: 5px 0;
+            }
+        """)
+        group_layout.addWidget(group_title)
+
+        self.group_graph_widget = MultipleChartWidget()  
+        group_layout.addWidget(self.group_graph_widget)
+        bottom_layout.addWidget(group_box)  
         
         # Add bottom container to right layout with stretch factor
         right_layout.addWidget(bottom_container, 4)  # 5:4 ratio for top:bottom
@@ -280,6 +301,8 @@ class EntropyMaxFinal(QMainWindow):
         
         self.ch_chart.plot_data(k_values, ch_values, '#2196F3', 'o', 'CH Index')  # Blue
         self.rs_chart.plot_data(k_values, rs_values, '#4CAF50', 's', 'Rs %')  # Green
+        # self.group_graph_widget.plot_analysis_results(x_values, group_values, peak_k)
+        # self.group_graph_widget.plot_analysis_results(x_values, group_values)
         
         if optimal_k is not None:
             idx = list(k_values).index(optimal_k)
