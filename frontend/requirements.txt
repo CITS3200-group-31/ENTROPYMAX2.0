@@ -2,3 +2,4 @@ PyQt6
 pyqtgraph
 folium
 PyQt6-WebEngine
+pyarrow==18.0.0
