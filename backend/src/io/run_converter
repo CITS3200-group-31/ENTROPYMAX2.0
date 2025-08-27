@@ -1,12 +1,33 @@
 import os
 from convert_csv_to_parquet import convert_csv_to_parquet
+from validate_csv_blocks import validate_csv_structure
+from clean_csv import clean_and_reblock_csv
+
 
 def convert(csvfilepath):
-    # In case of wrong file type during testing
+    #In case of wrong file type during testing
     if not csvfilepath.lower().endswith(".csv"):
         raise ValueError("Input file must be a .csv")
+    
+    #Validates the csv structure
+    validate_csv_structure(csvfilepath)
 
-    # Changes file type to .parquet so it only needs the path of the csv file as an input
+    #Cleans the CSV first and creates a cleaned version of the file
+    cleaned_csv = os.path.splitext(csvfilepath)[0] + "_cleaned.csv"
+    clean_and_reblock_csv(csvfilepath, cleaned_csv)
+    
+    
+    #Changes file type to .parquet so it only needs the path of the csv file as an input
     parquetfilepath = os.path.splitext(csvfilepath)[0] + ".parquet"
-    # Calls the function to convert
-    convert_csv_to_parquet(csvfilepath, parquetfilepath)
+    #Calls the function to convert
+    convert_csv_to_parquet(cleaned_csv, parquetfilepath)
+    
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) != 2:
+        print("Usage: python3 run_converter.py <csv_file_path>")
+        sys.exit(1)
+
+    convert(sys.argv[1])
+
+

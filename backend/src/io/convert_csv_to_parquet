@@ -4,7 +4,7 @@ import pyarrow.parquet as pq
 
 def convert_csv_to_parquet(csv_path, parquet_path):
     
-    df = pd.read_csv(csv_path, skiprows=3, on_bad_lines='skip')
+    df = pd.read_csv(csv_path, on_bad_lines='skip')
     df.columns = df.columns.str.strip().str.lower()
     table = pa.Table.from_pandas(df)
     pq.write_table(table, parquet_path)
