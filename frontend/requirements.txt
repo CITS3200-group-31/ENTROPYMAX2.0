@@ -5,3 +5,4 @@ pyqtgraph>=0.13.3
 numpy>=1.24.0
 pandas>=2.0.0
 folium>=0.14.0
+pyarrow==18.0.0

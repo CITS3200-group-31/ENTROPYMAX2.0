@@ -175,6 +175,8 @@ class EntropyMaxFinal(QMainWindow):
         self.rs_chart = ChartWidget(title="Rs %", ylabel="Rs %")
         rs_layout.addWidget(self.rs_chart)
         bottom_layout.addWidget(rs_box)
+
+        
         
         # Add bottom container to right layout with stretch factor
         right_layout.addWidget(bottom_container, 4)  # 5:4 ratio for top:bottom
@@ -296,6 +298,8 @@ class EntropyMaxFinal(QMainWindow):
         
         self.ch_chart.plot_data(k_values, ch_values, '#2196F3', 'o', 'CH Index')  # Blue
         self.rs_chart.plot_data(k_values, rs_values, '#4CAF50', 's', 'Rs %')  # Green
+        # self.group_graph_widget.plot_analysis_results(x_values, group_values, peak_k)
+        # self.group_graph_widget.plot_analysis_results(x_values, group_values)
         
         if optimal_k is not None:
             idx = list(k_values).index(optimal_k)
