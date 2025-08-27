@@ -145,8 +145,10 @@ pytest -q tests/python
 - `docs/README.md` — documentation index.
 - `docs/ARCHITECTURE.md` — working architecture document.
 - `docs/PORTING_GUIDE.md` — mapping VB6 routines to C modules and owners.
-- `DRAFT_architecture.md` — historical architecture draft (superseded by docs/ARCHITECTURE.md).
-- `DRAFT_ci_cd.md` — proposed CI/CD pipeline (not yet implemented).
+- `docs/drafts/` — archived drafts (historical);
+  - `docs/drafts/DRAFT_architecture.md` — superseded by `docs/ARCHITECTURE.md`.
+  - `docs/drafts/DRAFT_ci_cd.md` — proposed CI/CD pipeline (not yet implemented).
+  - `docs/drafts/README2.md` — superseded detailed architecture.
 
 ## Contributing
 

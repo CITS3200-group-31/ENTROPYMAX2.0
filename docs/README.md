@@ -1,8 +1,10 @@
 # Documentation Index
 
-- ARCHITECTURE: `docs/ARCHITECTURE.md`
+- Architecture: `docs/ARCHITECTURE.md`
 - Porting Guide (VB6 → C): `docs/PORTING_GUIDE.md`
-- CI/CD (proposed): `DRAFT_ci_cd.md` (to be moved under docs when implemented)
-- Client issues/features: `DRAFT_client_issues.md` (kept in sync with GitHub Issues)
+- Drafts (historical/proposed): `docs/drafts/`
+  - `docs/drafts/DRAFT_architecture.md` (historical; superseded)
+  - `docs/drafts/DRAFT_ci_cd.md` (proposed CI/CD)
+  - `docs/drafts/README2.md` (superseded architecture)
 
 For quick start and testing, see the root `README.md`.
