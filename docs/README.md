@@ -2,9 +2,7 @@
 
 - Architecture: `docs/ARCHITECTURE.md`
 - Porting Guide (VB6 → C): `docs/PORTING_GUIDE.md`
-- Drafts (historical/proposed): `docs/drafts/`
-  - `docs/drafts/DRAFT_architecture.md` (historical; superseded)
-  - `docs/drafts/DRAFT_ci_cd.md` (proposed CI/CD)
-  - `docs/drafts/README2.md` (superseded architecture)
+- CI/CD (working plan): `docs/CI_CD.md`
+- Client issues/features (overview): `docs/CLIENT_ISSUES.md`
 
 For quick start and testing, see the root `README.md`.
