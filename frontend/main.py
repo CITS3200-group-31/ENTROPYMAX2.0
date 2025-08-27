@@ -18,7 +18,6 @@ from components.map_widget import MapWidget
 from components.chart_widget import ChartWidget
 from components.sample_list_widget import SampleListWidget
 from utils.csv_export import export_analysis_results
-from components.graph_widget import MultipleChartWidget
 
 # Import sample data
 from sample_data import EXTENDED_GPS_DATA, SAMPLE_CH_RS_DATA, get_optimal_k
@@ -180,25 +179,7 @@ class EntropyMaxFinal(QMainWindow):
         rs_layout.addWidget(self.rs_chart)
         bottom_layout.addWidget(rs_box)
 
-        # Group Graphs Box (NEW)
-        group_box = BentoBox(title="Group Graphs")
-        group_layout = QVBoxLayout(group_box)
-        group_layout.setContentsMargins(10, 10, 10, 10)
-
-        group_title = QLabel("Group Graphs")
-        group_title.setStyleSheet("""
-            QLabel {
-                font-size: 15px;
-                font-weight: 600;
-                color: #333;
-                padding: 5px 0;
-            }
-        """)
-        group_layout.addWidget(group_title)
-
-        self.group_graph_widget = MultipleChartWidget()  
-        group_layout.addWidget(self.group_graph_widget)
-        bottom_layout.addWidget(group_box)  
+        
         
         # Add bottom container to right layout with stretch factor
         right_layout.addWidget(bottom_container, 4)  # 5:4 ratio for top:bottom
