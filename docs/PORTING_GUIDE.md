@@ -1,6 +1,8 @@
 # Porting Guide: VB6 → C backend
 
-This guide maps each legacy VB6 routine to its C counterpart, shows ownership, and points to the correct file to implement.
+This guide maps each legacy VB6 routine to its C counterpart, shows ownership, and points to the correct file to implement. The intended pipeline is:
+
+CSV → raw Parquet → C backend → processed Parquet.
 
 ## Owners
 - Ben: I/O (CSV load, future Parquet/CSV write)
@@ -61,7 +63,7 @@ This guide maps each legacy VB6 routine to its C counterpart, shows ownership, a
 
 - `em_run_algo` (glue/orchestration)
   - File: `backend/src/algo/backend_algo.c`
-  - Flow: preprocess → sweep k → (optionally) write output
+  - Flow: read raw Parquet (via loader) → preprocess → sweep k → write processed Parquet
 
 ## Numerical rules to preserve
 - Base‑2 logarithms throughout

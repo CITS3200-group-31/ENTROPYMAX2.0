@@ -1,6 +1,8 @@
-# Draft Client Issues & Feature Requests
+# Client Issues & Feature Requests (Working list)
 
-## Proposed Features for EntropyMax2
+This list captures client‑facing requests. For triage and status, see GitHub Issues. Items here should reflect actual project scope and be kept in sync with the issue tracker.
+
+## Proposed Features for EntropyMax 2.0
 
 ### 1. Automated Grain-Size Grouping & Curves
 
