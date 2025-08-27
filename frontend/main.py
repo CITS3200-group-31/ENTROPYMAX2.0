@@ -4,22 +4,18 @@ Minimalist, workflow-driven UI for geological analysis.
 """
 
 import sys
-import os
-import csv
-import numpy as np
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
-                             QHBoxLayout, QSplitter, QFrame, QMessageBox,
-                             QSizePolicy, QLabel)
-from PyQt6.QtCore import Qt, QSize
+                             QHBoxLayout, QFrame, QMessageBox, QLabel)
 
 # Import components and utils
-from components.control_panel_minimal import MinimalControlPanel
+from components.control_panel import ControlPanel
 from components.map_widget import MapWidget
 from components.chart_widget import ChartWidget
 from components.sample_list_widget import SampleListWidget
+from components.group_detail_popup import GroupDetailPopup
 from utils.csv_export import export_analysis_results
 
-# Import sample data
+# Import sample GPS CH, RS AND K mock data
 from sample_data import EXTENDED_GPS_DATA, SAMPLE_CH_RS_DATA, get_optimal_k
 
 
@@ -63,6 +59,7 @@ class EntropyMaxFinal(QMainWindow):
         self.output_file_path = None
         self.selected_samples = []
         self.current_analysis_data = {}
+        self.group_detail_popup = GroupDetailPopup()
         
         self._setup_ui()
         self._connect_signals()
@@ -81,7 +78,7 @@ class EntropyMaxFinal(QMainWindow):
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(5, 5, 5, 5)
         
-        self.control_panel = MinimalControlPanel()
+        self.control_panel = ControlPanel()
         left_layout.addWidget(self.control_panel)
         left_layout.addStretch()
         left_panel.setFixedWidth(340)
@@ -190,6 +187,7 @@ class EntropyMaxFinal(QMainWindow):
         self.control_panel.outputFileSelected.connect(self._on_output_file_selected)
         self.control_panel.generateMapRequested.connect(self._on_generate_map)
         self.control_panel.runAnalysisRequested.connect(self._on_run_analysis)
+        self.control_panel.showGroupDetailsRequested.connect(self._on_show_group_details)
         self.control_panel.exportResultsRequested.connect(self._on_export_results)
         
         self.sample_list.selectionChanged.connect(self._on_selection_changed)
@@ -230,11 +228,8 @@ class EntropyMaxFinal(QMainWindow):
                               "Please select samples from the list.")
             return
         
-        # TODO: Call backend C API for analysis
-        # API should accept:
-        # - selected sample coordinates and metadata
-        # - analysis parameters (min_groups, max_groups, epsilon, min_samples)
-        # API should return:
+        # TODO: Import Parquet data
+        # It should contains:
         # - k_values array
         # - ch_values array (Calinski-Harabasz index values)
         # - rs_values array (Rs percentage values)
@@ -252,8 +247,29 @@ class EntropyMaxFinal(QMainWindow):
         }
         
         self._plot_analysis_results()
+        self.control_panel.enable_analysis_buttons(True)
         self.statusBar().showMessage("Analysis complete.", 3000)
         
+    def _on_show_group_details(self):
+        """Show group detail popups with line charts for each group."""
+        if not self.input_file_path:
+            QMessageBox.warning(self, "No Input File", 
+                              "Please select an input file first.")
+            return
+        
+        try:
+            # Use a default k value or get it from analysis if available
+            k_value = 4  # Default value
+            
+            # Load and show the popup windows with real data from CSV
+            self.group_detail_popup.load_and_show_popups(self.input_file_path, k_value, x_unit='μm', y_unit='%')
+            self.statusBar().showMessage(f"Showing details for {k_value} groups using real data.", 3000)
+            
+        except FileNotFoundError as e:
+            QMessageBox.critical(self, "Error Loading Data", f"Input file not found: {str(e)}")
+        except Exception as e:
+            QMessageBox.critical(self, "Error Showing Group Details", str(e))
+    
     def _on_export_results(self):
         """Export current analysis results."""
         if not self.current_analysis_data:
@@ -292,19 +308,19 @@ class EntropyMaxFinal(QMainWindow):
         self.sample_list.load_samples([])
         self.ch_chart.clear()
         self.rs_chart.clear()
+        self.group_detail_popup.close_all()
         self.current_analysis_data = {}
         self.statusBar().showMessage("Workflow reset. Select an input file to begin.", 5000)
         
     def _parse_marker_csv(self, path):
         """Parse the input CSV file for map markers."""
-        # TODO: Implement actual CSV parsing
+        # TODO: Implement actual data parsing by using Jeremy's function, read from the Parquet file.
         # Expected CSV format:
         # - lat: latitude column
         # - lon: longitude column  
         # - name: sample identifier
         # - group: optional grouping category
-        # Backend API should handle CSV parsing and return structured data
-        
+        # Backend API should handle CSV parsing and return structured data and stored it in Parquet format.
         # For now, return sample data for testing
         return EXTENDED_GPS_DATA
 
