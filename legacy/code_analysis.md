@@ -1,6 +1,6 @@
-# Legacy code analysis – Form1.frm and Module1.bas
+# Legacy code analysis – Form1.frm and Module1.bas (Archived)
 
-This explains what the legacy VB6 code does, focusing on the computational routines to port to C and separating Windows/UI details.
+This explains what the legacy VB6 code does, focusing on the computational routines to port to C and separating Windows/UI details. For the active plan and implementation, see `docs/ARCHITECTURE.md`, `docs/PORTING_GUIDE.md`, and `docs/BACKEND.md`.
 
 ## High‑level pipeline (triggered by Proceed)
 - Read CSV into arrays (samples × variables)

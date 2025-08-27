@@ -6,5 +6,6 @@
 - Sample API/document format: `docs/SAMPLE_API_FORMAT.md`
 - CI/CD (working plan): `docs/CI_CD.md`
 - Client issues/features (overview): `docs/CLIENT_ISSUES.md`
+- Open issues transcript (snapshot): `docs/OPEN_ISSUES.md`
 
 For quick start and testing, see the root `README.md`.
