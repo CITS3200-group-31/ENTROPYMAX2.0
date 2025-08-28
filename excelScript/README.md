@@ -1,4 +1,6 @@
-# CITS3200 Team Leader Spreadsheet Automation
+# CITS3200 Team Leader Spreadsheet Automation (separate utility)
+
+Note: This utility is maintained for personal use and is not part of the EntropyMax 2.0 codebase or deliverables. It can be ignored by contributors working on the main project.
 
 Automates weekly deliverables from a master Google Sheet into Excel files and uploads them to Google Drive.
 
