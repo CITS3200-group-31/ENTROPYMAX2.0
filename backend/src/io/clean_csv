@@ -1,0 +1,103 @@
+import pandas as pd
+from io import StringIO
+#Used to look for the k value for the number of groupings
+import re
+
+#Function to clean and add k value column to the CSV file
+def clean_and_reblock_csv(input_csv, output_csv):
+    with open(input_csv, 'r') as f:
+        lines = f.readlines()
+
+    #Removes any trailing commas, spaces or newlines
+    lines = [line.rstrip(', \n\r') for line in lines]
+    header_start = "Group,Sample"
+
+    #Holds tuples of the grouping number (k value) and that block of data 
+    blocks = []
+    #Temporarily holds the rows of data of the current block being read
+    current_block = []
+    #Holds the current k value extracted from the metadata lines before each group
+    current_k = None
+
+    #Loops through the rows
+    for line in lines:
+        line_strip = line.strip()
+
+        #Looks for the k value using regex and saves it
+        match = re.search(r'Data groupings for\s+(\d+)\s+groups', line_strip, re.IGNORECASE)
+        if match:
+            current_k = int(match.group(1))
+            if current_block:
+                blocks.append((current_k, current_block))
+                current_block = []
+            continue
+
+        #Detects a new data block using the headers
+        if line_strip.startswith(header_start):
+            if current_block:
+                blocks.append((current_k, current_block))
+            current_block = [line_strip]
+        else:
+            if current_block:
+                current_block.append(line_strip)
+
+    #Saves the remaining block
+    if current_block:
+        blocks.append((current_k, current_block))
+
+    #Initialises the list for DataFrames
+    dfs = []
+    #Joins data block lines and using StringIO to read the string as CSV into a pandas DataFrame
+    dfs = []
+    for k_value, block_lines in blocks:
+        csv_text = "\n".join(block_lines)
+        try:
+            df_block = pd.read_csv(StringIO(csv_text))
+        except Exception as e:
+            print(f"Error reading block with k={k_value}: {e}")
+            continue
+
+        #Defines the unwanted keywords in the data to remove the statistics in the file
+        unwanted_keywords = ['total', 'count', 'stats', 'samples', 'explained',
+                            'calinski-harabasz', 'pseudo-f', 'statistic',
+                            'inequality', 'sum of squares', 'between region',
+                            'within group', 'data groupings']
+
+        #Creates masks to filter unwanted rows in the cleaned data
+        group_lower = df_block['Group'].astype(str).str.lower()
+        sample_lower = df_block['Sample'].astype(str).str.lower()
+
+        mask_keywords = group_lower.str.contains('|'.join(unwanted_keywords), na=False) | \
+                        sample_lower.str.contains('|'.join(unwanted_keywords), na=False)
+
+        mask_sample_empty = df_block['Sample'].isna() | (df_block['Sample'].astype(str).str.strip() == '')
+
+        mask_drop = mask_keywords | mask_sample_empty
+
+        #Keeps rows that do not match the unwanted conditions
+        df_block = df_block[~mask_drop].copy()
+
+        #Assigns the k value to the new column "k"
+        df_block['k'] = k_value 
+
+        #Add the cleaned block DataFrame to the list
+        dfs.append(df_block)
+
+    #Checks for if any valid blocks were found
+    if not dfs:
+        print("No data blocks found to concatenate. Exiting.")
+        return
+
+    #Combine all the cleaned blocks into a single DataFrame
+    df_all = pd.concat(dfs, ignore_index=True)
+
+    #Removes unnamed columns sometimes created by pandas
+    unnamed_cols = [col for col in df_all.columns if col.startswith('Unnamed')]
+    if unnamed_cols:
+        df_all = df_all.drop(columns=unnamed_cols)
+
+    #Save the cleaned DataFrame to the output CSV
+    df_all.to_csv(output_csv, index=False)
+    print(f"Cleaned CSV saved to: {output_csv}")
+
+
