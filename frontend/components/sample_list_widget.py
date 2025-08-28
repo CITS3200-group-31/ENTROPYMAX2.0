@@ -3,10 +3,8 @@ Sample list widget with checkboxes for selection and map navigation.
 """
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, 
-                             QTreeWidgetItem, QPushButton, QLabel, QCheckBox,
-                             QGroupBox, QHeaderView)
+                             QTreeWidgetItem, QPushButton, QLabel, QHeaderView)
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QBrush
 
 
 class SampleListWidget(QWidget):

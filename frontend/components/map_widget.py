@@ -6,10 +6,10 @@ Handles interactive map display with sample selection.
 import os
 import folium
 from statistics import mean
-from PyQt6.QtCore import QUrl, pyqtSignal, QObject
+from PyQt6.QtCore import QUrl, pyqtSignal
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineSettings
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QGroupBox
+from PyQt6.QtWidgets import QWidget, QVBoxLayout
 
 
 class MapWidget(QWidget):
