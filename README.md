@@ -43,9 +43,9 @@ ENTROPYMAX2/
 │  ├── include/                      # headers: backend.h, preprocess.h, metrics.h, grouping.h, sweep.h, csv.h, parquet.h, util.h
 │  ├── src/
 │  │  ├── algo/                      # core algorithm implementation (glue + modules)
-│  │  ├── io/                        # csv_reader.c, parquet_writer.c
+│  │  ├── io/                        # csv_reader.c (CSV→raw), parquet_writer.c (processed)
 │  │  ├── util/                      # helpers
-│  │  └── cli/                       # emx_cli: CSV -> Parquet pipeline
+│  │  └── cli/                       # emx_cli: raw.parquet -> processed.parquet
 │  └── tests/
 │     └── test_backend.c
 ├── src/                             # Python package (src layout)
@@ -88,27 +88,65 @@ ENTROPYMAX2/
 
 ## Quick start (dev)
 
-Build the C backend:
+### 1) Backend (C)
+Requirements: CMake ≥ 3.16; a C11 compiler (clang/gcc).
 
 ```bash
 chmod +x scripts/build_backend.sh
 ./scripts/build_backend.sh
 ```
 
-Run the PyQt app:
+Outputs:
+- Static library: `backend/build/libentropymax.*`
+- CLI executable: `backend/build/emx_cli`
 
+### 2) Frontend (PyQt6)
+You can run either the standalone frontend app, or the prototype under `src/app`.
+
+Standalone frontend (recommended):
 ```bash
-chmod +x scripts/dev_run.sh
-./scripts/dev_run.sh
+cd frontend
+python3 -m venv .venv && source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python main.py
+```
+
+Prototype entry (src/app):
+```bash
+python -m app
 ```
 
 Notes
-- Python deps are declared in `pyproject.toml`.
-- The tree is scaffolded; implementations are being filled in during Sprint 1.
+- Python GUI dependencies for the standalone frontend are declared in `frontend/requirements.txt`.
+- The C backend CSV/Parquet I/O is currently a placeholder; the CLI may return non‑zero until implemented.
 
 ## Development Status
 
-The project is currently in **Sprint 1 – planning phase**. No concrete installation or build steps exist yet.
+- C backend builds and links; CSV/Parquet I/O are placeholders pending implementation.
+- PyQt6 frontend runs with sample data and smoke tests.
+
+## Tests
+
+### C tests (CTest)
+```bash
+cd backend/build
+ctest --output-on-failure
+```
+
+### Python tests (pytest)
+```bash
+python -m pip install -r frontend/requirements.txt  # provides GUI deps
+python -m pip install -r requirements-dev.txt       # dev/test tools (pytest, coverage, ruff, mypy)
+pytest -q tests/python
+```
+
+## Further reading
+- `docs/README.md` — documentation index.
+- `docs/ARCHITECTURE.md` — working architecture document.
+- `docs/PORTING_GUIDE.md` — mapping VB6 routines to C modules and owners.
+- `DRAFT_architecture.md` — historical architecture draft (superseded by docs/ARCHITECTURE.md).
+- `DRAFT_ci_cd.md` — proposed CI/CD pipeline (not yet implemented).
 
 ## Contributing
 
