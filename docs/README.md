@@ -1,8 +1,11 @@
 # Documentation Index
 
-- ARCHITECTURE: `docs/ARCHITECTURE.md`
+- Architecture: `docs/ARCHITECTURE.md`
 - Porting Guide (VB6 → C): `docs/PORTING_GUIDE.md`
-- CI/CD (proposed): `DRAFT_ci_cd.md` (to be moved under docs when implemented)
-- Client issues/features: `DRAFT_client_issues.md` (kept in sync with GitHub Issues)
+- Backend details: `docs/BACKEND.md`
+- Sample API/document format: `docs/SAMPLE_API_FORMAT.md`
+- CI/CD (working plan): `docs/CI_CD.md`
+- Client issues/features (overview): `docs/CLIENT_ISSUES.md`
+- Open issues transcript (snapshot): `docs/OPEN_ISSUES.md`
 
 For quick start and testing, see the root `README.md`.
