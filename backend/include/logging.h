@@ -19,9 +19,8 @@ typedef enum { LOG_DEBUG, LOG_INFO, LOG_WARN, LOG_ERROR } log_level_t;
  * Calling the function with an invalid log level, invalid format string,
  * or invalid arguments results in undefined behavior.
  *
- * Parameters:
- * - level The severity level (e.g., LOG_INFO)
- * - fmt A printf-style format string
+ * @param level The severity level (e.g., LOG_INFO)
+ * @param fmt A printf-style format string
  * - ... Format arguments
  */
 void log_message(log_level_t level, const char *fmt, ...);
