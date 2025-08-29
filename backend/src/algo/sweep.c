@@ -1,5 +1,7 @@
 #include "sweep.h"
 
+#include "logging.h"
+
 // OWNER: Will
 // VB6 mapping: LOOPgroupsize → em_sweep_k
 int em_sweep_k(const double *data_in, int32_t rows, int32_t cols,

@@ -2,6 +2,8 @@
 
 #include <stddef.h>
 
+#include "logging.h"
+
 // OWNER: Will
 // VB6 mapping: SetGroups → em_set_groups
 int em_set_groups(const double *data, int32_t k, int32_t rows, int32_t cols,
