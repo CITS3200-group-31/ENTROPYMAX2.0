@@ -2,21 +2,27 @@
 
 #include <stddef.h>
 
+#include "logging.h"
+
 // OWNER: Will
 // VB6 mapping: SetGroups → em_set_groups
 int em_set_groups(const double *data, int32_t k, int32_t rows, int32_t cols,
                   const int32_t *member1, double **fGroupOut) {
   if (!data || !member1 || !fGroupOut || k <= 0 || rows <= 0 || cols <= 0) {
+    log_message(LOG_ERROR, "[em_set_groups] Invalid arguments");
     return -1;
   }
 
   int m = 0;
   for (int i = 0; i < k; i++) {
     for (int j = 0; j < rows; j++) {
-      if (member1[j] == i + 1) {
-        if (m >= rows) return -1;
+      if (member1[j] == i) {
+        if (m >= rows) {
+          log_message(LOG_ERROR, "[em_set_groups] Output index out of bounds");
+          return -1;
+        }
 
-        fGroupOut[m][0] = i + 1;
+        fGroupOut[m][0] = i;
 
         for (int N = 0; N < cols; N++) {
           fGroupOut[m][N + 1] = data[j * cols + N];
@@ -39,8 +45,8 @@ int em_initial_groups(int32_t rows, int32_t k, int32_t *member1) {
   int extra = rows % k;
 
   int idx = 0;
-  for (int g = 1; g <= k; g++) {
-    int count = base + (g == k ? extra : 0);
+  for (int g = 0; g <= k; g++) {
+    int count = base + (g == (k - 1) ? extra : 0);
     for (int j = 0; j < count; j++) {
       member1[idx++] = g;
     }
@@ -58,10 +64,10 @@ int em_between_inequality(const double *data, int32_t rows, int32_t cols,
     return -1;
   }
 
-  int32_t group_idx, row_idx;
+  int group_idx, row_idx;
+  int *group_counts = NULL;
   double bineq2;
   double **group_means = NULL;
-  int32_t *group_counts = NULL;
 
   group_means = (double **)calloc((size_t)k, sizeof(double *));
   if (!group_means) return -1;
@@ -75,7 +81,7 @@ int em_between_inequality(const double *data, int32_t rows, int32_t cols,
     }
   }
 
-  group_counts = (int32_t *)calloc((size_t)k, sizeof(int32_t));
+  group_counts = (int *)calloc((size_t)k, sizeof(int));
   if (!group_counts) {
     for (int j = 0; j < k; j++) free(group_means[j]);
     free(group_means);
@@ -84,7 +90,7 @@ int em_between_inequality(const double *data, int32_t rows, int32_t cols,
 
   for (group_idx = 0; group_idx < k; group_idx++) {
     for (row_idx = 0; row_idx < rows; row_idx++) {
-      if (member1[row_idx] != (group_idx + 1)) continue;
+      if (member1[row_idx] != group_idx) continue;
 
       for (int i = 0; i < cols; i++) {
         group_means[group_idx][i] += data[row_idx * cols + i];
@@ -93,9 +99,9 @@ int em_between_inequality(const double *data, int32_t rows, int32_t cols,
     }
 
     for (row_idx = 0; row_idx < cols; row_idx++) {
-      if (Y[row_idx] > 0.0) {
+      if (Y[row_idx] > 0.0 && group_counts[group_idx] > 0) {
         group_means[group_idx][row_idx] =
-            group_means[group_idx][row_idx] / Y[row_idx];
+            group_means[group_idx][row_idx] / group_counts[group_idx];
       }
     }
   }
@@ -106,8 +112,10 @@ int em_between_inequality(const double *data, int32_t rows, int32_t cols,
     bineq2 = 0.0;
 
     for (group_idx = 0; group_idx < k; group_idx++) {
-      if (group_counts[group_idx] == 0) continue;
-      if (group_means[group_idx][row_idx] == 0.0) continue;
+      if (group_counts[group_idx] == 0 ||
+          group_means[group_idx][row_idx] == 0.0) {
+        continue;
+      }
 
       double term = group_means[group_idx][row_idx] * (double)rows /
                     (double)group_counts[group_idx];
@@ -158,8 +166,8 @@ int em_optimise_groups(const double *data, int32_t rows, int32_t cols,
     return -1;
   }
 
-  int32_t row, col, current_group;
-  int32_t *group_sizes = calloc((size_t)k, sizeof(int32_t));
+  int row, col, current_group;
+  int *group_sizes = calloc((size_t)k, sizeof(int));
 
   if (!group_sizes) {
     return -1;
@@ -226,16 +234,16 @@ int em_switch_groups(const double *data, int32_t rows, int32_t cols, int32_t k,
   // int32_t calculation_count = 0;
   // Tracks how many different group assignment combinations have been evaluated
   // during the optimization process.
+  int restart_count = 0;
+  int improvements_found;
   double best_stat = 0.0;
-  int32_t restart_count = 0;
-  int32_t improvements_found;
 
   do {
     improvements_found = 0;
 
-    for (int32_t sample = 0; sample < rows; sample++) {
-      for (int32_t target_group = 0; target_group < k; target_group++) {
-        int32_t original_group = member1[sample];
+    for (int sample = 0; sample < rows; sample++) {
+      for (int target_group = 0; target_group < k; target_group++) {
+        int original_group = member1[sample];
         member1[sample] = target_group;
         // calculation_count++;
 
@@ -243,7 +251,7 @@ int em_switch_groups(const double *data, int32_t rows, int32_t cols, int32_t k,
 
         em_rs_stat(tineq, *out_bineq, out_rs_stat, out_ixout);
 
-        int32_t iter_count = 0;
+        int iter_count = 0;
         em_optimise_groups(data, rows, cols, k, *out_rs_stat, &best_stat,
                            member1, sample, original_group, &iter_count,
                            min_groups, out_group_means);
@@ -252,7 +260,9 @@ int em_switch_groups(const double *data, int32_t rows, int32_t cols, int32_t k,
       }
     }
 
-    if (improvements_found == 0) restart_count++;
+    if (improvements_found == 0) {
+      restart_count++;
+    }
 
   } while (restart_count < 3);
 
