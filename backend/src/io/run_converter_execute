@@ -2,13 +2,13 @@
 #include <stdlib.h>
 
 int main(int argc, char *argv[]) {
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s <csv_file_path>\n", argv[0]);
+    if (argc != 3) {
+        fprintf(stderr, "Usage: %s <csv_file_path1> <csv_file_path2>\n", argv[0]);
         return 1;
     }
 
-    char command[512];
-    snprintf(command, sizeof(command), "python3 run_converter.py \"%s\"", argv[1]);
+    char command[1024]; 
+    snprintf(command, sizeof(command), "python3 run_converter.py \"%s\" \"%s\"", argv[1], argv[2]);
 
     int ret = system(command);
     if (ret != 0) {
