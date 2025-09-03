@@ -26,10 +26,10 @@ int em_proportion(double *data, int32_t rows, int32_t cols) {
     return 0;
 }
 
-// OWNER: Noah line 463 in Form1
+// OWNER: Noah line 463 in Form1 
 // VB6 mapping: GDTLproportion → em_gdtl_percent
 int em_gdtl_percent(double *data, int32_t rows, int32_t cols){
-    if (data == NULL || rows <= 0 || cols <= 0)
+    if (!data || rows <= 0 || cols <= 0)
         return -1;
 
     double grand_total = 0.0;
