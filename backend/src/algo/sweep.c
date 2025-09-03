@@ -20,11 +20,15 @@ int em_sweep_k(const double *data_in, int32_t rows, int32_t cols,
   double bineq, rs_stat, ch_stat, sstt, sset, perm_mean, perm_p;
   double best_ch_value = 0.0;
 
-  int32_t *member1 = calloc(rows, sizeof(int32_t));
-  int32_t *best_member1 = calloc(rows, sizeof(int32_t));
-  double *group_means = calloc(k_max * cols, sizeof(double));
-  double *best_group_means = calloc(k_max * cols, sizeof(double));
-  double *class_table = calloc(rows * (cols + 1), sizeof(double));
+  int32_t *member1 = (int32_t *)calloc((unsigned long)rows, sizeof(int32_t));
+  int32_t *best_member1 =
+      (int32_t *)calloc((unsigned long)rows, sizeof(int32_t));
+  double *group_means =
+      (double *)calloc((unsigned long)(k_max * cols), sizeof(double));
+  double *best_group_means =
+      (double *)calloc((unsigned long)(k_max * cols), sizeof(double));
+  double *class_table =
+      (double *)calloc((unsigned long)(rows * (cols + 1)), sizeof(double));
 
   if (!member1 || !best_member1 || !group_means || !best_group_means ||
       !class_table) {
@@ -84,8 +88,9 @@ int em_sweep_k(const double *data_in, int32_t rows, int32_t cols,
     if (comparison_value > best_ch_value) {
       best_ch_value = comparison_value;
       best_k_index = counter;
-      memcpy(best_member1, member1, rows * sizeof(int));
-      memcpy(best_group_means, group_means, k * cols * sizeof(double));
+      memcpy(best_member1, member1, (unsigned long)rows * sizeof(int));
+      memcpy(best_group_means, group_means,
+             (unsigned long)k * (unsigned long)cols * sizeof(double));
     }
 
     counter++;
@@ -96,12 +101,13 @@ int em_sweep_k(const double *data_in, int32_t rows, int32_t cols,
   }
 
   if (out_member1 && counter > 0) {
-    memcpy(out_member1, best_member1, rows * sizeof(int));
+    memcpy(out_member1, best_member1, (unsigned long)rows * sizeof(int));
   }
 
   if (out_group_means && counter > 0) {
     int best_k = out_metrics[best_k_index].nGrpDum;
-    memcpy(out_group_means, best_group_means, best_k * cols * sizeof(double));
+    memcpy(out_group_means, best_group_means,
+           (unsigned long)best_k * (unsigned long)cols * sizeof(double));
   }
 
   free(member1);
