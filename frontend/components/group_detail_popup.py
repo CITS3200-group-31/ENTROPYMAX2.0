@@ -143,9 +143,10 @@ class GroupDetailPopup:
 
 class GroupDetailWindow(QWidget):
     """Individual popup window showing line chart for a specific group."""
-    
-    def __init__(self, group_id, samples, x_labels, x_values, color, x_unit='μm', y_unit='a.u.'):
-        super().__init__(flags=Qt.WindowType.Window)
+
+    def __init__(self, group_id, samples, x_labels, x_values, color, x_unit='\u03bcm', y_unit='a.u.'):
+        super().__init__()
+        self.setWindowFlag(Qt.WindowType.Window, True)
         self.group_id = group_id
         self.samples = samples
         self.x_labels = x_labels
