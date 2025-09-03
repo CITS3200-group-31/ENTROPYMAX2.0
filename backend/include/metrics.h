@@ -22,13 +22,22 @@
 
 
 /**
- * @brief
+ * @brief computes the Calinski-Harabasz statistic for clustering 
+ * 
  *
- *
- *
- *
- *
- *
+ * @param class_table Pointer to the class table (first column is cluster assignments, rest are data)
+ * @param samples Number of samples (rows) in the class table
+ * @param classes Number of classes (columns - 1) in the class table
+ * @param k Number of clusters
+ * @param perms_n Number of permutations to perform for p-value estimation (0 for none)
+ * @param seed Seed for random number generator (used if perms_n > 0)
+ * @param out_CH Pointer to store the Calinski-Harabasz statistic
+ * @param out_sstt Pointer to store the total sum of squares
+ * @param out_sset Pointer to store the within-cluster sum of squares
+ * @param out_perm_mean Pointer to store the mean CH statistic from permutations (if perms_n > 0)
+ * @param out_perm_p Pointer to store the p-value from permutations (if perms_n > 0)
+ * 
+ * @return 0 on success, -1 on error
  */
  
 int em_ch_stat(const double *class_table, int32_t samples, int32_t classes, int32_t k,
