@@ -60,6 +60,17 @@ class AppConfig:
         ]
     )
     group_number: int = 31
+    # Optional secondary upload target (e.g., SharePoint/Teams)
+    secondary_remote_name: Optional[str] = "teams"
+    secondary_remote_base_path: Optional[str] = "General/Group_31"
+    # Optional rclone flags for secondary remote copy operations (mitigate OneDrive hash/size mismatch)
+    secondary_remote_copy_flags: List[str] = field(default_factory=lambda: [
+        "--ignore-size",
+        "--ignore-checksum",
+        "--retries", "5",
+        "--low-level-retries", "10",
+        "--transfers", "1",
+    ])
 
 
 def load_config(config_path: Optional[Path]) -> AppConfig:
@@ -77,6 +88,9 @@ def load_config(config_path: Optional[Path]) -> AppConfig:
             cfg.output_dir = data.get("output_dir", cfg.output_dir)
             cfg.team_members = data.get("team_members", cfg.team_members)
             cfg.group_number = int(data.get("group_number", cfg.group_number))
+            cfg.secondary_remote_name = data.get("secondary_remote_name", cfg.secondary_remote_name)
+            cfg.secondary_remote_base_path = data.get("secondary_remote_base_path", cfg.secondary_remote_base_path)
+            cfg.secondary_remote_copy_flags = data.get("secondary_remote_copy_flags", cfg.secondary_remote_copy_flags)
         except Exception as e:
             logger.warning(f"[yellow]⚠️  Failed to read config file:[/yellow] {e}")
 
@@ -88,6 +102,9 @@ def load_config(config_path: Optional[Path]) -> AppConfig:
     cfg.individual_template = os.getenv("INDIVIDUAL_TEMPLATE", cfg.individual_template)
     cfg.output_dir = os.getenv("OUTPUT_DIR", cfg.output_dir)
     cfg.group_number = int(os.getenv("GROUP_NUMBER", cfg.group_number))
+    cfg.secondary_remote_name = os.getenv("SECONDARY_REMOTE_NAME", cfg.secondary_remote_name)
+    cfg.secondary_remote_base_path = os.getenv("SECONDARY_REMOTE_BASE_PATH", cfg.secondary_remote_base_path)
+    cfg.secondary_remote_copy_flags = os.getenv("SECONDARY_REMOTE_COPY_FLAGS", cfg.secondary_remote_copy_flags)
 
     team_members_env = os.getenv("TEAM_MEMBERS")
     if team_members_env:
@@ -473,9 +490,7 @@ class CITS3200Automation:
             mkdir_result = subprocess.run([
                 "rclone", "mkdir", gdrive_week_path
             ], capture_output=True, text=True)
-            if mkdir_result.returncode == 0:
-                logger.info(f"  📁 Ensured directory exists: {gdrive_week_path}")
-            else:
+            if mkdir_result.returncode != 0:
                 logger.error(f"  ❌ Failed to create directory: {mkdir_result.stderr}")
                 return False
 
@@ -484,9 +499,7 @@ class CITS3200Automation:
             group_upload_result = subprocess.run([
                 "rclone", "copy", str(group_file), gdrive_week_path
             ], capture_output=True, text=True)
-            if group_upload_result.returncode == 0:
-                logger.info("    ✅ Group timesheet uploaded")
-            else:
+            if group_upload_result.returncode != 0:
                 logger.error(f"    ❌ Error uploading group timesheet: {group_upload_result.stderr}")
                 return False
 
@@ -495,9 +508,7 @@ class CITS3200Automation:
             zip_upload_result = subprocess.run([
                 "rclone", "copy", str(zip_file), gdrive_week_path
             ], capture_output=True, text=True)
-            if zip_upload_result.returncode == 0:
-                logger.info("    ✅ Zip file uploaded")
-            else:
+            if zip_upload_result.returncode != 0:
                 logger.error(f"    ❌ Error uploading zip file: {zip_upload_result.stderr}")
                 return False
 
@@ -506,6 +517,43 @@ class CITS3200Automation:
 
         except Exception as e:
             logger.error(f"❌ Error uploading to Google Drive: {e}")
+            return False
+
+    def upload_to_remote(self, remote_name: str, remote_base_path: str, group_file: Path, zip_file: Path) -> bool:
+        """Upload files to an arbitrary rclone remote under Week<week>."""
+        logger.info(f"☁️  Uploading files to {remote_name}:{remote_base_path} ...")
+        week_dir = f"Week{self.week_number}"
+        remote_week_path = f"{remote_name}:{remote_base_path}/{week_dir}"
+
+        if self.dry_run:
+            logger.info(f"[cyan]DRY-RUN[/cyan] Would run: rclone mkdir {remote_week_path}")
+            flags = " ".join(self.config.secondary_remote_copy_flags or [])
+            logger.info(f"[cyan]DRY-RUN[/cyan] Would run: rclone copy {group_file} {remote_week_path} {flags}")
+            logger.info(f"[cyan]DRY-RUN[/cyan] Would run: rclone copy {zip_file} {remote_week_path} {flags}")
+            return True
+
+        try:
+            mkdir_result = subprocess.run(["rclone", "mkdir", remote_week_path], capture_output=True, text=True)
+            if mkdir_result.returncode != 0:
+                logger.error(f"  ❌ Failed to create directory: {mkdir_result.stderr}")
+                return False
+
+            logger.info("  📤 Uploading group timesheet...")
+            up1 = subprocess.run(["rclone", "copy", str(group_file), remote_week_path, * (self.config.secondary_remote_copy_flags or [])], capture_output=True, text=True)
+            if up1.returncode != 0:
+                logger.error(f"    ❌ Error uploading group timesheet: {up1.stderr}")
+                return False
+
+            logger.info("  📤 Uploading zip file...")
+            up2 = subprocess.run(["rclone", "copy", str(zip_file), remote_week_path, * (self.config.secondary_remote_copy_flags or [])], capture_output=True, text=True)
+            if up2.returncode != 0:
+                logger.error(f"    ❌ Error uploading zip file: {up2.stderr}")
+                return False
+
+            logger.info(f"✅ Files uploaded to {remote_week_path}")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Error uploading to {remote_name}: {e}")
             return False
 
     def validate_templates(self) -> bool:
@@ -596,18 +644,42 @@ class CITS3200Automation:
         if group_file and zip_file and merged_file:
             if self.dry_run:
                 logger.info("[cyan]DRY-RUN[/cyan] Would prompt for upload to Google Drive; skipping in dry-run.")
+                if self.config.secondary_remote_name and self.config.secondary_remote_base_path:
+                    logger.info("[cyan]DRY-RUN[/cyan] Would prompt for upload to Teams/SharePoint; skipping in dry-run.")
             else:
+                # Prompt for Google Drive upload
                 try:
-                    response = input(
+                    response_gdrive = input(
                         f"Would you like to upload these to the Week {self.week_number} directory on Google Drive? [y/N] "
                     ).strip().lower()
                 except EOFError:
-                    response = ""
-                if response in {"y", "yes"}:
+                    response_gdrive = ""
+                if response_gdrive in {"y", "yes"}:
                     if not self.upload_to_gdrive(group_file, zip_file):
                         return False
                 else:
-                    logger.info("📦 Upload skipped by user.")
+                    logger.info("📦 Google Drive upload skipped by user.")
+
+                # Prompt for Teams/SharePoint upload (secondary)
+                if self.config.secondary_remote_name and self.config.secondary_remote_base_path:
+                    try:
+                        response_secondary = input(
+                            f"Would you also like to upload these to the Week {self.week_number} directory on {self.config.secondary_remote_name}:{self.config.secondary_remote_base_path}? [y/N] "
+                        ).strip().lower()
+                    except EOFError:
+                        response_secondary = ""
+                    if response_secondary in {"y", "yes"}:
+                        logger.info(f"  ☁️  Uploading files to {self.config.secondary_remote_name}:{self.config.secondary_remote_base_path}...")
+                        if not self.upload_to_remote(
+                            remote_name=self.config.secondary_remote_name,
+                            remote_base_path=self.config.secondary_remote_base_path,
+                            group_file=group_file,
+                            zip_file=zip_file,
+                        ):
+                            return False
+                        logger.info(f"✅ Files uploaded to {self.config.secondary_remote_name}:{self.config.secondary_remote_base_path}")
+                    else:
+                        logger.info("📦 Teams/SharePoint upload skipped by user.")
 
         # Step 10: List created files
         logger.info("\n" + "=" * 50)
