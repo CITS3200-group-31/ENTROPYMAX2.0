@@ -3,22 +3,22 @@ Minimalist control panel component for EntropyMax frontend.
 Following proper workflow: Input -> Output -> Parameters -> Generate Map -> Select -> Analyze
 """
 
-from PyQt6.QtWidgets import (QWidget, QGroupBox, QVBoxLayout, QHBoxLayout,
+from PySide6.QtWidgets import (QWidget, QGroupBox, QVBoxLayout, QHBoxLayout,
                              QPushButton, QCheckBox, QLineEdit,
                              QLabel, QFileDialog)
-from PyQt6.QtCore import pyqtSignal
+from PySide6.QtCore import Signal
 
 
 class ControlPanel(QWidget):
     """Minimalist control panel following workflow steps."""
     
     # Signals
-    inputFileSelected = pyqtSignal(str)
-    outputFileSelected = pyqtSignal(str)
-    generateMapRequested = pyqtSignal()
-    runAnalysisRequested = pyqtSignal(dict)
-    exportResultsRequested = pyqtSignal()
-    showGroupDetailsRequested = pyqtSignal()
+    inputFileSelected = Signal(str)
+    outputFileSelected = Signal(str)
+    generateMapRequested = Signal()
+    runAnalysisRequested = Signal(dict)
+    exportResultsRequested = Signal()
+    showGroupDetailsRequested = Signal()
     
     def __init__(self, parent=None):
         super().__init__(parent)
