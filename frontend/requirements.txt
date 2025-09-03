@@ -1,6 +1,5 @@
 # Core dependencies for EntropyMax 2.0 Frontend
-PyQt6>=6.5.0
-PyQt6-WebEngine>=6.5.0
+PySide6
 pyqtgraph>=0.13.3
 numpy>=1.24.0
 pandas>=2.0.0

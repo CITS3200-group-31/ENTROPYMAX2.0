@@ -7,8 +7,8 @@ import os
 import csv
 import numpy as np
 import pyqtgraph as pg
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout, QCheckBox
-from PyQt6.QtCore import Qt
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout, QCheckBox
+from PySide6.QtCore import Qt
 from collections import defaultdict
 
 

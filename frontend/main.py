@@ -4,7 +4,7 @@ Minimalist, workflow-driven UI for geological analysis.
 """
 
 import sys
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
+from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QFrame, QMessageBox, QLabel)
 
 # Import components and utils
