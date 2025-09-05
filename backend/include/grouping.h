@@ -1,5 +1,7 @@
 #pragma once
 #include <stdint.h>
+#include <math.h>
+#include <stdlib.h>
 
 /**
  * @brief Set groups based on member assignments.
