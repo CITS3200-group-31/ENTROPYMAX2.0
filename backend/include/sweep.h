@@ -1,5 +1,7 @@
 #pragma once
 #include <stdint.h>
+#include <string.h>
+#include <stdlib.h>
 
 typedef struct {
   int32_t nGrpDum;
