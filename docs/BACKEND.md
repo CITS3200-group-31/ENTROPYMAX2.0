@@ -1,6 +1,6 @@
 # Backend overview (C library and CLI)
 
-This document describes the modular C backend in `backend/`: what each part does, how to build it, and how to use the command‑line tool in a CSV → raw Parquet → processed Parquet pipeline.
+This document describes the modular C backend in `backend/`: what each part does, how to build it, and how to use the command‑line tool in a two‑CSV merge → raw Parquet → processed Parquet pipeline.
 
 ## Layout
 
@@ -174,13 +174,27 @@ ctest --output-on-failure
 
 ## CLI usage
 
+### I/O flow (planned)
 ```bash
-# Planned usage (subject to CLI finalisation):
-# 1) csv_to_parquet: CSV → raw.parquet
-# 2) emx_cli: raw.parquet → processed.parquet
+# 1) Merge inputs → raw Parquet
+#    - gps.csv (lat, lon, sample_id, ...)
+#    - raw.csv (sample_id, var1, var2, ...)
+csv_to_parquet --gps gps.csv --raw raw.csv --out raw.parquet
 
+# 2) C backend: raw.parquet → processed.parquet
 backend/build/emx_cli raw.parquet processed.parquet
 ```
+Raw Parquet schema (example):
+- sample_id (string)
+- lat (double)
+- lon (double)
+- var1..varN (double)
+
+Processed Parquet schema (example):
+- per‑k metrics (k, CH, Rs, SST, SSE, perm stats)
+- optimal_k (int)
+- assignments (sample_id, group)
+- group_means (k × variables)
 - Exits with non‑zero on error (currently, CSV/Parquet are unimplemented placeholders, so it will error until those are filled in).
 
 ## C APIs (current state)

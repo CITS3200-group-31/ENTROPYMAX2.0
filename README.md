@@ -43,7 +43,7 @@ ENTROPYMAX2/
 │  ├── include/                      # headers: backend.h, preprocess.h, metrics.h, grouping.h, sweep.h, csv.h, parquet.h, util.h
 │  ├── src/
 │  │  ├── algo/                      # core algorithm implementation (glue + modules)
-│  │  ├── io/                        # csv_reader.c (CSV→raw), parquet_writer.c (processed)
+│  │  ├── io/                        # merge gps.csv + raw.csv → raw Parquet; write processed Parquet
 │  │  ├── util/                      # helpers
 │  │  └── cli/                       # emx_cli: raw.parquet -> processed.parquet
 │  └── tests/

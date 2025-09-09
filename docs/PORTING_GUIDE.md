@@ -2,7 +2,7 @@
 
 This guide maps each legacy VB6 routine to its C counterpart, shows ownership, and points to the correct file to implement. The intended pipeline is:
 
-CSV → raw Parquet → C backend → processed Parquet.
+CSV(gps) + CSV(raw) → merged raw Parquet → C backend → processed Parquet.
 
 ## Owners
 - Ben: I/O (CSV load, future Parquet/CSV write)
