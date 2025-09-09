@@ -4,7 +4,7 @@
 EntropyMax 2.0 separates compute-heavy C code from a Python GUI/frontend. Current code implements the structure with placeholders for CSV/Parquet I/O.
 
 ```
-CSV ─▶ raw Parquet ─▶ C backend (libentropymax) ─▶ processed Parquet ─▶ Python GUI (PyQt6)
+CSV(gps) + CSV(raw) ─▶ merge ─▶ raw Parquet ─▶ C backend (libentropymax) ─▶ processed Parquet ─▶ Python GUI (PyQt6)
 ```
 
 - C backend (`backend/`): static library + CLI scaffold; headers under `backend/include/`. Reads a raw Parquet table and writes a processed Parquet table.
@@ -38,7 +38,10 @@ ENTROPYMAX2/
 ```
 
 ## Data flow (intended)
-1. Convert CSV → raw Parquet (schema: identifiers, variables, metadata).
+1. Convert two inputs to a single raw Parquet:
+   - GPS CSV (lat, lon, sample_id, optional attrs)
+   - Raw data CSV (sample_id, variables...)
+   - Merge on sample_id to produce one raw Parquet (identifiers, variables, GPS metadata).
 2. Backend reads raw Parquet, runs preprocess → metrics → grouping → sweep in `backend/src/algo/` using `double`.
 3. Backend writes processed Parquet (schema: per‑k metrics, optimal k, assignments, group stats).
 4. Python GUI loads processed Parquet to render plots/maps and support exports.
