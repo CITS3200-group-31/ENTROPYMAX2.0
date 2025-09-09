@@ -10,9 +10,11 @@ add_library(entropymax STATIC
   src/algo/metrics.c
   src/algo/grouping.c
   src/algo/sweep.c
-  src/io/csv_reader.c
-  src/io/parquet_writer.c
+  src/io/run_converter_execute.c
+  src/io/csv_stub.c
+  src/io/parquet_stub.c
   src/util/util.c
+  src/util/logging_stub.c
 )
 target_include_directories(entropymax PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
