@@ -1,15 +1,17 @@
-# EntropyMax 2.0 – Architecture
+# EntropyMax 2.0 – Architecture (Draft → Working copy moved)
 
-## Overview
+This draft has been superseded by `docs/ARCHITECTURE.md` (working copy). The content below remains for historical context and may be out of date.
+
+## Overview (legacy draft)
 EntropyMax 2.0 separates heavy numerical work from user‑facing code:
 
 ```
 CSV ─▶ libentropymax (C 11) ─▶ NumPy array ─▶ PyQt 6 GUI ─▶ plots / exports
 ```
 
-* **C 11 core (`libentropymax`)**   Fast, portable port of the legacy VBA algorithms.  
-* **Python binding (`entropymax` pkg)**   Cython/cffi wrapper → NumPy, pandas.  
-* **PyQt 6 front‑end**   Import wizard, live plotting/mapping, one‑click exports.  
+* **C 11 core (`libentropymax`)**   Fast, portable port of the legacy VBA algorithms.
+* **Python binding (`entropymax` pkg)**   Cython/cffi wrapper → NumPy, pandas.
+* **PyQt 6 front‑end**   Import wizard, live plotting/mapping, one‑click exports.
 * **R / notebooks**   `reticulate` or direct C ABI for advanced analytics.
 
 ## Text diagram
@@ -45,12 +47,12 @@ CLI / notebooks ─ entropymax pkg ──────┘
 ```
 
 ## Key advantages
-* **Speed + stability** – C core is lightning‑fast and ABI‑stable.  
-* **Developer velocity** – most day‑to‑day work happens in Python.  
-* **Flexible UI future** – any front‑end can talk to Python or C directly.  
+* **Speed + stability** – C core is lightning‑fast and ABI‑stable.
+* **Developer velocity** – most day‑to‑day work happens in Python.
+* **Flexible UI future** – any front‑end can talk to Python or C directly.
 
 ## Immediate next steps
-1. Spike‑port one VBA routine to C; wrap with cffi; plot in PyQt.  
-2. Finalise C header & semantic versioning rules.  
-3. Stand up GitHub Actions matrix (Win/macOS/Linux) for cross‑build.  
+1. Spike‑port one VBA routine to C; wrap with cffi; plot in PyQt.
+2. Finalise C header & semantic versioning rules.
+3. Stand up GitHub Actions matrix (Win/macOS/Linux) for cross‑build.
 4. Lock PyQt window structure & styling guide.
