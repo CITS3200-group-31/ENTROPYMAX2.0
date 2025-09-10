@@ -14,7 +14,6 @@ add_library(entropymax STATIC
   src/io/csv_stub.c
   src/io/parquet_stub.c
   src/util/util.c
-  src/util/logging_stub.c
 )
 target_include_directories(entropymax PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
