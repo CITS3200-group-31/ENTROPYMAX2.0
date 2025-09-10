@@ -6,17 +6,17 @@ Handles interactive map display with sample selection.
 import os
 import folium
 from statistics import mean
-from PyQt6.QtCore import QUrl, pyqtSignal, QObject
-from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtWebEngineCore import QWebEngineSettings
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QGroupBox
+from PySide6.QtCore import QUrl, Signal
+from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWebEngineCore import QWebEngineSettings
+from PySide6.QtWidgets import QWidget, QVBoxLayout
 
 
 class MapWidget(QWidget):
     """Interactive map widget with sample selection capability."""
     
     # Signal emitted when samples are selected/deselected
-    selectionChanged = pyqtSignal(list)  # list of selected sample names
+    selectionChanged = Signal(list)  # list of selected sample names
     
     def __init__(self, parent=None):
         super().__init__(parent)

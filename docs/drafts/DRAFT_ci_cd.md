@@ -1,6 +1,8 @@
-# EntropyMax 2.0 – CI / CD Pipeline
+# EntropyMax 2.0 – CI / CD Pipeline (Draft → To be aligned)
 
-## Pipeline snapshot
+Note: This draft outlines a future CI/CD pipeline. It is not yet implemented. Refer to `README.md` for current build and test instructions. When CI is added, this file will be converted into a working copy under `docs/`.
+
+## Pipeline snapshot (proposed)
 ```
              PR / push
                     │

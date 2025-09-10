@@ -1,6 +1,6 @@
 # Legacy VB6 audit – what to port and what to drop
 
-This document catalogues the VB6 code under `legacy/`, identifies the calculation routines we must port verbatim (semantics‑preserving) to C, and flags UI/packaging code that is out of scope.
+This document catalogues the VB6 code under `legacy/`, identifies the calculation routines to port to C, and flags UI/packaging code that is out of scope. For the active plan and implementation, see `docs/ARCHITECTURE.md`, `docs/PORTING_GUIDE.md`, and `docs/BACKEND.md`.
 
 ## Inventory
 

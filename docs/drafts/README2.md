@@ -1,6 +1,6 @@
-# ENTROPYMAX 2.0 – Detailed Architecture (Draft)
+# ENTROPYMAX 2.0 – Detailed Architecture (Superseded)
 
-This document refines the high‑level plan in `README.md` and `DRAFT_architecture.md` into a concrete, versionable structure for the C core, Python bindings, and PyQt6 GUI.
+This draft has been superseded by `docs/ARCHITECTURE.md` (working copy). Please refer there for the current architecture. The content below remains for historical context.
 
 ## Proposed Repository Structure
 
