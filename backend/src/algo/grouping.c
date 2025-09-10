@@ -2,14 +2,11 @@
 
 #include <stddef.h>
 
-#include "logging.h"
-
 // OWNER: Will
 // VB6 mapping: SetGroups → em_set_groups
 int em_set_groups(const double *data, int32_t k, int32_t rows, int32_t cols,
                   const int32_t *member1, double **fGroupOut) {
   if (!data || !member1 || !fGroupOut || k <= 0 || rows <= 0 || cols <= 0) {
-    log_message(LOG_ERROR, "[em_set_groups] Invalid arguments");
     return -1;
   }
 
@@ -18,7 +15,6 @@ int em_set_groups(const double *data, int32_t k, int32_t rows, int32_t cols,
     for (int j = 0; j < rows; j++) {
       if (member1[j] == i) {
         if (m >= rows) {
-          log_message(LOG_ERROR, "[em_set_groups] Output index out of bounds");
           return -1;
         }
 
