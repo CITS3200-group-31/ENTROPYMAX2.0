@@ -1,7 +1,6 @@
 #include "sweep.h"
 #include "grouping.h"
 #include "metrics.h"
-#include "logging.h"
 
 // OWNER: Will
 // VB6 mapping: LOOPgroupsize → em_sweep_k
