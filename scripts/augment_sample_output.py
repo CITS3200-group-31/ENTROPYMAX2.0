@@ -102,6 +102,13 @@ def split_csv_row(line: str) -> List[str]:
     return [c.strip() for c in line.split(",")]
 
 
+def trim_trailing_empty(columns: List[str]) -> List[str]:
+    # Remove one or more trailing empty columns that may come from a trailing comma
+    while columns and columns[-1] == "":
+        columns.pop()
+    return columns
+
+
 def main(argv: List[str]) -> int:
     root = Path(__file__).resolve().parents[1]
     in_path = root / "data" / "processed" / "sample_output.csv"
@@ -127,7 +134,7 @@ def main(argv: List[str]) -> int:
         k_val, pct, tot_in, betw_in, tss, wss, n_samples, ch_stat = meta
         # Parse header once
         in_header = lines[header_idx].strip()
-        in_cols = split_csv_row(in_header)
+        in_cols = trim_trailing_empty(split_csv_row(in_header))
         if header_cols is None:
             header_cols = in_cols + [
                 "Total Inequality",
@@ -136,7 +143,6 @@ def main(argv: List[str]) -> int:
                 "Within Group Sum Of Squares",
                 "Calinski-Harabasz pseudo-F statistic",
                 "% Explained",
-                "# Samples",
                 "K",
                 "Latitude",
                 "Longitude",
@@ -149,7 +155,10 @@ def main(argv: List[str]) -> int:
             if not row:
                 continue
             # Expect first two fields: Group, Sample
-            cols = split_csv_row(row)
+            cols = trim_trailing_empty(split_csv_row(row))
+            if cols and cols[0].strip().lower() == "group":
+                # Defensive: skip any stray header lines from source
+                continue
             if len(cols) < 2:
                 continue
             sample_name = cols[1]
@@ -161,7 +170,6 @@ def main(argv: List[str]) -> int:
                 f"{wss}",
                 f"{ch_stat}",
                 f"{pct}",
-                f"{n_samples}",
                 f"{k_val}",
                 lat,
                 lon,
