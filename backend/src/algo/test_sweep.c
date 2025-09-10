@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include "sweep.h"
 
+// gcc -Ibackend/include -o test_sweep     backend/src/algo/test_sweep.c     backend/src/algo/sweep.c     backend/src/algo/grouping.c     backend/src/algo/metrics.c     -lm
+
 int main() {
     // Example data: 20 rows, 4 columns
     int32_t rows = 20, cols = 4;
