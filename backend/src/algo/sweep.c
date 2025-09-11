@@ -3,7 +3,7 @@
 #include "metrics.h"
 
 // OWNER: Will
-// VB6 mapping: LOOPgroupsize → em_sweep_k
+// VB6 mapping: LOOPgroupsizgit brtae → em_sweep_k
 int em_sweep_k(const double *data_in, int32_t rows, int32_t cols,
                const double *Y, double tineq, int32_t k_min, int32_t k_max,
                int32_t *out_opt_k, int32_t perms_n, uint64_t seed,
