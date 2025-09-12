@@ -133,12 +133,13 @@ int main(int argc, char **argv) {
     em_k_metric_t *metrics = malloc(metrics_cap * sizeof(em_k_metric_t));
     int32_t *member1 = malloc(rows * sizeof(int32_t));
     double *group_means = malloc(k_max * cols * sizeof(double));
+    int32_t *all_member1 = malloc((size_t)metrics_cap * (size_t)rows * sizeof(int32_t));
     int out_opt_k = 0;
     int perms_n = 0; // disable permutations for deterministic output equivalence
     uint64_t seed = 42;
 
     int rc = em_sweep_k(data_proc, rows, cols, Y, tineq, k_min, k_max, &out_opt_k, perms_n, seed,
-                        metrics, metrics_cap, member1, group_means);
+                        metrics, metrics_cap, member1, group_means, all_member1);
     if (rc <= 0) {
         fprintf(stderr, "Sweep failed or returned no metrics (rc=%d)\n", rc);
         return 2;
@@ -160,20 +161,9 @@ int main(int argc, char **argv) {
 
     for (int mi = 0; mi < rc; ++mi) {
         int k = metrics[mi].nGrpDum;
+        const int32_t *member_k = all_member1 + (size_t)mi * (size_t)rows;
 
-        // Recompute grouping for this specific k to get member assignments
-        int32_t *member_k = (int32_t*)malloc((size_t)rows * sizeof(int32_t));
-        if (!member_k) { fclose(out); fprintf(stderr, "OOM\n"); return 1; }
-        if (em_initial_groups(rows, k, member_k) != 0) { free(member_k); continue; }
-        double bineq_k = 0.0, rs_k = 0.0; int ixout_k = 0; double dummy_means_val = 0.0; (void)dummy_means_val;
-        // allocate minimal buffer for group means (k*cols)
-        double *group_means_k = (double*)calloc((size_t)k * (size_t)cols, sizeof(double));
-        if (!group_means_k) { free(member_k); fclose(out); fprintf(stderr, "OOM\n"); return 1; }
-        if (em_switch_groups(data_proc, rows, cols, k, tineq, Y, k_min, member_k, &bineq_k, &rs_k, &ixout_k, group_means_k) != 0) {
-            free(group_means_k); free(member_k); continue;
-        }
-
-        // Emit groups for this k
+        // Emit groups for this k (using precomputed member_k)
         for (int g = 1; g <= k; ++g) {
             for (int i = 0; i < rows; ++i) {
                 if (member_k[i] + 1 != g) continue;
@@ -190,16 +180,13 @@ int main(int argc, char **argv) {
                 fprintf(out, ",%G,%G,%G,%G,%G,%G",
                         metrics[mi].fRs,
                         tineq,
-                        metrics[mi].fCHF,
+                        metrics[mi].fBetween,
                         metrics[mi].fSST,
                         metrics[mi].fSSE,
                         metrics[mi].fCHDum);
                 fprintf(out, "\n");
             }
         }
-
-        free(group_means_k);
-        free(member_k);
     }
     fclose(out);
 
@@ -210,7 +197,7 @@ int main(int argc, char **argv) {
         for (int i = 0; i < rows * cols; ++i) free(raw_values[i]);
         free(raw_values);
     }
-    free(rownames); free(colnames); free(sample_header); free(data); free(Y); free(metrics); free(member1); free(group_means); free(data_proc);
+    free(rownames); free(colnames); free(sample_header); free(data); free(Y); free(metrics); free(member1); free(group_means); free(all_member1); free(data_proc);
 
     printf("Done. Output written to %s\n", fixed_output_path);
     return 0;
