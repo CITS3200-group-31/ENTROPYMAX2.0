@@ -125,7 +125,7 @@ int em_ch_stat(const double *class_table, int32_t samples, int32_t classes, int3
     if (perms_n > 0) {
         double perm_sum = 0.0;
         int perm_better = 0;
-        double *perm_data = malloc((size_t)samples * (size_t)(classes + 1) * sizeof(double));
+        double *perm_data = calloc((size_t)samples * (size_t)(classes + 1), sizeof(double));
         if (!perm_data) goto cleanup;
 
         memcpy(perm_data, class_table, (size_t)samples * (size_t)(classes + 1) * sizeof(double));
