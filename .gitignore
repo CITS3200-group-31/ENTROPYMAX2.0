@@ -31,3 +31,16 @@ data/processed/sample_outputt.csv
 .DS_Store
 *.swp
 *.swo
+
+*.chm
+*.zip
+*.7z
+*.rar
+*.tar
+*.gz
+*.bz2
+*.xz
+*.wim
+*.iso
+
+*.xlsx
