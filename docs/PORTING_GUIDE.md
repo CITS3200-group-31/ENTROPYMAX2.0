@@ -72,5 +72,10 @@ CSV(gps) + CSV(raw) → merged raw Parquet → C backend → processed Parquet.
 - Initial groups: equal blocks; remainder to last group
 - Rs special case: if tineq=0 and bineq=0 → Rs=100 and ixout=1
 
+Additional implementation notes (current):
+- Working copy is grand‑total normalized for computation; raw values are preserved in CSV output.
+- Greedy reassignment accepts only moves that improve per‑sample RS over the current assignment.
+- Per‑k outputs (2..20) are emitted with a single CSV header, and metrics are appended as columns per row.
+
 ## Determinism
 - CH permutations must use a deterministic RNG with a configurable seed
