@@ -18,7 +18,7 @@ int em_sweep_k(const double *data_in, int32_t rows, int32_t cols,
   int counter = 0;
   int best_k_index = 0;
   double bineq, rs_stat, ch_stat, sstt, sset, perm_mean, perm_p;
-  double best_ch_value = 0.0;
+  double best_ch_value = -INFINITY;
 
   int32_t *member1 = (int32_t *)calloc((unsigned long)rows, sizeof(int32_t));
   int32_t *best_member1 =
@@ -76,16 +76,17 @@ int em_sweep_k(const double *data_in, int32_t rows, int32_t cols,
     }
 
     out_metrics[counter].nGrpDum = k;
-    out_metrics[counter].fCHDum = bineq;
+    // Align naming: store CH in fCHDum and Rs in fRs; retain SST/SSE
+    out_metrics[counter].fCHDum = ch_stat;
     out_metrics[counter].fRs = rs_stat;
     out_metrics[counter].fSST = sstt;
     out_metrics[counter].fSSE = sset;
-    out_metrics[counter].fCHF = ch_stat;
+    out_metrics[counter].fCHF = bineq;     // reuse field for bineq
     out_metrics[counter].fCHP = perm_p;
     out_metrics[counter].nCounterIndex = perm_mean;
 
     double comparison_value = ch_stat;
-    if (comparison_value > best_ch_value) {
+    if (comparison_value > best_ch_value || (comparison_value == best_ch_value && k < out_metrics[best_k_index].nGrpDum)) {
       best_ch_value = comparison_value;
       best_k_index = counter;
       memcpy(best_member1, member1, (unsigned long)rows * sizeof(int));
