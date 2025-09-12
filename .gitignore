@@ -22,6 +22,7 @@ emx_cli
 *.so
 *.dylib
 *.dll
+*.pyc
 
 # Generated CSV (keep baseline CORRECT; ignore transient)
 data/processed/sample_outputt.csv
