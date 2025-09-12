@@ -63,23 +63,13 @@ int em_between_inequality(const double *data, int32_t rows, int32_t cols,
   int group_idx, col_idx;
   int *group_counts = NULL;
   double bineq2;
-  double **group_sums = NULL;
+  double *group_sums = NULL; // contiguous [k * cols]
 
-  group_sums = (double **)calloc((size_t)k, sizeof(double *));
+  group_sums = (double *)calloc((size_t)k * (size_t)cols, sizeof(double));
   if (!group_sums) return -1;
-
-  for (int j = 0; j < k; j++) {
-    group_sums[j] = (double *)calloc((size_t)cols, sizeof(double));
-    if (!group_sums[j]) {
-      for (int l = 0; l < j; l++) free(group_sums[l]);
-      free(group_sums);
-      return -1;
-    }
-  }
 
   group_counts = (int *)calloc((size_t)k, sizeof(int));
   if (!group_counts) {
-    for (int j = 0; j < k; j++) free(group_sums[j]);
     free(group_sums);
     return -1;
   }
@@ -89,7 +79,8 @@ int em_between_inequality(const double *data, int32_t rows, int32_t cols,
       if (member1[r] != group_idx) continue;
 
       for (int i = 0; i < cols; i++) {
-        group_sums[group_idx][i] += data[(size_t)r * (size_t)cols + (size_t)i];
+        group_sums[(size_t)group_idx * (size_t)cols + (size_t)i] +=
+            data[(size_t)r * (size_t)cols + (size_t)i];
       }
       group_counts[group_idx]++;
     }
@@ -110,21 +101,18 @@ int em_between_inequality(const double *data, int32_t rows, int32_t cols,
         continue;
       }
 
-      double yr = group_sums[group_idx][col_idx] / Yj; // proportion of grand total
+      double yr = group_sums[(size_t)group_idx * (size_t)cols + (size_t)col_idx] / Yj; // proportion of grand total
       if (yr == 0.0) {
         continue;
       }
 
       double term = yr * (double)rows / (double)group_counts[group_idx];
-      bineq2 += yr * log(term) / log(2.0);
+      bineq2 += yr * log2(term);
     }
 
     *out_bineq += Y[col_idx] * bineq2;
   }
 
-  for (int j = 0; j < k; j++) {
-    free(group_sums[j]);
-  }
   free(group_sums);
   free(group_counts);
 
@@ -158,6 +146,7 @@ int em_optimise_groups(const double *data, int32_t rows, int32_t cols,
                        int32_t *member1, int32_t current_item,
                        int32_t orig_group, int32_t *iter_count,
                        int32_t min_groups, double *out_group_means) {
+  (void)min_groups; // unused parameter (reserved for future constraints)
   if (!data || !member1 || !out_group_means || rows <= 0 || cols <= 0 ||
       k <= 0) {
     return -1;
