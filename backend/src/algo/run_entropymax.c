@@ -100,7 +100,7 @@ int main(int argc, char **argv) {
 
     double *data = NULL; // raw data as read
     int rows = 0, cols = 0;
-    char **rownames = NULL, **colnames = NULL; char *sample_header = NULL;
+    char **rownames = NULL, **colnames = NULL;
     char **raw_values = NULL;
 
     if (read_csv(fixed_input_path, &data, &rows, &cols, &rownames, &colnames, &sample_header, &raw_values) != 0) {
