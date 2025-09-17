@@ -1,11 +1,11 @@
 """
-Chart widget component for EntropyMax frontend.
+Chart widget component
 Handles CH and Rs analysis visualization.
 """
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtWidgets import QWidget, QVBoxLayout
+from PyQt6.QtWidgets import QWidget, QVBoxLayout
 
 
 class ChartWidget(QWidget):

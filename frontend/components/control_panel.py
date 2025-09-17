@@ -1,12 +1,11 @@
 """
-Minimalist control panel component for EntropyMax frontend.
-Following proper workflow: Input -> Output -> Parameters -> Generate Map -> Select -> Analyze
+Workflow-oriented control panel.
 """
 
-from PySide6.QtWidgets import (QWidget, QGroupBox, QVBoxLayout, QHBoxLayout,
+from PyQt6.QtWidgets import (QWidget, QGroupBox, QVBoxLayout, QHBoxLayout,
                              QPushButton, QCheckBox, QLineEdit,
                              QLabel, QFileDialog)
-from PySide6.QtCore import Signal
+from PyQt6.QtCore import pyqtSignal as Signal
 
 
 class ControlPanel(QWidget):
