@@ -48,16 +48,16 @@ YAML keys mirror the variable names above.
 ### Run
 ```bash
 # Prompt for week
-python main.py
+python export_hours.py
 
 # Specify week (2–11)
-python main.py --week 7
+python export_hours.py --week 7
 
 # Dry‑run (no writes/uploads)
-python main.py --week 7 --dry-run
+python export_hours.py --week 7 --dry-run
 
 # With config file
-python main.py --week 7 --config config.yaml
+python export_hours.py --week 7 --config config.yaml
 ```
 
 ### Outputs
@@ -88,7 +88,7 @@ System:
 ## Implementation Review
 
 ### Exactly what the script does
-Based on `main.py`, the automation performs the following end‑to‑end workflow:
+Based on `export_hours.py`, the automation performs the following end‑to‑end workflow:
 
 1. Prompts for a week number (2–11). The week number is used in output file names and the Google Drive week folder name (`WeekY`).
 2. Copies `gdrive:CITS3200/CITS3200_Group_31.xlsx` locally via `rclone copy` using a remote named `gdrive`.
