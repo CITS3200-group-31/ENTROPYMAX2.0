@@ -1,10 +1,5 @@
-"""
-EntropyMax 2.0 - Final Version with Bento Box Design
-Minimalist, workflow-driven UI for geological analysis.
-"""
-
 import sys
-from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
+from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QFrame, QMessageBox, QLabel)
 
 # Import components and utils
@@ -100,18 +95,6 @@ class EntropyMaxFinal(QMainWindow):
         map_box = BentoBox(title="Map View")
         map_layout = QVBoxLayout(map_box)
         map_layout.setContentsMargins(10, 10, 10, 10)
-        
-        # Add title for map
-        map_title = QLabel("Interactive Map")
-        map_title.setStyleSheet("""
-            QLabel {
-                font-size: 16px;
-                font-weight: bold;
-                color: #333;
-                padding: 5px 0 10px 0;
-            }
-        """)
-        map_layout.addWidget(map_title)
         
         self.map_widget = MapWidget()
         map_layout.addWidget(self.map_widget)
