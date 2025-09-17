@@ -1,17 +1,20 @@
 import pandas as pd
 
 def validate_csv_gps_structure(filepath):
-    #The expected column names in order
-    expected_columns = ["Sample", "Latitude", "Longitude"]
+    # The expected column names (order-insensitive), allowing 'Sample Name' synonym
+    expected_columns = {"Sample", "Latitude", "Longitude"}
 
     try:
         #Loads the entire CSV
         df = pd.read_csv(filepath)
         df.columns = [col.strip() for col in df.columns]  # Strip spaces from headers
+        # Allow 'Sample Name' as synonym for 'Sample'
+        if "Sample" not in df.columns and "Sample Name" in df.columns:
+            df = df.rename(columns={"Sample Name": "Sample"})
 
-        #Checks for missing or misnamed columns
-        if df.columns.tolist() != expected_columns:
-            raise ValueError(f"CSV must have exactly these columns in order: {expected_columns}, but found: {df.columns.tolist()}")
+        # Checks for required columns (order-insensitive)
+        if not expected_columns.issubset(set(df.columns)):
+            raise ValueError(f"CSV must contain columns {sorted(expected_columns)}, but found: {df.columns.tolist()}")
 
         #Checks for missing values in the Sample column
         if df["Sample"].isnull().any():
