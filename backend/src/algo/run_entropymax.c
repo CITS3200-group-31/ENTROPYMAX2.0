@@ -125,7 +125,7 @@ int main(int argc, char **argv) {
     char **raw_values = NULL;
 
     // Algorithm parity: load numeric matrix from the validated raw CSV
-    if (read_csv(raw_csv_path, &data, &rows, &cols, &rownames, &colnames, &sample_header, &raw_values) != 0) {
+    if (read_csv(raw_csv_path, &data, &rows, &cols, &rownames, &colnames, NULL, &raw_values) != 0) {
         fprintf(stderr, "Failed to read input CSV\n");
         return 1;
     }
@@ -225,7 +225,7 @@ int main(int argc, char **argv) {
         for (int i = 0; i < rows * cols; ++i) free(raw_values[i]);
         free(raw_values);
     }
-    free(rownames); free(colnames); free(sample_header); free(data); free(Y); free(metrics); free(member1); free(group_means); free(all_member1); free(data_proc);
+    free(rownames); free(colnames); free(data); free(Y); free(metrics); free(member1); free(group_means); free(all_member1); free(data_proc);
 
     printf("Done. Output written to %s (csv) and %s (parquet)\n", fixed_output_path, final_parquet_path);
     return 0;
