@@ -245,9 +245,9 @@ int main(int argc, char **argv) {
     } else {
         // CSV fallback
         const char *input_path = env_input_csv && *env_input_csv ? env_input_csv : preferred_input_path;
-        read_rc = read_csv(input_path, &data, &rows, &cols, &rownames, &colnames, &sample_header, &raw_values);
+        read_rc = read_csv(input_path, &data, &rows, &cols, &rownames, &colnames, NULL, &raw_values);
         if (read_rc != 0) {
-            read_rc = read_csv(legacy_input_path, &data, &rows, &cols, &rownames, &colnames, &sample_header, &raw_values);
+            read_rc = read_csv(legacy_input_path, &data, &rows, &cols, &rownames, &colnames, NULL, &raw_values);
         }
         if (read_rc != 0) { fprintf(stderr, "Failed to read input CSV\n"); return 1; }
     }
@@ -387,7 +387,7 @@ int main(int argc, char **argv) {
         free(coord_samples);
     }
     free(coord_lats); free(coord_lons);
-    free(rownames); free(colnames); free(sample_header); free(data); free(Y); free(metrics); free(member1); free(group_means); free(all_member1); free(data_proc); free(lat_values); free(lon_values);
+    free(rownames); free(colnames); free(data); free(Y); free(metrics); free(member1); free(group_means); free(all_member1); free(data_proc); free(lat_values); free(lon_values);
 
     if (!write_parquet && !to_stdout) { printf("Done. Output written to %s\n", output_path); }
     return 0;
