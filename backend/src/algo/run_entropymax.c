@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <stdarg.h>
 #include "preprocess.h"
 #include "metrics.h"
 #include "sweep.h"
@@ -29,6 +30,30 @@ static int sink_write(struct csv_sink *s, const char *str) {
     s->size += n;
     s->buf[s->size] = '\0';
     return 0;
+}
+
+static int sink_puts(struct csv_sink *s, const char *str) {
+    return sink_write(s, str);
+}
+
+static int sink_printf(struct csv_sink *s, const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    char dummy;
+    va_list ap_copy;
+    va_copy(ap_copy, ap);
+    int needed = vsnprintf(&dummy, 0, fmt, ap_copy);
+    va_end(ap_copy);
+    if (needed < 0) { va_end(ap); return -1; }
+    size_t size = (size_t)needed + 1;
+    char *buf = (char*)malloc(size);
+    if (!buf) { va_end(ap); return -1; }
+    int wrote = vsnprintf(buf, size, fmt, ap);
+    va_end(ap);
+    if (wrote < 0) { free(buf); return -1; }
+    int rc = sink_write(s, buf);
+    free(buf);
+    return rc;
 }
 
 static void rstrip_newline(char *s) {
@@ -290,16 +315,12 @@ int main(int argc, char **argv) {
     sink.cap = 0;
 
     // Single header line at top
-    {
-        char header[65536]; header[0] = '\0';
-        strcat(header, "K,Group,Sample,Latitude,Longitude");
-        for (int j = 0; j < cols; ++j) {
-            strcat(header, ",");
-            strcat(header, colnames && colnames[j] ? colnames[j] : "var");
-        }
-        strcat(header, ",% explained,Total inequality,Between region inequality,Total sum of squares,Within group sum of squares,Calinski-Harabasz pseudo-F statistic\n");
-        if (sink_write(&sink, header) != 0) { fprintf(stderr, "OOM\n"); return 1; }
+    if (sink_puts(&sink, "K,Group,Sample,Latitude,Longitude") != 0) { fprintf(stderr, "OOM\n"); return 1; }
+    for (int j = 0; j < cols; ++j) {
+        const char *nm = (colnames && colnames[j]) ? colnames[j] : "var";
+        if (sink_printf(&sink, ",%s", nm) != 0) { fprintf(stderr, "OOM\n"); return 1; }
     }
+    if (sink_puts(&sink, ",% explained,Total inequality,Between region inequality,Total sum of squares,Within group sum of squares,Calinski-Harabasz pseudo-F statistic\n") != 0) { fprintf(stderr, "OOM\n"); return 1; }
 
     for (int mi = 0; mi < rc; ++mi) {
         int k = metrics[mi].nGrpDum;
@@ -317,31 +338,27 @@ int main(int argc, char **argv) {
                     int idxc = find_coords_index(rownames[i], coord_samples, coord_count);
                     if (idxc >= 0) { lat_val = coord_lats[idxc]; lon_val = coord_lons[idxc]; has_coord = 1; }
                 }
-                char line[131072];
-                size_t off = 0;
-                off += (size_t)snprintf(line+off, sizeof(line)-off, "%d,%d,%s", k, g, rownames && rownames[i] ? rownames[i] : "");
+                if (sink_printf(&sink, "%d,%d,%s", k, g, rownames && rownames[i] ? rownames[i] : "") != 0) { fprintf(stderr, "OOM\n"); return 1; }
                 if (has_coord) {
-                    off += (size_t)snprintf(line+off, sizeof(line)-off, ",%G,%G", lat_val, lon_val);
+                    if (sink_printf(&sink, ",%G,%G", lat_val, lon_val) != 0) { fprintf(stderr, "OOM\n"); return 1; }
                 } else {
-                    off += (size_t)snprintf(line+off, sizeof(line)-off, ",,");
+                    if (sink_puts(&sink, ",,") != 0) { fprintf(stderr, "OOM\n"); return 1; }
                 }
                 for (int j = 0; j < cols; ++j) {
                     const char *tok = raw_values ? raw_values[(size_t)i * (size_t)cols + (size_t)j] : NULL;
                     if (tok) {
-                        off += (size_t)snprintf(line+off, sizeof(line)-off, ",%s", tok);
+                        if (sink_printf(&sink, ",%s", tok) != 0) { fprintf(stderr, "OOM\n"); return 1; }
                     } else {
-                        off += (size_t)snprintf(line+off, sizeof(line)-off, ",%G", data[(size_t)i * (size_t)cols + (size_t)j]);
+                        if (sink_printf(&sink, ",%G", data[(size_t)i * (size_t)cols + (size_t)j]) != 0) { fprintf(stderr, "OOM\n"); return 1; }
                     }
                 }
-                // Append metrics per row for this k
-                off += (size_t)snprintf(line+off, sizeof(line)-off, ",%G,%G,%G,%G,%G,%G\n",
+                if (sink_printf(&sink, ",%G,%G,%G,%G,%G,%G\n",
                                  metrics[mi].fRs,
                                  tineq,
                                  metrics[mi].fBetween,
                                  metrics[mi].fSST,
                                  metrics[mi].fSSE,
-                                 metrics[mi].fCHDum);
-                if (sink_write(&sink, line) != 0) { fprintf(stderr, "OOM\n"); return 1; }
+                                 metrics[mi].fCHDum) != 0) { fprintf(stderr, "OOM\n"); return 1; }
             }
         }
     }
