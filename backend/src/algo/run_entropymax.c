@@ -9,15 +9,43 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+<<<<<<< HEAD
 #ifdef _MSC_VER
 // MSVC compatibility: map POSIX functions
 #define strdup _strdup
 #define strtok_r strtok_s
 #endif
+=======
+#include <stdarg.h>
+>>>>>>> 4a58e9d (trying to fix runtime segfaults)
 #include "preprocess.h"
 #include "metrics.h"
 #include "sweep.h"
 #include "grouping.h"
+
+static int sink_puts(struct csv_sink *s, const char *str) {
+    return sink_write(s, str);
+}
+
+static int sink_printf(struct csv_sink *s, const char *fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    char dummy;
+    va_list ap_copy;
+    va_copy(ap_copy, ap);
+    int needed = vsnprintf(&dummy, 0, fmt, ap_copy);
+    va_end(ap_copy);
+    if (needed < 0) { va_end(ap); return -1; }
+    size_t size = (size_t)needed + 1;
+    char *buf = (char*)malloc(size);
+    if (!buf) { va_end(ap); return -1; }
+    int wrote = vsnprintf(buf, size, fmt, ap);
+    va_end(ap);
+    if (wrote < 0) { free(buf); return -1; }
+    int rc = sink_write(s, buf);
+    free(buf);
+    return rc;
+}
 
 static void rstrip_newline(char *s) {
     if (!s) return;
