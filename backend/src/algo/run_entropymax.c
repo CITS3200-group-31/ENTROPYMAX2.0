@@ -1,8 +1,5 @@
 // NOTE: Minimal CSV loader with safety checks (no quoted fields). First header column is sample_id.
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <string.h>
+#include "run_entropymax.h"
 #include "preprocess.h"
 #include "metrics.h"
 #include "sweep.h"
