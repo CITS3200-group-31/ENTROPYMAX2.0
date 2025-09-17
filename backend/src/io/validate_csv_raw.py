@@ -4,6 +4,9 @@ def validate_csv_structure(filepath):
     try:
         #Loads the CSV
         df = pd.read_csv(filepath)
+        # Drop stray unnamed columns (often created by trailing commas) and empty columns
+        df = df.loc[:, ~df.columns.astype(str).str.startswith('Unnamed')]
+        df = df.dropna(axis=1, how='all')
         df.columns = [str(col).strip() for col in df.columns]
 
         #Checks that the first column is 'Sample Name'
@@ -20,7 +23,7 @@ def validate_csv_structure(filepath):
         if numeric_values != sorted(numeric_values):
             raise ValueError("Column headers after 'Sample' are not in ascending order.")
 
-        #Validates the 'Sample' values are non-empty 
+        #Validates the 'Sample' values are non-empty
         if df['Sample Name'].isnull().any() or (df['Sample Name'].astype(str).str.strip() == '').any():
             raise ValueError("'Sample Name' column contains empty values.")
 
