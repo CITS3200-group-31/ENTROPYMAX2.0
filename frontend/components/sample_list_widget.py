@@ -3,7 +3,8 @@ Sample list widget with checkboxes for selection and map navigation.
 """
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, 
-                             QTreeWidgetItem, QPushButton, QLabel, QHeaderView)
+                             QTreeWidgetItem, QPushButton, QLabel, QHeaderView,
+                             QAbstractItemView)
 from PyQt6.QtCore import Qt
 from PyQt6.QtCore import pyqtSignal as Signal
 
@@ -148,16 +149,22 @@ class SampleListWidget(QWidget):
         
     def _select_all(self):
         """Select all samples."""
+        # Block signals during batch update to prevent recursion
+        self.tree_widget.blockSignals(True)
         for i in range(self.tree_widget.topLevelItemCount()):
             item = self.tree_widget.topLevelItem(i)
             item.setCheckState(0, Qt.CheckState.Checked)
+        self.tree_widget.blockSignals(False)
         self._update_selection()
         
     def _clear_all(self):
         """Clear all selections."""
+        # Block signals during batch update to prevent recursion
+        self.tree_widget.blockSignals(True)
         for i in range(self.tree_widget.topLevelItemCount()):
             item = self.tree_widget.topLevelItem(i)
             item.setCheckState(0, Qt.CheckState.Unchecked)
+        self.tree_widget.blockSignals(False)
         self._update_selection()
         
     def get_selected_samples(self):
@@ -175,16 +182,81 @@ class SampleListWidget(QWidget):
                     selected_data.append(sample_data)
         return selected_data
     
-    def set_selection(self, sample_names):
-        """Set selection to specific samples."""
+    def set_selection(self, sample_names, focus_last=False):
+        """Set selection to specific samples and highlight them.
+        
+        Args:
+            sample_names: List of sample names to select
+            focus_last: If True, focus on the last changed item
+        """
+        first_selected_item = None
+        last_changed_item = None
+        
+        # Block signals during batch update to prevent recursion
+        self.tree_widget.blockSignals(True)
+        
         for i in range(self.tree_widget.topLevelItemCount()):
             item = self.tree_widget.topLevelItem(i)
             sample_data = item.data(1, Qt.ItemDataRole.UserRole)
-            if sample_data and sample_data['name'] in sample_names:
-                item.setCheckState(0, Qt.CheckState.Checked)
-            else:
-                item.setCheckState(0, Qt.CheckState.Unchecked)
+            
+            if sample_data:
+                prev_state = item.checkState(0)
+                
+                if sample_data['name'] in sample_names:
+                    item.setCheckState(0, Qt.CheckState.Checked)
+                    # Keep track of first selected item
+                    if first_selected_item is None:
+                        first_selected_item = item
+                    # Track if this item's state changed
+                    if prev_state != Qt.CheckState.Checked:
+                        last_changed_item = item
+                else:
+                    item.setCheckState(0, Qt.CheckState.Unchecked)
+                    # Track if this item's state changed
+                    if prev_state == Qt.CheckState.Checked:
+                        last_changed_item = item
+        
+        # Re-enable signals
+        self.tree_widget.blockSignals(False)
+        
+        # Focus and scroll logic
+        if focus_last and last_changed_item:
+            # Focus on the last changed item (most recent selection/deselection)
+            self.tree_widget.setCurrentItem(last_changed_item)
+            self.tree_widget.scrollToItem(last_changed_item, QTreeWidget.ScrollHint.PositionAtCenter)
+            # Give visual feedback by briefly highlighting
+            self.tree_widget.setFocus()
+        elif first_selected_item and len(sample_names) == 1:
+            # For single selection, highlight and center it
+            self.tree_widget.setCurrentItem(first_selected_item)
+            self.tree_widget.scrollToItem(first_selected_item, QTreeWidget.ScrollHint.PositionAtCenter)
+            self.tree_widget.setFocus()
+        elif first_selected_item:
+            # For multiple selection, ensure first is visible
+            self.tree_widget.scrollToItem(first_selected_item, QTreeWidget.ScrollHint.EnsureVisible)
+        
         self._update_selection()
+    
+    def set_selection_with_focus(self, sample_names, focus_sample=None):
+        """Set selection and focus on a specific sample.
+        
+        Args:
+            sample_names: List of all selected sample names
+            focus_sample: The specific sample to focus on (last toggled)
+        """
+        # Update selection without triggering signals
+        self.set_selection(sample_names, focus_last=False)
+        
+        # Focus on the specified sample if provided
+        if focus_sample:
+            for i in range(self.tree_widget.topLevelItemCount()):
+                item = self.tree_widget.topLevelItem(i)
+                sample_data = item.data(1, Qt.ItemDataRole.UserRole)
+                if sample_data and sample_data['name'] == focus_sample:
+                    self.tree_widget.setCurrentItem(item)
+                    self.tree_widget.scrollToItem(item, QTreeWidget.ScrollHint.PositionAtCenter)
+                    self.tree_widget.setFocus()
+                    break
     
     def highlight_sample(self, sample_name):
         """Highlight a specific sample in the list."""
@@ -193,7 +265,8 @@ class SampleListWidget(QWidget):
             sample_data = item.data(1, Qt.ItemDataRole.UserRole)
             if sample_data and sample_data['name'] == sample_name:
                 self.tree_widget.setCurrentItem(item)
-                self.tree_widget.scrollToItem(item)
+                self.tree_widget.scrollToItem(item, QTreeWidget.ScrollHint.PositionAtCenter)
+                self.tree_widget.setFocus()
                 break
     
     def _apply_styles(self):

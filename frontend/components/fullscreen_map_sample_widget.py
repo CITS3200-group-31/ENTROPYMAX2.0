@@ -20,8 +20,13 @@ class FullscreenMapSampleWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.fullscreen_viewer = None
+        self.fullscreen_map = None
+        self.fullscreen_sample_list = None
         self.markers_data = []
         self.selected_samples = []
+        self._updating_from_map = False
+        self._updating_from_list = False
+        self._updating_from_fullscreen = False
         
         self._setup_ui()
         self._connect_signals()
@@ -98,27 +103,59 @@ class FullscreenMapSampleWidget(QWidget):
         
     def _on_map_selection_changed(self, selected_samples):
         """Handle selection change from map."""
-        # Avoid circular updates
-        if selected_samples != self.selected_samples:
-            self.selected_samples = selected_samples
-            # Update sample list to match map selection
+        # Avoid circular updates using flag
+        if self._updating_from_list or self._updating_from_fullscreen:
+            return
+            
+        self._updating_from_map = True
+        self.selected_samples = selected_samples
+        
+        # Update sample list with focus on the last toggled item
+        if hasattr(self.map_widget, 'last_toggled_sample'):
+            self.sample_list.set_selection_with_focus(
+                selected_samples, 
+                focus_sample=self.map_widget.last_toggled_sample
+            )
+            # Clear the last toggled sample after using it
+            self.map_widget.last_toggled_sample = None
+        else:
             self.sample_list.set_selection(selected_samples)
-            # Emit to parent
-            self.selectionChanged.emit(selected_samples)
+        
+        # Update fullscreen if it exists
+        if self.fullscreen_map:
+            self.fullscreen_map.set_selection(selected_samples)
+        if self.fullscreen_sample_list:
+            self.fullscreen_sample_list.set_selection(selected_samples)
+        
+        # Emit to parent
+        self.selectionChanged.emit(selected_samples)
+        self._updating_from_map = False
     
     def _on_list_selection_changed(self, selected_samples):
         """Handle selection change from sample list."""
-        # Avoid circular updates
-        if selected_samples != self.selected_samples:
-            self.selected_samples = selected_samples
-            # Update map to match list selection
-            self.map_widget.set_selection(selected_samples)
-            # Emit to parent
-            self.selectionChanged.emit(selected_samples)
+        # Avoid circular updates using flag
+        if self._updating_from_map or self._updating_from_fullscreen:
+            return
+            
+        self._updating_from_list = True
+        self.selected_samples = selected_samples
+        # Update map to match list selection
+        self.map_widget.set_selection(selected_samples)
+        
+        # Update fullscreen if it exists
+        if self.fullscreen_map:
+            self.fullscreen_map.set_selection(selected_samples)
+        if self.fullscreen_sample_list:
+            self.fullscreen_sample_list.set_selection(selected_samples)
+        
+        # Emit to parent
+        self.selectionChanged.emit(selected_samples)
+        self._updating_from_list = False
         
     def _on_sample_locate_requested(self, name, lat, lon):
-        """Handle sample locate request."""
-        self.map_widget.zoom_to_location(lat, lon)
+        """Handle sample locate request from list - zoom and highlight on map."""
+        # Pass sample name to zoom_to_location for highlighting
+        self.map_widget.zoom_to_location(lat, lon, sample_name=name)
         self.sampleLocateRequested.emit(name, lat, lon)
         
     def load_data(self, markers_data):
@@ -152,30 +189,44 @@ class FullscreenMapSampleWidget(QWidget):
         # Create splitter for fullscreen view
         splitter = QSplitter(Qt.Orientation.Horizontal)
         
-        # Create new interactive map widget
-        fullscreen_map = InteractiveMapWidget()
-        fullscreen_map.render_map(self.markers_data)
-        fullscreen_map.set_selection(self.selected_samples)
+        # Store references to fullscreen components
+        self.fullscreen_map = InteractiveMapWidget()
+        self.fullscreen_map.render_map(self.markers_data)
+        self.fullscreen_map.set_selection(self.selected_samples)
         
-        # Create new sample list widget
-        fullscreen_sample_list = SampleListWidget()
-        fullscreen_sample_list.load_samples(self.markers_data)
-        fullscreen_sample_list.set_selection(self.selected_samples)
+        self.fullscreen_sample_list = SampleListWidget()
+        self.fullscreen_sample_list.load_samples(self.markers_data)
+        self.fullscreen_sample_list.set_selection(self.selected_samples)
         
-        # Connect bidirectional selection in fullscreen
-        fullscreen_map.selectionChanged.connect(
-            lambda samples: fullscreen_sample_list.set_selection(samples)
-        )
-        fullscreen_sample_list.selectionChanged.connect(
-            lambda samples: fullscreen_map.set_selection(samples)
-        )
-        fullscreen_sample_list.sampleLocateRequested.connect(
-            lambda name, lat, lon: fullscreen_map.zoom_to_location(lat, lon)
+        # Local flag for fullscreen internal sync
+        fullscreen_updating = {'from_map': False, 'from_list': False}
+        
+        # Connect fullscreen components for internal sync
+        def on_fullscreen_map_changed(samples):
+            if not fullscreen_updating['from_list']:
+                fullscreen_updating['from_map'] = True
+                self.fullscreen_sample_list.set_selection(samples)
+                fullscreen_updating['from_map'] = False
+            # Sync back to main
+            self._on_fullscreen_selection_changed(samples)
+        
+        def on_fullscreen_list_changed(samples):
+            if not fullscreen_updating['from_map']:
+                fullscreen_updating['from_list'] = True
+                self.fullscreen_map.set_selection(samples)
+                fullscreen_updating['from_list'] = False
+            # Sync back to main
+            self._on_fullscreen_selection_changed(samples)
+        
+        self.fullscreen_map.selectionChanged.connect(on_fullscreen_map_changed)
+        self.fullscreen_sample_list.selectionChanged.connect(on_fullscreen_list_changed)
+        self.fullscreen_sample_list.sampleLocateRequested.connect(
+            lambda name, lat, lon: self.fullscreen_map.zoom_to_location(lat, lon)
         )
         
         # Add to splitter
-        splitter.addWidget(fullscreen_map)
-        splitter.addWidget(fullscreen_sample_list)
+        splitter.addWidget(self.fullscreen_map)
+        splitter.addWidget(self.fullscreen_sample_list)
         
         # Set sizes (60:40 ratio for better fullscreen view)
         splitter.setSizes([960, 640])
@@ -198,6 +249,29 @@ class FullscreenMapSampleWidget(QWidget):
         self.fullscreen_viewer.closed.connect(self._on_fullscreen_closed)
         self.fullscreen_viewer.show()
         
+    def _on_fullscreen_selection_changed(self, selected_samples):
+        """Handle selection change from fullscreen components to sync with main view."""
+        if self._updating_from_map or self._updating_from_list:
+            return
+            
+        self._updating_from_fullscreen = True
+        self.selected_samples = selected_samples
+        
+        # Update main view components only
+        self.map_widget.set_selection(selected_samples)
+        self.sample_list.set_selection(selected_samples)
+        
+        # Emit to parent
+        self.selectionChanged.emit(selected_samples)
+        self._updating_from_fullscreen = False
+    
     def _on_fullscreen_closed(self):
         """Handle fullscreen viewer close."""
+        # Clear fullscreen references
+        self.fullscreen_map = None
+        self.fullscreen_sample_list = None
         self.fullscreen_viewer = None
+        
+        # Ensure main view is in sync with last fullscreen state
+        self.map_widget.set_selection(self.selected_samples)
+        self.sample_list.set_selection(self.selected_samples)

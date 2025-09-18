@@ -157,10 +157,17 @@ class DistanceTool:
                                 marker.style.animation = 'pulse 1.5s infinite';
                             }}
                         }} else {{
+                            // Only remove measurement-related styles, not selection styles
                             marker.style.cursor = '';
                             marker.style.animation = '';
-                            marker.style.boxShadow = '';
-                            marker.style.border = '';
+                            marker.style.transition = '';
+                            // Only remove bright green measurement highlight (#00ff00)
+                            // Keep dark green selection highlight (#2ECC71) intact
+                            if (marker.style.border && marker.style.border.includes('#00ff00')) {{
+                                // Restore to original or remove only measurement style
+                                marker.style.border = marker.originalBorder || '';
+                                marker.style.boxShadow = marker.originalBoxShadow || '';
+                            }}
                         }}
                     }});
                     
@@ -208,23 +215,40 @@ class DistanceTool:
                     }}
                 }});
                 
-                // Clear button click handler
+                // Clear button click handler - only clears distance measurements
                 clearButton.addEventListener('click', function(e) {{
                     e.preventDefault();
+                    
+                    // Clear all distance measurement lines
                     measurementLayer.clearLayers();
                     currentMeasurements = [];
-                    isMeasuring = false;
-                    window.isMeasurementModeActive = false;
-                    measureButton.className = measureButton.className.replace(' distance-measure-active', '');
-                    mapInstance.getContainer().style.cursor = '';
-                    firstMarker = null;
+                    
+                    // Only deactivate if tool was active
+                    if (isMeasuring) {{
+                        isMeasuring = false;
+                        window.isMeasurementModeActive = false;
+                        measureButton.className = measureButton.className.replace(' distance-measure-active', '');
+                        mapInstance.getContainer().style.cursor = '';
+                        highlightMarkersForMeasurement(false);
+                    }}
+                    
+                    // Reset first marker if in the middle of measurement
+                    if (firstMarker) {{
+                        // Only reset the green measurement highlight
+                        if (firstMarker.style.border && firstMarker.style.border.includes('#00ff00')) {{
+                            firstMarker.style.boxShadow = firstMarker.originalBoxShadow || '';
+                            firstMarker.style.border = firstMarker.originalBorder || '';
+                        }}
+                        firstMarker = null;
+                    }}
                     firstMarkerData = null;
+                    
                     if (previewLine) {{
                         mapInstance.removeLayer(previewLine);
                         previewLine = null;
                     }}
-                    highlightMarkersForMeasurement(false);
-                    console.log('All measurements cleared');
+                    
+                    console.log('Distance measurements cleared');
                 }});
                 
                 // Handle marker clicks for distance measurement
@@ -249,7 +273,10 @@ class DistanceTool:
                                 lon: lon,
                                 name: sampleName
                             }};
-                            // Highlight the first selected marker
+                            // Store original styles before applying measurement highlight
+                            markerElement.originalBorder = markerElement.style.border || '';
+                            markerElement.originalBoxShadow = markerElement.style.boxShadow || '';
+                            // Apply bright green measurement highlight
                             markerElement.style.boxShadow = '0 0 15px #00ff00';
                             markerElement.style.border = '3px solid #00ff00';
                             console.log('First point selected:', sampleName, 'at', lat, lon);
@@ -266,9 +293,9 @@ class DistanceTool:
                             var endLatLng = L.latLng(secondMarkerData.lat, secondMarkerData.lon);
                             createDistanceMeasurement(startLatLng, endLatLng, firstMarkerData.name, secondMarkerData.name);
                             
-                            // Reset first marker styling
-                            firstMarker.style.boxShadow = '';
-                            firstMarker.style.border = '';
+                            // Reset first marker to its original styling (which may include selection)
+                            firstMarker.style.boxShadow = firstMarker.originalBoxShadow || '';
+                            firstMarker.style.border = firstMarker.originalBorder || '';
                             
                             // Clear selection
                             firstMarker = null;
