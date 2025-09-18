@@ -85,7 +85,13 @@ class GroupDetailPopup:
                 
                 # Convert string values to float, skip the sample name
                 try:
-                    y_values = [float(val) for val in row[1:]]
+                    # Handle empty strings by converting them to 0.0
+                    y_values = []
+                    for val in row[1:]:
+                        if val.strip() == '':
+                            y_values.append(0.0)
+                        else:
+                            y_values.append(float(val))
                     grouped_samples[group_id].append({
                         'name': row[0],  # Sample name
                         'values': y_values
