@@ -127,10 +127,18 @@ class SimpleArrowTool:
                     return;
                 }}
                 
+                // Initialize global flag if not exists
+                if (typeof window.isArrowModeActive === 'undefined') {{
+                    window.isArrowModeActive = false;
+                }}
+                
                 // Draw button click handler
                 drawButton.addEventListener('click', function(e) {{
                     e.preventDefault();
                     isDrawingArrow = !isDrawingArrow;
+                    
+                    // Set global flag to prevent marker selection
+                    window.isArrowModeActive = isDrawingArrow;
                     
                     if (isDrawingArrow) {{
                         this.className = this.className + ' arrow-draw-active';
@@ -153,6 +161,7 @@ class SimpleArrowTool:
                     e.preventDefault();
                     arrowLayer.clearLayers();
                     isDrawingArrow = false;
+                    window.isArrowModeActive = false;
                     drawButton.className = drawButton.className.replace(' arrow-draw-active', '');
                     mapInstance.getContainer().style.cursor = '';
                     startPoint = null;

@@ -28,17 +28,7 @@ class SampleListWidget(QWidget):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(10)
         
-        # Title label
-        title_label = QLabel("Sample Data")
-        title_label.setStyleSheet("""
-            QLabel {
-                font-size: 16px;
-                font-weight: bold;
-                color: #333;
-                padding: 5px 0;
-            }
-        """)
-        layout.addWidget(title_label)
+        # Removed title label for cleaner interface
         
         # Create tree widget for sample list
         self.tree_widget = QTreeWidget()
