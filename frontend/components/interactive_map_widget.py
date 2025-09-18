@@ -25,6 +25,7 @@ class MapBridge(QObject):
     markerClicked = Signal(str)  # Sample name when marker is clicked
     markersSelected = Signal(list)  # List of sample names selected
     boxSelectionComplete = Signal(list)  # List of sample names in box selection
+    singleMarkerToggled = Signal(str, bool)  # Sample name and new state
     
     def __init__(self):
         super().__init__()
@@ -69,6 +70,7 @@ class InteractiveMapWidget(QWidget):
         super().__init__(parent)
         self.selected_samples = []
         self.markers_data = []
+        self.last_toggled_sample = None
         self.bridge = MapBridge()
         self._setup_ui()
         self._connect_bridge_signals()
@@ -104,10 +106,15 @@ class InteractiveMapWidget(QWidget):
         
     def _on_marker_clicked(self, sample_name):
         """Handle single marker click."""
-        if sample_name in self.selected_samples:
+        was_selected = sample_name in self.selected_samples
+        
+        if was_selected:
             self.selected_samples.remove(sample_name)
         else:
             self.selected_samples.append(sample_name)
+        
+        # Track the last toggled sample for focus
+        self.last_toggled_sample = sample_name
         
         self.selectionChanged.emit(self.selected_samples)
         self.bridge.updateSelection(self.selected_samples)
@@ -298,6 +305,7 @@ class InteractiveMapWidget(QWidget):
             // Global flags to check if tools are active
             window.isMeasurementModeActive = false;
             window.isArrowModeActive = false;
+            window.isCircleSelectionActive = false;
             
             // Track modifier keys
             document.addEventListener('keydown', function(e) {
@@ -323,11 +331,17 @@ class InteractiveMapWidget(QWidget):
                 // Handle marker clicks
                 document.addEventListener('click', function(e) {
                     // Don't handle marker clicks if any tool mode is active
-                    if (window.isMeasurementModeActive || window.isArrowModeActive) return;
+                    if (window.isMeasurementModeActive || window.isArrowModeActive || window.isCircleSelectionActive) {
+                        console.log('Tool active, skipping marker click');
+                        return;
+                    }
                     
                     if (e.target.classList.contains('custom-marker')) {
                         e.stopPropagation();
+                        e.preventDefault();
                         var sampleName = e.target.dataset.sampleName;
+                        
+                        console.log('Marker clicked:', sampleName);
                         
                         if (ctrlPressed || shiftPressed) {
                             // Multi-selection
@@ -433,10 +447,11 @@ class InteractiveMapWidget(QWidget):
         folium_map.get_root().html.add_child(folium.Element(selection_js))
         
     def _add_map_tools(self, folium_map):
-        """Add arrow drawing and distance measurement tools."""
+        """Add arrow drawing, distance measurement, and circle selection tools."""
         try:
             from .arrow_tool import SimpleArrowTool
             from .distance_tool import DistanceTool
+            from .circle_selection_tool import CircleSelectionTool
             
             map_var_name = folium_map.get_name()
             
@@ -447,6 +462,10 @@ class InteractiveMapWidget(QWidget):
             # Add distance tool below arrow tool (positioned right below the clear button)
             distance_html = DistanceTool.get_distance_html(map_var_name, position="topleft", top_offset=144)
             folium_map.get_root().html.add_child(folium.Element(distance_html))
+            
+            # Add circle selection tool below distance tool
+            circle_html = CircleSelectionTool.get_circle_selection_html(map_var_name, position="topleft", top_offset=198)
+            folium_map.get_root().html.add_child(folium.Element(circle_html))
             
         except Exception as e:
             print(f"Warning: Could not add map tools: {e}")
@@ -482,12 +501,31 @@ class InteractiveMapWidget(QWidget):
     
     def zoom_to_location(self, lat, lon, sample_name=None):
         """
-        Zoom the map to a specific location.
+        Zoom the map to a specific location and optionally highlight a sample.
         
         Args:
             lat: Latitude
             lon: Longitude
             sample_name: Optional sample name to highlight
         """
-        # Re-render map centered on the location
-        self.render_map(self.markers_data, center=(lat, lon), zoom=10)
+        # Re-render map centered on the location with higher zoom
+        self.render_map(self.markers_data, center=(lat, lon), zoom=12)
+        
+        # If sample name provided, highlight it temporarily
+        if sample_name:
+            # Execute JavaScript to highlight the marker
+            js_code = f"""
+            setTimeout(function() {{
+                var markers = document.querySelectorAll('.custom-marker');
+                markers.forEach(function(marker) {{
+                    if (marker.dataset.sampleName === '{sample_name}') {{
+                        // Add pulse animation
+                        marker.style.animation = 'pulse 2s 3';
+                        setTimeout(function() {{
+                            marker.style.animation = '';
+                        }}, 6000);
+                    }}
+                }});
+            }}, 500);
+            """
+            self.web_view.page().runJavaScript(js_code)
