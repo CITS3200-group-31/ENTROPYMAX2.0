@@ -2,7 +2,7 @@ import pandas as pd
 
 def validate_csv_gps_structure(filepath):
     #The expected column names in order
-    expected_columns = ["Sample", "Latitude", "Longitude"]
+    expected_columns = ["Sample Name", "Latitude", "Longitude"]
 
     try:
         #Loads the entire CSV
@@ -14,7 +14,7 @@ def validate_csv_gps_structure(filepath):
             raise ValueError(f"CSV must have exactly these columns in order: {expected_columns}, but found: {df.columns.tolist()}")
 
         #Checks for missing values in the Sample column
-        if df["Sample"].isnull().any():
+        if df["Sample Name"].isnull().any():
             raise ValueError("Missing values found in 'Sample' column.")
 
         #Checks that the Latitude and Longitude are numeric values

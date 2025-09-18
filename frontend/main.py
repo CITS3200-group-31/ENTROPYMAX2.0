@@ -1,17 +1,16 @@
 import sys
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
-                             QHBoxLayout, QFrame, QMessageBox, QLabel)
-
-# Import components and utils
+                             QHBoxLayout, QFrame, QMessageBox, QLabel, QMenuBar,
+                             QMenu)
 from components.control_panel import ControlPanel
-from components.map_widget import MapWidget
-from components.chart_widget import ChartWidget
-from components.sample_list_widget import SampleListWidget
 from components.group_detail_popup import GroupDetailPopup
+from components.fullscreen_chart_widget import FullscreenChartWidget
+from components.fullscreen_map_sample_widget import FullscreenMapSampleWidget
 from utils.csv_export import export_analysis_results
+from help import FormatExamplesDialog
 
 # Import sample GPS CH, RS AND K mock data
-from sample_data import EXTENDED_GPS_DATA, SAMPLE_CH_RS_DATA, get_optimal_k
+from sample_data import SAMPLE_CH_RS_DATA, get_optimal_k
 
 
 class BentoBox(QFrame):
@@ -51,12 +50,14 @@ class EntropyMaxFinal(QMainWindow):
         
         # State variables
         self.input_file_path = None
+        self.gps_file_path = None
         self.output_file_path = None
         self.selected_samples = []
         self.current_analysis_data = {}
         self.group_detail_popup = GroupDetailPopup()
         
         self._setup_ui()
+        self._setup_menu()
         self._connect_signals()
         self._reset_workflow()
         
@@ -85,31 +86,19 @@ class EntropyMaxFinal(QMainWindow):
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(15)
         
-        # Top right: Map and sample list (fixed layout)
-        top_container = QWidget()
-        top_layout = QHBoxLayout(top_container)
-        top_layout.setContentsMargins(0, 0, 0, 0)
-        top_layout.setSpacing(15)
+        # Top right: Map and sample list with fullscreen capability
+        top_box = BentoBox()
+        top_layout = QVBoxLayout(top_box)
+        top_layout.setContentsMargins(10, 10, 10, 10)
         
-        # Map widget
-        map_box = BentoBox(title="Map View")
-        map_layout = QVBoxLayout(map_box)
-        map_layout.setContentsMargins(10, 10, 10, 10)
-        
-        self.map_widget = MapWidget()
-        map_layout.addWidget(self.map_widget)
-        top_layout.addWidget(map_box, 3)  # 3:2 ratio for map:sample list
-        
-        # Sample list widget
-        sample_box = BentoBox(title="Sample Selection")
-        sample_layout = QVBoxLayout(sample_box)
-        sample_layout.setContentsMargins(5, 5, 5, 5)
-        self.sample_list = SampleListWidget()
-        sample_layout.addWidget(self.sample_list)
-        top_layout.addWidget(sample_box, 2)  # 3:2 ratio for map:sample list
+        # Create fullscreen-capable map and sample widget
+        self.map_sample_widget = FullscreenMapSampleWidget()
+        self.map_widget = self.map_sample_widget.map_widget
+        self.sample_list = self.map_sample_widget.sample_list
+        top_layout.addWidget(self.map_sample_widget)
         
         # Add top container to right layout with stretch factor
-        right_layout.addWidget(top_container, 5)  # 5:4 ratio for top:bottom
+        right_layout.addWidget(top_box, 5)  # 5:4 ratio for top:bottom
         
         # Bottom right: Charts (fixed layout)
         bottom_container = QWidget()
@@ -117,45 +106,29 @@ class EntropyMaxFinal(QMainWindow):
         bottom_layout.setContentsMargins(0, 0, 0, 0)
         bottom_layout.setSpacing(15)
         
-        # CH Chart
+        # CH Chart with fullscreen capability
         ch_box = BentoBox(title="CH Analysis")
         ch_layout = QVBoxLayout(ch_box)
         ch_layout.setContentsMargins(10, 10, 10, 10)
         
-        # Add title for CH chart
-        ch_title = QLabel("Calinski-Harabasz Index")
-        ch_title.setStyleSheet("""
-            QLabel {
-                font-size: 15px;
-                font-weight: 600;
-                color: #333;
-                padding: 5px 0;
-            }
-        """)
-        ch_layout.addWidget(ch_title)
-        
-        self.ch_chart = ChartWidget(title="CH Index", ylabel="CH Index")
+        self.ch_chart = FullscreenChartWidget(
+            title="CH Index",
+            ylabel="CH Index",
+            chart_title_display="Calinski-Harabasz Index"
+        )
         ch_layout.addWidget(self.ch_chart)
         bottom_layout.addWidget(ch_box)
         
-        # Rs Chart
+        # Rs Chart with fullscreen capability
         rs_box = BentoBox(title="Rs Analysis")
         rs_layout = QVBoxLayout(rs_box)
         rs_layout.setContentsMargins(10, 10, 10, 10)
         
-        # Add title for Rs chart
-        rs_title = QLabel("Rs Percentage")
-        rs_title.setStyleSheet("""
-            QLabel {
-                font-size: 15px;
-                font-weight: 600;
-                color: #333;
-                padding: 5px 0;
-            }
-        """)
-        rs_layout.addWidget(rs_title)
-        
-        self.rs_chart = ChartWidget(title="Rs %", ylabel="Rs %")
+        self.rs_chart = FullscreenChartWidget(
+            title="Rs %",
+            ylabel="Rs %",
+            chart_title_display="Rs Percentage"
+        )
         rs_layout.addWidget(self.rs_chart)
         bottom_layout.addWidget(rs_box)
 
@@ -165,21 +138,97 @@ class EntropyMaxFinal(QMainWindow):
         right_layout.addWidget(bottom_container, 4)  # 5:4 ratio for top:bottom
         
         main_layout.addWidget(right_container)
+    
+    def _setup_menu(self):
+        """Setup the menu bar with Help menu."""
+        menubar = self.menuBar()
+        menubar.setStyleSheet("""
+            QMenuBar {
+                background-color: #ffffff;
+                border-bottom: 1px solid #e0e0e0;
+                padding: 5px;
+            }
+            QMenuBar::item {
+                padding: 5px 10px;
+                background: transparent;
+                border-radius: 4px;
+            }
+            QMenuBar::item:selected {
+                background-color: #e0f2f1;
+            }
+            QMenuBar::item:pressed {
+                background-color: #b2dfdb;
+            }
+        """)
+        
+        # Help menu
+        help_menu = QMenu('Help', self)
+        help_menu.setStyleSheet("""
+            QMenu {
+                background-color: #ffffff;
+                border: 1px solid #d0d0d0;
+                border-radius: 4px;
+            }
+            QMenu::item {
+                padding: 8px 25px;
+                background: transparent;
+            }
+            QMenu::item:selected {
+                background-color: #e0f2f1;
+            }
+        """)
+        
+        # Add Format Examples action
+        format_action = help_menu.addAction('Format Examples')
+        format_action.triggered.connect(self._show_format_examples)
+        
+        menubar.addMenu(help_menu)
+    
+    def _show_format_examples(self):
+        """Show dialog with format examples for CSV files."""
+        dialog = FormatExamplesDialog(self)
+        dialog.exec()
         
     def _connect_signals(self):
         """Connect all signals to their handlers."""
         self.control_panel.inputFileSelected.connect(self._on_input_file_selected)
+        self.control_panel.gpsFileSelected.connect(self._on_gps_file_selected)
         self.control_panel.outputFileSelected.connect(self._on_output_file_selected)
         self.control_panel.generateMapRequested.connect(self._on_generate_map)
         self.control_panel.runAnalysisRequested.connect(self._on_run_analysis)
         self.control_panel.showGroupDetailsRequested.connect(self._on_show_group_details)
         self.control_panel.exportResultsRequested.connect(self._on_export_results)
         
-        self.sample_list.selectionChanged.connect(self._on_selection_changed)
-        self.sample_list.sampleLocateRequested.connect(self._on_locate_sample)
+        # Connect signals from the fullscreen map-sample widget
+        self.map_sample_widget.selectionChanged.connect(self._on_selection_changed)
+        self.map_sample_widget.sampleLocateRequested.connect(self._on_locate_sample)
         
     def _on_input_file_selected(self, file_path):
         self.input_file_path = file_path
+    
+    def _on_gps_file_selected(self, file_path):
+        self.gps_file_path = file_path
+        # Validate GPS file using backend validation
+        try:
+            import sys
+            import os
+            
+            # Add backend path to sys.path
+            backend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'backend', 'src', 'io')
+            if backend_path not in sys.path:
+                sys.path.append(backend_path)
+            
+            from validate_csv_gps import validate_csv_gps_structure
+            
+            validate_csv_gps_structure(file_path)
+            self.statusBar().showMessage("GPS file loaded successfully.", 3000)
+        except Exception as e:
+            QMessageBox.warning(self, "GPS File Validation", str(e))
+            self.gps_file_path = None
+            self.control_panel.gps_file = None
+            self.control_panel.gps_label.setText("No GPS file selected")
+            self.control_panel.gps_label.setStyleSheet("color: gray; padding: 5px;")
+            self.control_panel._update_button_states()
         
     def _on_output_file_selected(self, file_path):
         self.output_file_path = file_path
@@ -187,19 +236,23 @@ class EntropyMaxFinal(QMainWindow):
     def _on_generate_map(self):
         """Load data from CSV and render map."""
         try:
+            # Check both files are selected
+            if not self.input_file_path or not self.gps_file_path:
+                QMessageBox.warning(self, "Missing Files", 
+                                  "Please select both grain size and GPS files.")
+                return
+            
             # TODO: Replace with actual CSV parsing from backend API
-            # Backend should return structured data with lat, lon, name, group
-            markers = self._parse_marker_csv(self.input_file_path)
-            self.sample_list.load_samples(markers)
-            self.map_widget.render_map(markers)
-            self.statusBar().showMessage("Map and sample list loaded.", 3000)
+            # For now, parse GPS file to get coordinates
+            markers = self._parse_gps_csv(self.gps_file_path)
+            self.map_sample_widget.load_data(markers)
+            self.statusBar().showMessage("Map and sample list loaded from GPS data.", 3000)
         except Exception as e:
             QMessageBox.critical(self, "Error Loading File", str(e))
             self._reset_workflow()
             
     def _on_selection_changed(self, selected_samples):
         self.selected_samples = selected_samples
-        self.map_widget.update_selected_markers(selected_samples)
         self.control_panel.run_analysis_btn.setEnabled(len(selected_samples) > 0)
         
     def _on_locate_sample(self, name, lat, lon):
@@ -207,7 +260,7 @@ class EntropyMaxFinal(QMainWindow):
         
     def _on_run_analysis(self, params):
         """Run analysis on selected data."""
-        selected_data = self.sample_list.get_selected_samples_data()
+        selected_data = self.map_sample_widget.get_selected_samples_data()
         if not selected_data:
             QMessageBox.warning(self, "No Samples Selected", 
                               "Please select samples from the list.")
@@ -290,26 +343,53 @@ class EntropyMaxFinal(QMainWindow):
             
     def _reset_workflow(self):
         """Reset the UI to its initial state."""
+        # Reset file paths
+        self.input_file_path = None
+        self.gps_file_path = None
+        self.output_file_path = None
+        self.selected_samples = []
+        # Reset UI components
         self.control_panel.reset_workflow()
-        self.map_widget.render_map([])
-        self.sample_list.load_samples([])
+        self.map_sample_widget.load_data([])
         self.ch_chart.clear()
         self.rs_chart.clear()
         self.group_detail_popup.close_all()
         self.current_analysis_data = {}
-        self.statusBar().showMessage("Workflow reset. Select an input file to begin.", 5000)
+        self.statusBar().showMessage("Workflow reset. Select input files to begin.", 5000)
         
-    def _parse_marker_csv(self, path):
-        """Parse the input CSV file for map markers."""
-        # TODO: Implement actual data parsing by using Jeremy's function, read from the Parquet file.
-        # Expected CSV format:
-        # - lat: latitude column
-        # - lon: longitude column  
-        # - name: sample identifier
-        # - group: optional grouping category
-        # Backend API should handle CSV parsing and return structured data and stored it in Parquet format.
-        # For now, return sample data for testing
-        return EXTENDED_GPS_DATA
+    def _parse_gps_csv(self, file_path):
+        """Parse GPS CSV file to get marker data."""
+        # For now, use the sample GPS data as fallback
+        # In production, this should read from the parquet file
+        import pandas as pd
+        try:
+            df = pd.read_csv(file_path)
+            # Handle various column name formats
+            col_mapping = {}
+            for col in df.columns:
+                col_lower = col.lower().strip()
+                if 'sample' in col_lower or 'name' in col_lower:
+                    col_mapping['name'] = col
+                elif 'lat' in col_lower:
+                    col_mapping['lat'] = col
+                elif 'lon' in col_lower or 'long' in col_lower:
+                    col_mapping['lon'] = col
+            
+            if 'name' in col_mapping and 'lat' in col_mapping and 'lon' in col_mapping:
+                markers = []
+                for _, row in df.iterrows():
+                    markers.append({
+                        'name': str(row[col_mapping['name']]),
+                        'lat': float(row[col_mapping['lat']]),
+                        'lon': float(row[col_mapping['lon']]),
+                        'group': 1,  # Default group, will be updated after analysis
+                        'selected': False
+                    })
+                return markers
+            else:
+                raise ValueError("GPS file missing required columns")
+        except Exception as e:
+            print(f"Error parsing GPS file: {e}")
 
 
 if __name__ == '__main__':
