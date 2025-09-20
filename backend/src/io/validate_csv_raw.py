@@ -5,13 +5,13 @@ def validate_csv_structure(filepath):
         #Loads the CSV
         df = pd.read_csv(filepath)
         df.columns = [str(col).strip() for col in df.columns]
-
+        print(df.columns)
         #Checks that the first column is 'Sample Name'
         if df.columns[0] != "Sample Name":
             raise ValueError("First column must be 'Sample Name'.")
 
         #Validates the remaining columns are ascending numeric values
-        numeric_headers = df.columns[1:]
+        numeric_headers = [col for col in df.columns[1:] if col.strip() and not col.startswith('Unnamed:')]
         try:
             numeric_values = [float(col) for col in numeric_headers]
         except ValueError:
@@ -25,7 +25,7 @@ def validate_csv_structure(filepath):
             raise ValueError("'Sample Name' column contains empty values.")
 
         #Validates all data columns are numeric and contain no missing values
-        data_columns = df.columns[1:]
+        data_columns = [col for col in df.columns[1:] if col.strip() and not col.startswith('Unnamed:')]
         for col in data_columns:
             if not pd.api.types.is_numeric_dtype(df[col]):
                 raise ValueError(f"Column '{col}' contains non-numeric values.")
