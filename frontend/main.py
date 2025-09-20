@@ -205,6 +205,27 @@ class EntropyMaxFinal(QMainWindow):
         
     def _on_input_file_selected(self, file_path):
         self.input_file_path = file_path
+        # Validate raw data file using backend validation
+        try:
+            import sys
+            import os
+            
+            # Add backend path to sys.path
+            backend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'backend', 'src', 'io')
+            if backend_path not in sys.path:
+                sys.path.append(backend_path)
+            
+            from validate_csv_raw import validate_csv_structure
+            
+            validate_csv_structure(file_path)
+            self.statusBar().showMessage("Raw data file loaded successfully.", 3000)
+        except Exception as e:
+            QMessageBox.warning(self, "Raw Data File Validation", str(e))
+            self.input_file_path = None
+            self.control_panel.input_file = None
+            self.control_panel.input_label.setText("No file selected")
+            self.control_panel.input_label.setStyleSheet("color: gray; padding: 5px;")
+            self.control_panel._update_button_states()
     
     def _on_gps_file_selected(self, file_path):
         self.gps_file_path = file_path
