@@ -11,7 +11,7 @@ def validate_csv_structure(filepath):
             raise ValueError("First column must be 'Sample Name'.")
 
         #Validates the remaining columns are ascending numeric values
-        numeric_headers = df.columns[1:]
+        numeric_headers = [col for col in df.columns[1:] if col.strip() and not col.startswith('Unnamed:')]
         try:
             numeric_values = [float(col) for col in numeric_headers]
         except ValueError:
