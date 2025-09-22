@@ -5,7 +5,6 @@ def validate_csv_structure(filepath):
         #Loads the CSV
         df = pd.read_csv(filepath)
         df.columns = [str(col).strip() for col in df.columns]
-        print(df.columns)
         #Checks that the first column is 'Sample Name'
         if df.columns[0] != "Sample Name":
             raise ValueError("First column must be 'Sample Name'.")

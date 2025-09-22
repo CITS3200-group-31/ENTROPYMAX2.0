@@ -259,7 +259,7 @@ class SampleListWidget(QWidget):
                     break
     
     def highlight_sample(self, sample_name):
-        """Highlight a specific sample in the list."""
+        """Highlight a specific sample in the list without selecting it."""
         for i in range(self.tree_widget.topLevelItemCount()):
             item = self.tree_widget.topLevelItem(i)
             sample_data = item.data(1, Qt.ItemDataRole.UserRole)
@@ -268,6 +268,8 @@ class SampleListWidget(QWidget):
                 self.tree_widget.scrollToItem(item, QTreeWidget.ScrollHint.PositionAtCenter)
                 self.tree_widget.setFocus()
                 break
+    
+
     
     def _apply_styles(self):
         """Apply modern styling to the widget."""
