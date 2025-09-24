@@ -32,6 +32,8 @@ option(BUILD_TOOLS "Build CLI/tools" ON)
 if(BUILD_TOOLS)
   add_executable(emx_cli src/cli/emx_cli.c src/algo/backend_algo.c)
   target_link_libraries(emx_cli PRIVATE entropymax)
+  add_executable(run_entropymax src/algo/run_entropymax.c src/algo/preprocess.c src/algo/metrics.c src/algo/grouping.c src/algo/sweep.c src/util/util.c)
+  target_include_directories(run_entropymax PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
 endif()
 
 enable_testing()
