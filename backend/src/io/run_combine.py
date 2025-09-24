@@ -8,6 +8,17 @@ def combine_parquet_files(main_parquet_path, gps_parquet_path, output_parquet_pa
         main_df = pd.read_parquet(main_parquet_path)
         gps_df = pd.read_parquet(gps_parquet_path)
 
+        # Normalize headers: strip + lower
+        main_df.columns = main_df.columns.str.strip().str.lower()
+        gps_df.columns = gps_df.columns.str.strip().str.lower()
+
+        # Accept 'sample name' or 'sample' as the key in main
+        if "sample" not in main_df.columns and "sample name" in main_df.columns:
+            main_df = main_df.rename(columns={"sample name": "sample"})
+        # Accept in gps as well
+        if "sample" not in gps_df.columns and "sample name" in gps_df.columns:
+            gps_df = gps_df.rename(columns={"sample name": "sample"})
+
         #Checks if the files are correct
         if "sample" not in main_df.columns:
             raise ValueError(f"'sample' column not found in main file: {main_parquet_path}")
@@ -15,8 +26,8 @@ def combine_parquet_files(main_parquet_path, gps_parquet_path, output_parquet_pa
             raise ValueError(f"GPS file must contain 'sample', 'latitude', and 'longitude' columns.")
 
         #Strips whitespaces from the 'sample' columns
-        main_df['sample'] = main_df['sample'].str.strip()
-        gps_df['sample'] = gps_df['sample'].str.strip()
+        main_df['sample'] = main_df['sample'].astype(str).str.strip()
+        gps_df['sample'] = gps_df['sample'].astype(str).str.strip()
 
         #Merge data based on 'sample'
         combined_df = pd.merge(main_df, gps_df, on="sample", how="left")

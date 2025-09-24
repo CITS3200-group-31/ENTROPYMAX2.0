@@ -3,6 +3,11 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#ifdef _MSC_VER
+// MSVC compatibility: map POSIX functions
+#define strdup _strdup
+#define strtok_r strtok_s
+#endif
 #include "preprocess.h"
 #include "metrics.h"
 #include "sweep.h"
@@ -98,15 +103,33 @@ int read_csv(const char *filename, double **data, int *rows, int *cols, char ***
 int main(int argc, char **argv) {
     (void)argc; (void)argv; // ignore CLI args; enforce fixed IO paths per requirements
 
-    const char *fixed_input_path = "data/input.csv";
-    const char *fixed_output_path = "data/processed/sample_outputt.csv";
+    // Fixed paths as per project layout/spec
+    const char *raw_csv_path = "data/raw/sample_input.csv";
+    const char *gps_csv_path = "data/raw/sample_coordinates.csv";
+    const char *merged_parquet_path = "data/parquet/merged_input.parquet";
+    const char *fixed_output_path = "data/processed/sample_outputt.csv"; // CSV for parity
+    const char *final_parquet_path = "data/parquet/output.parquet";
+
+    // Pre-step: build merged input parquet (raw + gps) for downstream consumption/audit
+    {
+        char cmd[2048];
+        snprintf(cmd, sizeof(cmd),
+                 "python backend/src/io/io_pipeline.py \"%s\" \"%s\" \"%s\"",
+                 raw_csv_path, gps_csv_path, merged_parquet_path);
+        int pret = system(cmd);
+        if (pret != 0) {
+            fprintf(stderr, "Failed to create merged parquet (rc=%d)\n", pret);
+            return 1;
+        }
+    }
 
     double *data = NULL; // raw data as read
     int rows = 0, cols = 0;
     char **rownames = NULL, **colnames = NULL; char *sample_header = NULL;
     char **raw_values = NULL;
 
-    if (read_csv(fixed_input_path, &data, &rows, &cols, &rownames, &colnames, &sample_header, &raw_values) != 0) {
+    // Algorithm parity: load numeric matrix from the validated raw CSV
+    if (read_csv(raw_csv_path, &data, &rows, &cols, &rownames, &colnames, &sample_header, &raw_values) != 0) {
         fprintf(stderr, "Failed to read input CSV\n");
         return 1;
     }
@@ -190,6 +213,19 @@ int main(int argc, char **argv) {
     }
     fclose(out);
 
+    // Post-step: append lat/long and write final parquet mirroring CORRECT CSV shape + 2 cols
+    {
+        char cmd[2048];
+        snprintf(cmd, sizeof(cmd),
+                 "python backend/src/io/postprocess_output.py \"%s\" \"%s\" \"%s\"",
+                 fixed_output_path, gps_csv_path, final_parquet_path);
+        int pret = system(cmd);
+        if (pret != 0) {
+            fprintf(stderr, "Failed to write final parquet (rc=%d)\n", pret);
+            return 1;
+        }
+    }
+
     // Free memory
     for (int i = 0; i < rows; ++i) free(rownames[i]);
     for (int j = 0; j < cols; ++j) free(colnames[j]);
@@ -199,6 +235,6 @@ int main(int argc, char **argv) {
     }
     free(rownames); free(colnames); free(sample_header); free(data); free(Y); free(metrics); free(member1); free(group_means); free(all_member1); free(data_proc);
 
-    printf("Done. Output written to %s\n", fixed_output_path);
+    printf("Done. Output written to %s (csv) and %s (parquet)\n", fixed_output_path, final_parquet_path);
     return 0;
 }
