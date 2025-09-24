@@ -1,8 +1,10 @@
 cmake_minimum_required(VERSION 3.16)
-project(entropymax_backend C)
+project(entropymax_backend C CXX)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Enable warnings in non-Release builds
 if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
@@ -32,8 +34,23 @@ option(BUILD_TOOLS "Build CLI/tools" ON)
 if(BUILD_TOOLS)
   add_executable(emx_cli src/cli/emx_cli.c src/algo/backend_algo.c)
   target_link_libraries(emx_cli PRIVATE entropymax)
-  add_executable(run_entropymax src/algo/run_entropymax.c src/algo/preprocess.c src/algo/metrics.c src/algo/grouping.c src/algo/sweep.c src/util/util.c)
-  target_include_directories(run_entropymax PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+  # Optional Arrow/Parquet integration for compiled-only IO
+  find_package(Arrow CONFIG QUIET)
+  if(Arrow_FOUND)
+    message(STATUS "Arrow found: enabling compiled Parquet writer")
+    add_library(parquet_io STATIC src/io/parquet_io.cc)
+    target_include_directories(parquet_io PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    target_link_libraries(parquet_io PRIVATE Arrow::arrow Arrow::parquet)
+    add_executable(run_entropymax src/algo/run_entropymax.c src/algo/preprocess.c src/algo/metrics.c src/algo/grouping.c src/algo/sweep.c src/util/util.c)
+    target_include_directories(run_entropymax PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    target_link_libraries(run_entropymax PRIVATE entropymax parquet_io)
+  else()
+    message(WARNING "Arrow not found; building run_entropymax without compiled Parquet writer")
+    add_executable(run_entropymax src/algo/run_entropymax.c src/algo/preprocess.c src/algo/metrics.c src/algo/grouping.c src/algo/sweep.c src/util/util.c)
+    target_include_directories(run_entropymax PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    target_link_libraries(run_entropymax PRIVATE entropymax)
+  endif()
 endif()
 
 enable_testing()
