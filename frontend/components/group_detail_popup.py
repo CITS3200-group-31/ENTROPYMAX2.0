@@ -1,21 +1,24 @@
 """
 Group detail popup component for displaying line charts for each group.
-Shows individual sample lines with full opacity and optional median line.
 """
 
 import os
 import csv
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout, QCheckBox
-from PySide6.QtCore import Qt
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout, QToolTip
+from PyQt6.QtCore import Qt, pyqtSignal as Signal, QObject, QTimer
 from collections import defaultdict
 
 
-class GroupDetailPopup:
+class GroupDetailPopup(QObject):
     """Manager class for creating and managing group detail popup windows."""
     
+    # Signal emitted when a sample line is clicked in any group detail window
+    sampleLineClicked = Signal(str)  # sample_name
+    
     def __init__(self):
+        super().__init__()
         self.detail_windows = []
         self.data_path = None
         self.group_data = {}
@@ -86,7 +89,13 @@ class GroupDetailPopup:
                 
                 # Convert string values to float, skip the sample name
                 try:
-                    y_values = [float(val) for val in row[1:]]
+                    # Handle empty strings by converting them to 0.0
+                    y_values = []
+                    for val in row[1:]:
+                        if val.strip() == '':
+                            y_values.append(0.0)
+                        else:
+                            y_values.append(float(val))
                     grouped_samples[group_id].append({
                         'name': row[0],  # Sample name
                         'values': y_values
@@ -131,6 +140,9 @@ class GroupDetailPopup:
                 900, 550
             )
             
+            # Connect the lineClicked signal from each window to our sampleLineClicked signal
+            window.lineClicked.connect(self.sampleLineClicked)
+            
             window.show()
             self.detail_windows.append(window)
     
@@ -143,6 +155,9 @@ class GroupDetailPopup:
 
 class GroupDetailWindow(QWidget):
     """Individual popup window showing line chart for a specific group."""
+    
+    # Signal emitted when a line is clicked
+    lineClicked = Signal(str)  # sample_name
 
     def __init__(self, group_id, samples, x_labels, x_values, color, x_unit='\u03bcm', y_unit='a.u.'):
         super().__init__()
@@ -154,9 +169,8 @@ class GroupDetailWindow(QWidget):
         self.base_color = color
         self.x_unit = x_unit
         self.y_unit = y_unit
-        
-        self.median_checkbox = None
-        self.median_line = None
+        self.plot_items = []  # Store plot items with sample names
+        self.hover_tooltip = None  # For showing sample name on hover
         
         self._setup_ui()
         self._plot_data()
@@ -222,21 +236,6 @@ class GroupDetailWindow(QWidget):
         
         layout.addWidget(self.plot_widget)
         
-        # Median toggle control
-        controls_layout = QHBoxLayout()
-        self.median_checkbox = QCheckBox("Show Median")
-        self.median_checkbox.setChecked(False)
-        self.median_checkbox.stateChanged.connect(self._toggle_median)
-        self.median_checkbox.setStyleSheet("""
-            QCheckBox { font-size: 12px; color: #333; }
-            QCheckBox::indicator { width: 16px; height: 16px; }
-            QCheckBox::indicator:unchecked { border: 2px solid #d0d0d0; background-color: white; border-radius: 3px; }
-            QCheckBox::indicator:checked { border: 2px solid #009688; background-color: #009688; border-radius: 3px; }
-        """)
-        controls_layout.addWidget(self.median_checkbox)
-        controls_layout.addStretch()
-        layout.addLayout(controls_layout)
-        
         # Connect range change for adaptive x-axis ticks
         self.plot_widget.getViewBox().sigRangeChanged.connect(self._on_range_changed)
     
@@ -249,44 +248,29 @@ class GroupDetailWindow(QWidget):
         color = pg.mkColor(self.base_color)
         r, g, b, _ = color.getRgb()
         
+        # Clear existing plot items
+        self.plot_items = []
+        
         # Plot individual sample lines (opaque, normal width)
         for sample in self.samples:
             y_values = sample['values']
-            pen = pg.mkPen(color=(r, g, b, 255), width=2)
-            self.plot_widget.plot(self.x_values, y_values, pen=pen)
+            pen = pg.mkPen(color=(r, g, b, 255), width=3.5)
+            plot_item = self.plot_widget.plot(self.x_values, y_values, pen=pen)
+            
+            # Store plot item with sample name and original pen for click detection
+            self.plot_items.append({
+                'plot_item': plot_item,
+                'sample_name': sample['name'],
+                'original_pen': pen,
+                'hover_pen': pg.mkPen(color=(r, g, b, 255), width=5.0),  # Thicker for hover
+                'click_pen': pg.mkPen(color=(255, 165, 0, 255), width=4.5)  # Orange for click feedback
+            })
         
-        # Median line is optional and drawn on demand via checkbox
+        # Connect click and hover events to plot widget
+        self.plot_widget.scene().sigMouseClicked.connect(self._on_plot_clicked)
+        self.plot_widget.scene().sigMouseMoved.connect(self._on_mouse_hover)
     
-    def _toggle_median(self, state):
-        """Show or hide the median line based on checkbox state."""
-        if state == 0:
-            # Hide median
-            if self.median_line is not None:
-                try:
-                    self.plot_widget.removeItem(self.median_line)
-                except Exception:
-                    pass
-                self.median_line = None
-        else:
-            # Show median
-            self._draw_median_line()
-        
-    def _draw_median_line(self):
-        """Compute and draw the median line in a distinct color."""
-        # Calculate median values only when needed
-        all_values = np.array([s['values'] for s in self.samples])
-        median_values = np.median(all_values, axis=0)
-        
-        # Distinct color for median (magenta)
-        median_pen = pg.mkPen(color=(255, 0, 170, 255), width=4, style=Qt.PenStyle.DashLine)
-        self.median_line = self.plot_widget.plot(
-            self.x_values, median_values, pen=median_pen, name=f"Group {self.group_id} Median"
-        )
-        
-        # Ensure legend exists and shows median
-        if self.plot_widget.plotItem.legend is None:
-            self.plot_widget.addLegend(offset=(10, 10), brush=pg.mkBrush(255, 255, 255, 200))
-        
+
     def _on_range_changed(self, *args):
         """Update x-axis ticks adaptively when view range changes."""
         self._update_x_ticks()
@@ -320,3 +304,101 @@ class GroupDetailWindow(QWidget):
         
         ax.setTicks([ticks])
         ax.setTextPen('#333')
+    
+    def _on_plot_clicked(self, event):
+        """Handle mouse click on the plot to detect which line was clicked."""
+        if event.button() == Qt.MouseButton.LeftButton:
+            # Get the click position in plot coordinates
+            pos = event.scenePos()
+            mouse_point = self.plot_widget.plotItem.vb.mapSceneToView(pos)
+            x_click = mouse_point.x()
+            y_click = mouse_point.y()
+            
+            # Find the closest line to the click
+            min_distance = float('inf')
+            closest_sample = None
+            closest_item_data = None
+            
+            for item_data in self.plot_items:
+                plot_item = item_data['plot_item']
+                sample_name = item_data['sample_name']
+                
+                # Get the data from the plot item
+                x_data, y_data = plot_item.getData()
+                
+                # Find the closest point on this line to the click
+                if len(x_data) > 0:
+                    distances = np.sqrt((x_data - x_click)**2 + (y_data - y_click)**2)
+                    min_idx = np.argmin(distances)
+                    
+                    if distances[min_idx] < min_distance:
+                        min_distance = distances[min_idx]
+                        closest_sample = sample_name
+                        closest_item_data = item_data
+            
+            # If we found a line close enough to the click, provide feedback and emit signal
+            if closest_sample and min_distance < 0.5:  # Threshold for "close enough"
+                # Visual click feedback - briefly change line color
+                if closest_item_data:
+                    plot_item = closest_item_data['plot_item']
+                    click_pen = closest_item_data['click_pen']
+                    original_pen = closest_item_data['original_pen']
+                    
+                    # Set click color and mark as in feedback state
+                    plot_item.setPen(click_pen)
+                    closest_item_data['_is_clicked_feedback'] = True
+                    
+                    # Reset to original color after a short delay
+                    def reset_color():
+                        plot_item.setPen(original_pen)
+                        closest_item_data['_is_clicked_feedback'] = False
+                    QTimer.singleShot(200, reset_color)
+                
+                self.lineClicked.emit(closest_sample)
+    
+    def _on_mouse_hover(self, pos):
+        """Handle mouse hover to show sample name tooltip and provide visual feedback."""
+        # Convert scene position to plot coordinates
+        mouse_point = self.plot_widget.plotItem.vb.mapSceneToView(pos)
+        x_hover = mouse_point.x()
+        y_hover = mouse_point.y()
+        
+        # Find the closest line to the hover position
+        min_distance = float('inf')
+        closest_sample = None
+        closest_item_data = None
+        
+        for item_data in self.plot_items:
+            plot_item = item_data['plot_item']
+            sample_name = item_data['sample_name']
+            
+            # Get the data from the plot item
+            x_data, y_data = plot_item.getData()
+            
+            # Find the closest point on this line to the hover position
+            if len(x_data) > 0:
+                distances = np.sqrt((x_data - x_hover)**2 + (y_data - y_hover)**2)
+                min_idx = np.argmin(distances)
+                
+                if distances[min_idx] < min_distance:
+                    min_distance = distances[min_idx]
+                    closest_sample = sample_name
+                    closest_item_data = item_data
+        
+        # Reset all lines to original pen (remove previous hover effects)
+        for item_data in self.plot_items:
+            if not hasattr(item_data, '_is_clicked_feedback') or not item_data['_is_clicked_feedback']:
+                item_data['plot_item'].setPen(item_data['original_pen'])
+        
+        # Show tooltip and hover effect if we're close enough to a line
+        if closest_sample and min_distance < 0.3:  # Smaller threshold for hover
+            # Convert scene position to global position for tooltip
+            global_pos = self.plot_widget.mapToGlobal(pos.toPoint())
+            QToolTip.showText(global_pos, f"Sample: {closest_sample}")
+            
+            # Apply hover effect - make line thicker
+            if closest_item_data and (not hasattr(closest_item_data, '_is_clicked_feedback') or not closest_item_data['_is_clicked_feedback']):
+                closest_item_data['plot_item'].setPen(closest_item_data['hover_pen'])
+        else:
+            # Hide tooltip if not hovering over a line
+            QToolTip.hideText()
