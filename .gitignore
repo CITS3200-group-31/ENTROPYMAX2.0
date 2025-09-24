@@ -44,3 +44,7 @@ data/processed/sample_outputt.csv
 *.iso
 
 *.xlsx
+
+# Parquet artifacts
+*.parquet
+data/parquet/
