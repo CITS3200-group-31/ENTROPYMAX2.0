@@ -114,8 +114,9 @@ git push -f
   - BESTgroup — Noah → covered via final outputs (members list) and Z stats
   - RITE (Z stats) — Noah → `backend/src/algo/metrics.c` (em_group_zstats)
 
-Entry point (glue)
-- `backend/src/algo/backend_algo.c` (em_run_algo): preprocess → sweep k → write
+Entry points
+- Library compute entrypoint: `em_prepare_and_sweep(...)` in `sweep.h` (preprocessed working copy → totals → sweep).
+- CLI-only glue: `em_run_algo(...)` in `src/algo/backend_algo.c` (compiled into `emx_cli` only).
 
 ## Implementation checklist
 
@@ -126,6 +127,7 @@ Entry point (glue)
 - Tie‑break for optimal k: highest CH; if tie, choose smallest k
 - No temp files; all data in memory
 - Return codes: 0 = success; non‑zero = error (documented in headers)
+ - Return codes: unified `em_status_t` in `include/util.h` (0=EM_OK; negative values for errors)
 
 ## Build and test
 
@@ -138,6 +140,14 @@ chmod +x scripts/build_backend.sh
 Run CLI (placeholder writer currently):
 ```bash
 backend/build/emx_cli input.csv output.parquet
+```
+
+Developer CSV runner (fixed paths; used during porting):
+```bash
+cc -Ibackend/include -o run_entropymax \
+  backend/src/algo/run_entropymax.c backend/src/algo/preprocess.c \
+  backend/src/algo/metrics.c backend/src/algo/sweep.c backend/src/algo/grouping.c -lm
+./run_entropymax
 ```
 
 Tests (C): add tests under `backend/tests/` and register with CTest in CMake.
@@ -196,6 +206,14 @@ Processed Parquet schema (example):
 - assignments (sample_id, group)
 - group_means (k × variables)
 - Exits with non‑zero on error (currently, CSV/Parquet are unimplemented placeholders, so it will error until those are filled in).
+
+Developer CSV output (current runner):
+- Header once: `K,Group,Sample,<bin columns...>,% explained,Total inequality,Between region inequality,Total sum of squares,Within group sum of squares,Calinski-Harabasz pseudo-F statistic`
+- Rows for every k=2..20, preserving input row order within each group; raw numeric tokens are preserved for data cells; metrics appended as columns per row.
+ - Output is regression-tested locally against `data/processed/sample_output_CORRECT.csv`.
+
+### Header deprecation note
+- `include/algo.h` and `include/backend.h` are retained for the CLI pathway only and are considered deprecated for consumers of the library. New code should include `sweep.h` and use `em_prepare_and_sweep(...)` (and the lower-level APIs in `preprocess.h`, `metrics.h`, and `grouping.h`).
 
 ## C APIs (current state)
 
