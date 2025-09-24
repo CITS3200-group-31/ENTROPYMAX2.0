@@ -1,0 +1,46 @@
+# Build directories
+backend/build/
+build-make/
+build/
+out/
+dist/
+
+# Binaries and tools
+run_entropymax
+run_entropymax_asan
+emx_cli
+*.exe
+
+# Debug symbols (macOS)
+*.dSYM/
+
+# Objects and libraries
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.pyc
+
+# Generated CSV (keep baseline CORRECT; ignore transient)
+data/processed/sample_outputt.csv
+
+# OS/editor noise
+.DS_Store
+*.swp
+*.swo
+
+*.chm
+*.zip
+*.7z
+*.rar
+*.tar
+*.gz
+*.bz2
+*.xz
+*.wim
+*.iso
+
+*.xlsx
