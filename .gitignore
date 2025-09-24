@@ -1,61 +1,46 @@
-# Dependencies
-node_modules/
-venv/
-env/
-.env
-
-# Build outputs
-dist/
+# Build directories
+backend/build/
+build-make/
 build/
-*.pyc
-__pycache__/
-*.so
-*.dll
+out/
+dist/
+
+# Binaries and tools
+run_entropymax
+run_entropymax_asan
+emx_cli
 *.exe
 
-# IDE and editor files
-.vscode/
-.idea/
+# Debug symbols (macOS)
+*.dSYM/
+
+# Objects and libraries
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.pyc
+
+# Generated CSV (keep baseline CORRECT; ignore transient)
+data/processed/sample_outputt.csv
+
+# OS/editor noise
+.DS_Store
 *.swp
 *.swo
-*~
 
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# Logs
-*.log
-logs/
-
-# Temporary files
-*.tmp
-*.temp
-temp/
-
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-
-# Configuration files with sensitive data
-config.ini
-secrets.json
-.env.local
-
-# Legacy specific
 *.chm
-*.exe
-*.ocx
-*.dll
-*.tlb
-*.bat
-
-# Potentially Sensitive
-*.xlsx
 *.zip
+*.7z
+*.rar
+*.tar
+*.gz
+*.bz2
+*.xz
+*.wim
+*.iso
+
+*.xlsx

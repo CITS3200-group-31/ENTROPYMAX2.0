@@ -9,7 +9,7 @@ typedef struct {
   double fRs;            // R-squared statistic
   double fSST;           // Total sum of squares (original)
   double fSSE;           // Error sum of squares (original)
-  double fCHF;           // Total sum of squares (permuted)
+  double fBetween;       // Between-region inequality (VB: bineq)
   double fCHP;           // C-H value from permutation
   double nCounterIndex;  // C-H probability
 } em_k_metric_t;
@@ -51,4 +51,14 @@ int em_sweep_k(const double *data_in, int32_t rows, int32_t cols,
                const double *Y, double tineq, int32_t k_min, int32_t k_max,
                int32_t *out_opt_k, int32_t perms_n, uint64_t seed,
                em_k_metric_t *out_metrics, int32_t metrics_cap,
-               int32_t *out_member1, double *out_group_means);
+               int32_t *out_member1, double *out_group_means,
+               int32_t *out_all_member1 /* optional: contiguous blocks [count * rows] */);
+
+// Helper: given a preprocessed working copy, compute totals and sweep
+int em_prepare_and_sweep(const double *data_proc, int32_t rows, int32_t cols,
+                         int32_t k_min, int32_t k_max,
+                         int32_t perms_n, uint64_t seed,
+                         em_k_metric_t *out_metrics, int32_t metrics_cap,
+                         int32_t *out_member1, double *out_group_means,
+                         int32_t *out_all_member1,
+                         double *out_tineq);
