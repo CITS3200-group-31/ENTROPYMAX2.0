@@ -11,6 +11,12 @@ from help import FormatExamplesDialog
 
 # Import sample GPS CH, RS AND K mock data
 from sample_data import SAMPLE_CH_RS_DATA, get_optimal_k
+import os
+import sys
+import shutil
+import subprocess
+import pandas as pd
+import pyarrow.parquet as pq
 
 
 class BentoBox(QFrame):
@@ -205,19 +211,14 @@ class EntropyMaxFinal(QMainWindow):
         
     def _on_input_file_selected(self, file_path):
         self.input_file_path = file_path
-        # Validate raw data file using backend validation
+        # Lightweight validation: ensure file is readable and first column is a sample identifier
         try:
-            import sys
-            import os
-            
-            # Add backend path to sys.path
-            backend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'backend', 'src', 'io')
-            if backend_path not in sys.path:
-                sys.path.append(backend_path)
-            
-            from validate_csv_raw import validate_csv_structure
-            
-            validate_csv_structure(file_path)
+            df_head = pd.read_csv(file_path, nrows=1)
+            if df_head.shape[1] < 2:
+                raise ValueError("Expected at least 2 columns (Sample + data bins).")
+            first_col = str(df_head.columns[0]).strip().lower()
+            if "sample" not in first_col:
+                raise ValueError("First column header should contain 'Sample'.")
             self.statusBar().showMessage("Raw data file loaded successfully.", 3000)
         except Exception as e:
             QMessageBox.warning(self, "Raw Data File Validation", str(e))
@@ -229,19 +230,15 @@ class EntropyMaxFinal(QMainWindow):
     
     def _on_gps_file_selected(self, file_path):
         self.gps_file_path = file_path
-        # Validate GPS file using backend validation
+        # Lightweight validation: ensure required columns are present
         try:
-            import sys
-            import os
-            
-            # Add backend path to sys.path
-            backend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'backend', 'src', 'io')
-            if backend_path not in sys.path:
-                sys.path.append(backend_path)
-            
-            from validate_csv_gps import validate_csv_gps_structure
-            
-            validate_csv_gps_structure(file_path)
+            df_head = pd.read_csv(file_path, nrows=1)
+            cols = [str(c).strip().lower() for c in df_head.columns]
+            has_sample = any("sample" in c for c in cols)
+            has_lat = any("lat" in c for c in cols)
+            has_lon = any(("lon" in c) or ("long" in c) for c in cols)
+            if not (has_sample and has_lat and has_lon):
+                raise ValueError("GPS CSV must include Sample, Latitude and Longitude columns.")
             self.statusBar().showMessage("GPS file loaded successfully.", 3000)
         except Exception as e:
             QMessageBox.warning(self, "GPS File Validation", str(e))
@@ -286,28 +283,38 @@ class EntropyMaxFinal(QMainWindow):
             QMessageBox.warning(self, "No Samples Selected", 
                               "Please select samples from the list.")
             return
-        
-        # TODO: Import Parquet data
-        # It should contains:
-        # - k_values array
-        # - ch_values array (Calinski-Harabasz index values)
-        # - rs_values array (Rs percentage values)
-        # - optimal_k value
-        
-        # For now, use sample data for demonstration
-        self.current_analysis_data = {
-            **params,
-            'num_samples': len(selected_data),
-            'selected_samples': selected_data,
-            'k_values': SAMPLE_CH_RS_DATA['k_values'],
-            'ch_values': SAMPLE_CH_RS_DATA['ch_values'],
-            'rs_values': SAMPLE_CH_RS_DATA['rs_values'],
-            'optimal_k': get_optimal_k()
-        }
-        
-        self._plot_analysis_results()
-        self.control_panel.enable_analysis_buttons(True)
-        self.statusBar().showMessage("Analysis complete.", 3000)
+        try:
+            # 1) Run compiled backend to generate Parquet
+            self._run_compiled_backend()
+            # 2) Load metrics from Parquet
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            parquet_path = os.path.join(project_root, 'data', 'parquet', 'output.parquet')
+            if not os.path.exists(parquet_path):
+                raise FileNotFoundError(f"Expected Parquet not found: {parquet_path}")
+            k_values, ch_values, rs_values, optimal_k = self._load_metrics_from_parquet(parquet_path)
+            self.current_analysis_data = {
+                **params,
+                'num_samples': len(selected_data),
+                'selected_samples': selected_data,
+                'k_values': k_values,
+                'ch_values': ch_values,
+                'rs_values': rs_values,
+                'optimal_k': optimal_k
+            }
+            # 3) Update group assignments on map/list for selected/optimal K
+            try:
+                k_for_groups = optimal_k if optimal_k is not None else (k_values[0] if k_values else None)
+                if k_for_groups is not None:
+                    sample_to_group = self._load_group_assignments(parquet_path, k_for_groups)
+                    self._apply_group_assignments(sample_to_group)
+            except Exception as ge:
+                # Surface but do not block charts if grouping fails
+                QMessageBox.warning(self, "Grouping Update Warning", str(ge))
+            self._plot_analysis_results()
+            self.control_panel.enable_analysis_buttons(True)
+            self.statusBar().showMessage("Analysis complete.", 3000)
+        except Exception as e:
+            QMessageBox.critical(self, "Analysis Error", str(e))
         
     def _on_show_group_details(self):
         """Show group detail popups with line charts for each group."""
@@ -411,6 +418,132 @@ class EntropyMaxFinal(QMainWindow):
                 raise ValueError("GPS file missing required columns")
         except Exception as e:
             print(f"Error parsing GPS file: {e}")
+
+    def _find_backend_executable(self):
+        """Locate the compiled backend runner executable across common build layouts."""
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        candidates = [
+            os.path.join(project_root, 'backend', 'build', 'run_entropymax.exe'),
+            os.path.join(project_root, 'backend', 'build', 'Release', 'run_entropymax.exe'),
+            os.path.join(project_root, 'backend', 'build', 'Debug', 'run_entropymax.exe'),
+            os.path.join(project_root, 'backend', 'run_entropymax.exe'),
+            os.path.join(project_root, 'run_entropymax.exe'),
+            os.path.join(project_root, 'backend', 'build', 'run_entropymax'),
+        ]
+        for p in candidates:
+            if os.path.exists(p):
+                return p
+        return None
+
+    def _run_compiled_backend(self):
+        """Copy selected inputs into backend expected locations and execute the runner."""
+        if not self.input_file_path or not self.gps_file_path:
+            raise RuntimeError("Input and GPS files must be selected before running analysis.")
+        exe_path = self._find_backend_executable()
+        if not exe_path:
+            raise FileNotFoundError("Could not locate run_entropymax executable. Please build the backend.")
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        data_raw = os.path.join(project_root, 'data', 'raw')
+        os.makedirs(data_raw, exist_ok=True)
+        target_raw = os.path.join(data_raw, 'sample_input.csv')
+        target_gps = os.path.join(data_raw, 'sample_coordinates.csv')
+        def _same_path(a, b):
+            try:
+                return os.path.samefile(a, b)
+            except Exception:
+                return os.path.normcase(os.path.normpath(a)) == os.path.normcase(os.path.normpath(b))
+        try:
+            if not _same_path(self.input_file_path, target_raw):
+                shutil.copyfile(self.input_file_path, target_raw)
+            if not _same_path(self.gps_file_path, target_gps):
+                shutil.copyfile(self.gps_file_path, target_gps)
+        except Exception as e:
+            raise RuntimeError(f"Failed to stage input files: {e}")
+        # Execute backend with fixed IO paths (runner ignores CLI args)
+        try:
+            proc = subprocess.run([exe_path], cwd=project_root, capture_output=True, text=True, timeout=180)
+        except subprocess.TimeoutExpired:
+            raise TimeoutError("Backend execution timed out.")
+        if proc.returncode != 0:
+            stderr = proc.stderr.strip()
+            stdout = proc.stdout.strip()
+            raise RuntimeError(f"Backend failed (exit {proc.returncode}).\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}")
+
+    def _load_metrics_from_parquet(self, parquet_path):
+        """Extract k, CH and Rs series and optimal K from the processed Parquet."""
+        table = pq.read_table(parquet_path)
+        cols = [f.name for f in table.schema]
+        # Find column names robustly
+        def find_col(sub):
+            for c in cols:
+                if sub.lower() in c.lower():
+                    return c
+            return None
+        k_col = 'K' if 'K' in cols else find_col('k')
+        ch_col = find_col('Calinski-Harabasz')
+        rs_col = find_col('% explained')
+        if not k_col or not ch_col or not rs_col:
+            raise ValueError(f"Required columns not found in Parquet. Have: {cols}")
+        df = table.select([k_col, ch_col, rs_col]).to_pandas()
+        # Aggregate by K (values repeated per row within K)
+        agg = df.groupby(k_col, as_index=False).first().sort_values(k_col)
+        k_values = agg[k_col].to_list()
+        ch_values = agg[ch_col].astype(float).to_list()
+        rs_values = agg[rs_col].astype(float).to_list()
+        # Optimal K by max CH
+        if len(ch_values) == 0:
+            raise ValueError("No CH values found in Parquet.")
+        optimal_idx = int(pd.Series(ch_values).idxmax())
+        optimal_k = int(k_values[optimal_idx])
+        return k_values, ch_values, rs_values, optimal_k
+
+    def _load_group_assignments(self, parquet_path, k_value):
+        """Return mapping of sample name -> group id for a given K from Parquet."""
+        table = pq.read_table(parquet_path)
+        cols = [f.name for f in table.schema]
+        def find_col(sub):
+            for c in cols:
+                if sub.lower() in c.lower():
+                    return c
+            return None
+        k_col = 'K' if 'K' in cols else find_col('k')
+        group_col = 'Group' if 'Group' in cols else find_col('group')
+        sample_col = 'Sample' if 'Sample' in cols else find_col('sample')
+        if not k_col or not group_col or not sample_col:
+            raise ValueError(f"Required columns not found for grouping. Have: {cols}")
+        # Filter rows by K == k_value
+        # Use Pandas for robust filtering by K
+        df_all = table.select([sample_col, group_col, k_col]).to_pandas()
+        df = df_all[df_all[k_col] == k_value]
+        if df.empty:
+            raise ValueError(f"No rows found for K={k_value} in Parquet.")
+        mapping = {}
+        for _, row in df.iterrows():
+            name = str(row[sample_col]).strip()
+            try:
+                grp = int(row[group_col])
+            except Exception:
+                continue
+            if name and name not in mapping:
+                mapping[name] = grp
+        if not mapping:
+            raise ValueError("Grouping mapping is empty after filtering.")
+        return mapping
+
+    def _apply_group_assignments(self, sample_to_group):
+        """Apply group ids to current markers and refresh view while preserving selection."""
+        markers = list(self.map_sample_widget.markers_data) if hasattr(self.map_sample_widget, 'markers_data') else []
+        if not markers:
+            return
+        selected_before = list(self.map_sample_widget.selected_samples)
+        for m in markers:
+            name = str(m.get('name','')).strip()
+            if name in sample_to_group:
+                m['group'] = int(sample_to_group[name])
+        self.map_sample_widget.load_data(markers)
+        # Restore selection
+        if selected_before:
+            self.map_sample_widget.sample_list.set_selection(selected_before)
 
 
 if __name__ == '__main__':
