@@ -1,11 +1,12 @@
 """
-Workflow-oriented control panel.
+Minimalist control panel component for EntropyMax frontend.
+Following proper workflow: Input -> Output -> Parameters -> Generate Map -> Select -> Analyze
 """
 
-from PyQt6.QtWidgets import (QWidget, QGroupBox, QVBoxLayout, QHBoxLayout,
+from PySide6.QtWidgets import (QWidget, QGroupBox, QVBoxLayout, QHBoxLayout,
                              QPushButton, QCheckBox, QLineEdit,
                              QLabel, QFileDialog)
-from PyQt6.QtCore import pyqtSignal as Signal
+from PySide6.QtCore import Signal
 
 
 class ControlPanel(QWidget):
@@ -13,8 +14,7 @@ class ControlPanel(QWidget):
     
     # Signals
     inputFileSelected = Signal(str)
-    gpsFileSelected = Signal(str)
-    # outputFileSelected = Signal(str)  # REMOVED - moved to export phase
+    outputFileSelected = Signal(str)
     generateMapRequested = Signal()
     runAnalysisRequested = Signal(dict)
     exportResultsRequested = Signal()
@@ -23,8 +23,7 @@ class ControlPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.input_file = None
-        self.gps_file = None
-        # self.output_file = None  # REMOVED - moved to export phase
+        self.output_file = None
         self._setup_ui()
         self._update_button_states()
         
@@ -78,10 +77,36 @@ class ControlPanel(QWidget):
         self.input_label = QLabel("No file selected")
         self.input_label.setStyleSheet("color: gray; padding: 5px;")
         
-        # Add GPS file selection button
-        self.select_gps_btn = QPushButton("Select GPS CSV")
-        self.select_gps_btn.setStyleSheet("""
-            QPushButton {
+        input_layout.addWidget(self.select_input_btn)
+        input_layout.addWidget(self.input_label)
+        input_group.setLayout(input_layout)
+        layout.addWidget(input_group)
+        
+        # Step 2: Output File
+        output_group = QGroupBox("Step 2: Output Settings")
+        output_group.setStyleSheet("""
+            QGroupBox {
+                font-size: 14px;
+                font-weight: 600;
+                color: #333;
+                border: 1px solid #e0e0e0;
+                border-radius: 6px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 10px 0 10px;
+                background-color: white;
+            }
+        """)
+        output_layout = QVBoxLayout()
+        output_layout.setContentsMargins(10, 15, 10, 10)
+        
+        self.define_output_btn = QPushButton("Define Output Filename")
+        self.define_output_btn.setStyleSheet("""
+            QPushButton:enabled {
                 background-color: #009688;
                 color: white;
                 border: none;
@@ -90,29 +115,35 @@ class ControlPanel(QWidget):
                 font-size: 13px;
                 font-weight: 500;
             }
-            QPushButton:hover {
+            QPushButton:enabled:hover {
                 background-color: #00796b;
             }
-            QPushButton:pressed {
+            QPushButton:enabled:pressed {
                 background-color: #004d40;
             }
+            QPushButton:disabled {
+                background-color: #cccccc;
+                color: #666666;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-size: 13px;
+                font-weight: 500;
+            }
         """)
-        self.select_gps_btn.clicked.connect(self._on_select_gps)
-        self.gps_label = QLabel("No GPS file selected")
-        self.gps_label.setStyleSheet("color: gray; padding: 5px;")
+        self.define_output_btn.clicked.connect(self._on_select_output)
+        self.define_output_btn.setEnabled(False)
         
-        input_layout.addWidget(self.select_input_btn)
-        input_layout.addWidget(self.input_label)
-        input_layout.addWidget(self.select_gps_btn)
-        input_layout.addWidget(self.gps_label)
-        input_group.setLayout(input_layout)
-        layout.addWidget(input_group)
+        self.output_label = QLabel("No output file defined")
+        self.output_label.setStyleSheet("color: gray; padding: 5px;")
         
-        # Step 2: Output File - REMOVED (moved to export phase)
-        # TODO: Move output file definition to the export results functionality
+        output_layout.addWidget(self.define_output_btn)
+        output_layout.addWidget(self.output_label)
+        output_group.setLayout(output_layout)
+        layout.addWidget(output_group)
         
-        # Step 2: Processing Parameters
-        params_group = QGroupBox("Step 2: Analysis Parameters")
+        # Step 3: Processing Parameters
+        params_group = QGroupBox("Step 3: Analysis Parameters")
         params_group.setStyleSheet("""
             QGroupBox {
                 font-size: 14px;
@@ -246,7 +277,7 @@ class ControlPanel(QWidget):
         params_group.setLayout(params_layout)
         layout.addWidget(params_group)
         
-        # Step 3: Generate Map
+        # Step 4: Generate Map
         self.generate_map_btn = QPushButton("Generate Map View")
         self.generate_map_btn.setEnabled(False)
         self.generate_map_btn.clicked.connect(self._on_generate_map)
@@ -278,7 +309,7 @@ class ControlPanel(QWidget):
         """)
         layout.addWidget(self.generate_map_btn)
         
-        # Step 4: Run Analysis (will be enabled after map generation)
+        # Step 5: Run Analysis (will be enabled after map generation and selection)
         self.run_analysis_btn = QPushButton("Run Analysis")
         self.run_analysis_btn.setEnabled(False)
         self.run_analysis_btn.clicked.connect(self._on_run_analysis)
@@ -310,7 +341,7 @@ class ControlPanel(QWidget):
         """)
         layout.addWidget(self.run_analysis_btn)
         
-        # Step 5: Show Group Details (enabled after analysis)
+        # Step 6: Show Group Details (enabled after analysis)
         self.show_details_btn = QPushButton("Show Group Details")
         self.show_details_btn.setEnabled(False)
         self.show_details_btn.clicked.connect(self._on_show_details)
@@ -342,7 +373,7 @@ class ControlPanel(QWidget):
         """)
         layout.addWidget(self.show_details_btn)
         
-        # Step 6: Export Results (enabled after analysis)
+        # Step 7: Export Results (enabled after analysis)
         self.export_btn = QPushButton("Export Results")
         self.export_btn.setEnabled(False)
         self.export_btn.clicked.connect(self._on_export)
@@ -380,7 +411,7 @@ class ControlPanel(QWidget):
         """Handle input file selection."""
         file_path, _ = QFileDialog.getOpenFileName(
             self, 
-            "Select Grain Size CSV File", 
+            "Select Input CSV File", 
             "", 
             "CSV Files (*.csv)"
         )
@@ -390,25 +421,28 @@ class ControlPanel(QWidget):
             self.input_label.setStyleSheet("color: green; padding: 5px;")
             self.inputFileSelected.emit(file_path)
             self._update_button_states()
-    
-    def _on_select_gps(self):
-        """Handle GPS file selection."""
-        file_path, _ = QFileDialog.getOpenFileName(
+            
+    def _on_select_output(self):
+        """Handle output file selection."""
+        file_path, _ = QFileDialog.getSaveFileName(
             self, 
-            "Select GPS CSV File", 
+            "Define Output Filename", 
             "", 
             "CSV Files (*.csv)"
         )
         if file_path:
-            self.gps_file = file_path
-            self.gps_label.setText(f"✓ {file_path.split('/')[-1]}")
-            self.gps_label.setStyleSheet("color: green; padding: 5px;")
-            self.gpsFileSelected.emit(file_path)
+            # Ensure .csv extension
+            if not file_path.endswith('.csv'):
+                file_path += '.csv'
+            self.output_file = file_path
+            # Display without extension for cleaner UI
+            display_name = file_path.split('/')[-1]
+            if display_name.endswith('.csv'):
+                display_name = display_name[:-4]
+            self.output_label.setText(f"✓ {display_name}")
+            self.output_label.setStyleSheet("color: green; padding: 5px;")
+            self.outputFileSelected.emit(file_path)
             self._update_button_states()
-            
-    # def _on_select_output(self):
-    #     """Handle output file selection. - REMOVED - moved to export phase"""
-    #     pass
             
     def _on_generate_map(self):
         """Handle generate map request."""
@@ -445,8 +479,12 @@ class ControlPanel(QWidget):
             
     def _update_button_states(self):
         """Update button states based on workflow progress."""
-        # Enable generate map if both input files are selected (output file removed)
-        if self.input_file and self.gps_file:
+        # Enable output button if input is selected
+        if self.input_file:
+            self.define_output_btn.setEnabled(True)
+            
+        # Enable generate map if both input and output are defined
+        if self.input_file and self.output_file:
             self.generate_map_btn.setEnabled(True)
             
     def get_analysis_parameters(self):
@@ -460,8 +498,7 @@ class ControlPanel(QWidget):
             'do_permutations': self.perm_check.isChecked(),
             'take_proportions': self.prop_check.isChecked(),
             'input_file': self.input_file,
-            'gps_file': self.gps_file,
-            # 'output_file': self.output_file  # REMOVED - will be handled in export
+            'output_file': self.output_file
         }
         
     def enable_analysis(self):
@@ -476,17 +513,14 @@ class ControlPanel(QWidget):
     def reset_workflow(self):
         """Reset the entire workflow."""
         self.input_file = None
-        self.gps_file = None
-        # self.output_file = None  # REMOVED - moved to export phase
+        self.output_file = None
         self.input_label.setText("No file selected")
         self.input_label.setStyleSheet("color: gray; padding: 5px;")
-        self.gps_label.setText("No GPS file selected")
-        self.gps_label.setStyleSheet("color: gray; padding: 5px;")
-        # self.output_label.setText("No output file defined")  # REMOVED
-        # self.output_label.setStyleSheet("color: gray; padding: 5px;")  # REMOVED
+        self.output_label.setText("No output file defined")
+        self.output_label.setStyleSheet("color: gray; padding: 5px;")
         self.min_groups_input.clear()
         self.max_groups_input.clear()
-        # self.define_output_btn.setEnabled(False)  # REMOVED
+        self.define_output_btn.setEnabled(False)
         self.generate_map_btn.setEnabled(False)
         self.run_analysis_btn.setEnabled(False)
         self.show_details_btn.setEnabled(False)
