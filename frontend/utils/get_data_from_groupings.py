@@ -11,7 +11,7 @@ Input Parquet Format: group, sample_id, data, total ineq., between region ineq.,
                     # samples, k-value (group count), latitude, longitude
 """
 
-# import csv
+import sys
 import pyarrow.parquet as pq
 
 # initialise dict
@@ -34,7 +34,7 @@ def create_data(input_file):
                         [reader[i][0] for i in range(2,val_max)], reader[1][row].as_py(), reader[lat_loc][row].as_py(),
                         reader[long_loc][row].as_py())
 
-            
+
 
 def add_group_data(group_count, group_index, x, y, sample_id, latitude, longitude):
     # set up structure
@@ -51,7 +51,9 @@ def add_group_data(group_count, group_index, x, y, sample_id, latitude, longitud
         group_data_dict[group_count] = []
     # add sample data
     group_data_dict[group_count].append(entry)
-    
 
-create_data("frontend/utils/test2.parquet") 
-# print(group_data_dict[16])
+
+if __name__ == "__main__":
+    input_path = sys.argv[1] if len(sys.argv) > 1 else "frontend/utils/test2.parquet"
+    create_data(input_path)
+    print({k: len(v) for k, v in group_data_dict.items()})
