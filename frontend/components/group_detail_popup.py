@@ -1,14 +1,13 @@
 """
 Group detail popup component for displaying line charts for each group.
-Shows individual sample lines with full opacity and optional median line.
 """
 
 import os
 import csv
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout, QCheckBox
-from PySide6.QtCore import Qt
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout
+from PyQt6.QtCore import Qt
 from collections import defaultdict
 
 
@@ -86,7 +85,13 @@ class GroupDetailPopup:
                 
                 # Convert string values to float, skip the sample name
                 try:
-                    y_values = [float(val) for val in row[1:]]
+                    # Handle empty strings by converting them to 0.0
+                    y_values = []
+                    for val in row[1:]:
+                        if val.strip() == '':
+                            y_values.append(0.0)
+                        else:
+                            y_values.append(float(val))
                     grouped_samples[group_id].append({
                         'name': row[0],  # Sample name
                         'values': y_values
@@ -155,9 +160,6 @@ class GroupDetailWindow(QWidget):
         self.x_unit = x_unit
         self.y_unit = y_unit
         
-        self.median_checkbox = None
-        self.median_line = None
-        
         self._setup_ui()
         self._plot_data()
         
@@ -222,21 +224,6 @@ class GroupDetailWindow(QWidget):
         
         layout.addWidget(self.plot_widget)
         
-        # Median toggle control
-        controls_layout = QHBoxLayout()
-        self.median_checkbox = QCheckBox("Show Median")
-        self.median_checkbox.setChecked(False)
-        self.median_checkbox.stateChanged.connect(self._toggle_median)
-        self.median_checkbox.setStyleSheet("""
-            QCheckBox { font-size: 12px; color: #333; }
-            QCheckBox::indicator { width: 16px; height: 16px; }
-            QCheckBox::indicator:unchecked { border: 2px solid #d0d0d0; background-color: white; border-radius: 3px; }
-            QCheckBox::indicator:checked { border: 2px solid #009688; background-color: #009688; border-radius: 3px; }
-        """)
-        controls_layout.addWidget(self.median_checkbox)
-        controls_layout.addStretch()
-        layout.addLayout(controls_layout)
-        
         # Connect range change for adaptive x-axis ticks
         self.plot_widget.getViewBox().sigRangeChanged.connect(self._on_range_changed)
     
@@ -254,39 +241,8 @@ class GroupDetailWindow(QWidget):
             y_values = sample['values']
             pen = pg.mkPen(color=(r, g, b, 255), width=2)
             self.plot_widget.plot(self.x_values, y_values, pen=pen)
-        
-        # Median line is optional and drawn on demand via checkbox
     
-    def _toggle_median(self, state):
-        """Show or hide the median line based on checkbox state."""
-        if state == 0:
-            # Hide median
-            if self.median_line is not None:
-                try:
-                    self.plot_widget.removeItem(self.median_line)
-                except Exception:
-                    pass
-                self.median_line = None
-        else:
-            # Show median
-            self._draw_median_line()
-        
-    def _draw_median_line(self):
-        """Compute and draw the median line in a distinct color."""
-        # Calculate median values only when needed
-        all_values = np.array([s['values'] for s in self.samples])
-        median_values = np.median(all_values, axis=0)
-        
-        # Distinct color for median (magenta)
-        median_pen = pg.mkPen(color=(255, 0, 170, 255), width=4, style=Qt.PenStyle.DashLine)
-        self.median_line = self.plot_widget.plot(
-            self.x_values, median_values, pen=median_pen, name=f"Group {self.group_id} Median"
-        )
-        
-        # Ensure legend exists and shows median
-        if self.plot_widget.plotItem.legend is None:
-            self.plot_widget.addLegend(offset=(10, 10), brush=pg.mkBrush(255, 255, 255, 200))
-        
+
     def _on_range_changed(self, *args):
         """Update x-axis ticks adaptively when view range changes."""
         self._update_x_ticks()

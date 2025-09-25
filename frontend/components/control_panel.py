@@ -1,12 +1,11 @@
 """
-Minimalist control panel component for EntropyMax frontend.
-Following proper workflow: Input -> Output -> Parameters -> Generate Map -> Select -> Analyze
+Workflow-oriented control panel.
 """
 
-from PySide6.QtWidgets import (QWidget, QGroupBox, QVBoxLayout, QHBoxLayout,
+from PyQt6.QtWidgets import (QWidget, QGroupBox, QVBoxLayout, QHBoxLayout,
                              QPushButton, QCheckBox, QLineEdit,
                              QLabel, QFileDialog)
-from PySide6.QtCore import Signal
+from PyQt6.QtCore import pyqtSignal as Signal
 
 
 class ControlPanel(QWidget):
@@ -14,6 +13,7 @@ class ControlPanel(QWidget):
     
     # Signals
     inputFileSelected = Signal(str)
+    gpsFileSelected = Signal(str)
     outputFileSelected = Signal(str)
     generateMapRequested = Signal()
     runAnalysisRequested = Signal(dict)
@@ -23,6 +23,7 @@ class ControlPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.input_file = None
+        self.gps_file = None
         self.output_file = None
         self._setup_ui()
         self._update_button_states()
@@ -77,8 +78,33 @@ class ControlPanel(QWidget):
         self.input_label = QLabel("No file selected")
         self.input_label.setStyleSheet("color: gray; padding: 5px;")
         
+        # Add GPS file selection button
+        self.select_gps_btn = QPushButton("Select GPS CSV")
+        self.select_gps_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #009688;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                padding: 8px 16px;
+                font-size: 13px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: #00796b;
+            }
+            QPushButton:pressed {
+                background-color: #004d40;
+            }
+        """)
+        self.select_gps_btn.clicked.connect(self._on_select_gps)
+        self.gps_label = QLabel("No GPS file selected")
+        self.gps_label.setStyleSheet("color: gray; padding: 5px;")
+        
         input_layout.addWidget(self.select_input_btn)
         input_layout.addWidget(self.input_label)
+        input_layout.addWidget(self.select_gps_btn)
+        input_layout.addWidget(self.gps_label)
         input_group.setLayout(input_layout)
         layout.addWidget(input_group)
         
@@ -411,7 +437,7 @@ class ControlPanel(QWidget):
         """Handle input file selection."""
         file_path, _ = QFileDialog.getOpenFileName(
             self, 
-            "Select Input CSV File", 
+            "Select Grain Size CSV File", 
             "", 
             "CSV Files (*.csv)"
         )
@@ -420,6 +446,21 @@ class ControlPanel(QWidget):
             self.input_label.setText(f"✓ {file_path.split('/')[-1]}")
             self.input_label.setStyleSheet("color: green; padding: 5px;")
             self.inputFileSelected.emit(file_path)
+            self._update_button_states()
+    
+    def _on_select_gps(self):
+        """Handle GPS file selection."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, 
+            "Select GPS CSV File", 
+            "", 
+            "CSV Files (*.csv)"
+        )
+        if file_path:
+            self.gps_file = file_path
+            self.gps_label.setText(f"✓ {file_path.split('/')[-1]}")
+            self.gps_label.setStyleSheet("color: green; padding: 5px;")
+            self.gpsFileSelected.emit(file_path)
             self._update_button_states()
             
     def _on_select_output(self):
@@ -479,12 +520,12 @@ class ControlPanel(QWidget):
             
     def _update_button_states(self):
         """Update button states based on workflow progress."""
-        # Enable output button if input is selected
-        if self.input_file:
+        # Enable output button if both input files are selected
+        if self.input_file and self.gps_file:
             self.define_output_btn.setEnabled(True)
             
-        # Enable generate map if both input and output are defined
-        if self.input_file and self.output_file:
+        # Enable generate map if all files are defined
+        if self.input_file and self.gps_file and self.output_file:
             self.generate_map_btn.setEnabled(True)
             
     def get_analysis_parameters(self):
@@ -498,6 +539,7 @@ class ControlPanel(QWidget):
             'do_permutations': self.perm_check.isChecked(),
             'take_proportions': self.prop_check.isChecked(),
             'input_file': self.input_file,
+            'gps_file': self.gps_file,
             'output_file': self.output_file
         }
         
@@ -513,9 +555,12 @@ class ControlPanel(QWidget):
     def reset_workflow(self):
         """Reset the entire workflow."""
         self.input_file = None
+        self.gps_file = None
         self.output_file = None
         self.input_label.setText("No file selected")
         self.input_label.setStyleSheet("color: gray; padding: 5px;")
+        self.gps_label.setText("No GPS file selected")
+        self.gps_label.setStyleSheet("color: gray; padding: 5px;")
         self.output_label.setText("No output file defined")
         self.output_label.setStyleSheet("color: gray; padding: 5px;")
         self.min_groups_input.clear()
