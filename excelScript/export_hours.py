@@ -114,10 +114,11 @@ def load_config(config_path: Optional[Path]) -> AppConfig:
 
 
 class CITS3200Automation:
-    def __init__(self, config: AppConfig, week_number: Optional[int] = None, dry_run: bool = False):
+    def __init__(self, config: AppConfig, week_number: Optional[int] = None, dry_run: bool = False, yes_all: bool = False):
         self.config = config
         self.week_number: Optional[int] = week_number
         self.dry_run = dry_run
+        self.yes_all = yes_all
 
         self.master_file_path = Path(self.config.master_file)
         self.group_template_path = Path(self.config.group_template)
@@ -522,7 +523,7 @@ class CITS3200Automation:
     def upload_to_remote(self, remote_name: str, remote_base_path: str, group_file: Path, zip_file: Path) -> bool:
         """Upload files to an arbitrary rclone remote under Week<week>."""
         logger.info(f"☁️  Uploading files to {remote_name}:{remote_base_path} ...")
-        week_dir = f"Week {self.week_number}"
+        week_dir = f"Week{self.week_number}"
         remote_week_path = f"{remote_name}:{remote_base_path}/{week_dir}"
 
         if self.dry_run:
@@ -648,12 +649,15 @@ class CITS3200Automation:
                     logger.info("[cyan]DRY-RUN[/cyan] Would prompt for upload to Teams/SharePoint; skipping in dry-run.")
             else:
                 # Prompt for Google Drive upload
-                try:
-                    response_gdrive = input(
-                        f"Would you like to upload these to the Week {self.week_number} directory on Google Drive? [y/N] "
-                    ).strip().lower()
-                except EOFError:
-                    response_gdrive = ""
+                if self.yes_all:
+                    response_gdrive = "yes"
+                else:
+                    try:
+                        response_gdrive = input(
+                            f"Would you like to upload these to the Week{self.week_number} directory on Google Drive? [y/N] "
+                        ).strip().lower()
+                    except EOFError:
+                        response_gdrive = ""
                 if response_gdrive in {"y", "yes"}:
                     if not self.upload_to_gdrive(group_file, zip_file):
                         return False
@@ -662,12 +666,15 @@ class CITS3200Automation:
 
                 # Prompt for Teams/SharePoint upload (secondary)
                 if self.config.secondary_remote_name and self.config.secondary_remote_base_path:
-                    try:
-                        response_secondary = input(
-                            f"Would you also like to upload these to the Week {self.week_number} directory on {self.config.secondary_remote_name}:{self.config.secondary_remote_base_path}? [y/N] "
-                        ).strip().lower()
-                    except EOFError:
-                        response_secondary = ""
+                    if self.yes_all:
+                        response_secondary = "yes"
+                    else:
+                        try:
+                            response_secondary = input(
+                                f"Would you also like to upload these to the Week{self.week_number} directory on {self.config.secondary_remote_name}:{self.config.secondary_remote_base_path}? [y/N] "
+                            ).strip().lower()
+                        except EOFError:
+                            response_secondary = ""
                     if response_secondary in {"y", "yes"}:
                         logger.info(f"  ☁️  Uploading files to {self.config.secondary_remote_name}:{self.config.secondary_remote_base_path}...")
                         if not self.upload_to_remote(
@@ -692,6 +699,31 @@ class CITS3200Automation:
             for file in output_files:
                 logger.info(f"  - {file}")
 
+        # Optional: prompt to run minutes export
+        if not self.dry_run:
+            if self.yes_all:
+                run_minutes = "yes"
+            else:
+                try:
+                    run_minutes = input("Would you like to export meeting minutes now? [y/N] ").strip().lower()
+                except EOFError:
+                    run_minutes = ""
+            if run_minutes in {"y", "yes"}:
+                minutes_script = Path(__file__).with_name("export_minutes.py")
+                if minutes_script.exists():
+                    logger.info("📝 Launching minutes export...")
+                    try:
+                        minutes_args = [sys.executable, str(minutes_script)]
+                        if self.week_number is not None:
+                            minutes_args += ["--week", str(self.week_number)]
+                        rc = subprocess.run(minutes_args, check=False)
+                        if rc.returncode != 0:
+                            logger.error(f"❌ export_minutes.py exited with code {rc.returncode}")
+                    except Exception as e:
+                        logger.error(f"❌ Failed to run export_minutes.py: {e}")
+                else:
+                    logger.error("❌ export_minutes.py not found next to this script")
+
         return True
 
 def _parse_cli() -> Dict:
@@ -701,11 +733,13 @@ def _parse_cli() -> Dict:
     parser = argparse.ArgumentParser(description="CITS3200 Spreadsheet Automation")
     parser.add_argument("--week", type=int, help="Week number (2-11)")
     parser.add_argument("--dry-run", action="store_true", help="Print planned actions without writing/uploading")
+    parser.add_argument("--yes", action="store_true", help="Answer 'yes' to all prompts (non-interactive mode)")
     parser.add_argument("--config", type=str, help="Path to YAML config file", default=None)
     args = parser.parse_args()
     return {
         "week": args.week,
         "dry_run": args.dry_run,
+        "yes": args.yes,
         "config_path": Path(args.config) if args.config else None,
     }
 
@@ -713,6 +747,6 @@ def _parse_cli() -> Dict:
 if __name__ == "__main__":
     cli = _parse_cli()
     cfg = load_config(cli["config_path"])
-    automation = CITS3200Automation(config=cfg, week_number=cli["week"], dry_run=cli["dry_run"])
+    automation = CITS3200Automation(config=cfg, week_number=cli["week"], dry_run=cli["dry_run"], yes_all=cli["yes"])
     success = automation.run()
     sys.exit(0 if success else 1)

@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """
-Export CITS3200 meeting minutes from Google Drive to Teams as PDFs.
+Export CITS3200 meeting minutes from local meetings/<week> to both Google Drive and Teams as PDFs.
 
-Flow:
+Updated Flow:
 - Prompt for Week number (2-11)
-- Find .md files in gdrive:CITS3200/Week<week>
-- Download to temp dir
-- Convert each to PDF using pandoc
-- Upload PDFs to teams:General/Group_31/Week<week>
+- Look for files in local directory meetings/<week> (relative to repo root)
+  - If .md → convert to PDF via pandoc (leave source untouched)
+  - If .pdf → use as-is
+- Prompt to confirm upload
+- Upload PDFs to:
+  - Google Drive: gdrive:CITS3200/Week<week>
+  - Teams: teams:General/Group_31/Week<week>
 """
 
 from __future__ import annotations
@@ -41,6 +44,7 @@ class ExportConfig:
     teams_remote: str = "teams"
     teams_base: str = "General/Group_31"
     pandoc_path: str = "pandoc"  # Expect pandoc on PATH
+    local_meetins_base: str = "excelScript/meetings"  # relative to repo root
 
 
 def run_cmd(cmd: List[str]) -> subprocess.CompletedProcess:
@@ -72,14 +76,26 @@ def prompt_week() -> Optional[int]:
             logger.error("❌ Please enter a valid integer")
 
 
-def list_md_files_on_gdrive(cfg: ExportConfig, week: int) -> List[str]:
-    remote_path = f"{cfg.gdrive_remote}:{cfg.gdrive_base}/Week{week}"
-    ls = run_cmd(["rclone", "lsf", remote_path, "--files-only", "--include", "*.md"])
-    if ls.returncode != 0:
-        logger.error(f"❌ Failed to list markdown files on {remote_path}: {ls.stderr}")
+def find_local_minutes(cfg: ExportConfig, week: int) -> Path:
+    """Return the local directory to scan for minutes: meetings/<week> (or meetings/Week<week> fallback)."""
+    repo_root = Path(__file__).resolve().parents[1]
+    p1 = repo_root / cfg.local_meetins_base / str(week)
+    if p1.is_dir():
+        return p1
+    p2 = repo_root / cfg.local_meetins_base / f"Week{week}"
+    return p2
+
+
+def list_local_files(minutes_dir: Path) -> List[Path]:
+    if not minutes_dir.exists():
         return []
-    files = [line.strip() for line in ls.stdout.splitlines() if line.strip()]
-    return files
+    files: List[Path] = []
+    for entry in minutes_dir.iterdir():
+        if not entry.is_file():
+            continue
+        if entry.suffix.lower() in {".md", ".pdf"}:
+            files.append(entry)
+    return sorted(files)
 
 
 def download_files(cfg: ExportConfig, week: int, filenames: List[str], dest_dir: Path) -> List[Path]:
@@ -158,7 +174,7 @@ def convert_md_to_pdf(pandoc: str, md_file: Path, out_pdf: Path) -> bool:
 
 
 def upload_pdfs_to_teams(cfg: ExportConfig, week: int, pdf_files: List[Path]) -> bool:
-    remote_week = f"{cfg.teams_remote}:{cfg.teams_base}/Week {week}"
+    remote_week = f"{cfg.teams_remote}:{cfg.teams_base}/Week{week}"
     # Ensure remote folder exists
     mk = run_cmd(["rclone", "mkdir", remote_week])
     if mk.returncode != 0:
@@ -175,7 +191,36 @@ def upload_pdfs_to_teams(cfg: ExportConfig, week: int, pdf_files: List[Path]) ->
     return ok
 
 
-def main() -> int:
+def upload_pdfs_to_gdrive(cfg: ExportConfig, week: int, pdf_files: List[Path]) -> bool:
+    remote_week = f"{cfg.gdrive_remote}:{cfg.gdrive_base}/Week{week}"
+    mk = run_cmd(["rclone", "mkdir", remote_week])
+    if mk.returncode != 0:
+        logger.error(f"❌ Failed to create Google Drive folder {remote_week}: {mk.stderr}")
+        return False
+    ok = True
+    for pdf in pdf_files:
+        up = run_cmd(["rclone", "copy", str(pdf), remote_week])
+        if up.returncode != 0:
+            logger.error(f"❌ Upload failed for {pdf.name} to Google Drive: {up.stderr}")
+            ok = False
+        else:
+            logger.info(f"📤 Uploaded to Drive: {pdf.name}")
+    return ok
+
+
+def prompt_yes_no(msg: str) -> bool:
+    while True:
+        try:
+            val = input(f"{msg} [y/N]: ").strip().lower()
+        except EOFError:
+            return False
+        if val in {"y", "yes"}:
+            return True
+        if val in {"n", "no", ""}:
+            return False
+
+
+def main(cli_week: Optional[int] = None) -> int:
     cfg = ExportConfig()
 
     # Tool checks
@@ -184,49 +229,70 @@ def main() -> int:
     if not ensure_tool_exists(cfg.pandoc_path, "Install pandoc, e.g. 'brew install pandoc'."):
         return 1
 
-    # Prompt for week
-    week = prompt_week()
+    # Prompt for week (or use CLI-provided week)
+    week = cli_week if cli_week is not None else prompt_week()
     if week is None:
         logger.error("❌ No week provided. Exiting.")
         return 1
     logger.info(f"✅ Week {week} selected")
 
-    # List markdown files on Google Drive
-    files = list_md_files_on_gdrive(cfg, week)
-    if not files:
-        logger.warning(f"⚠️  No .md files found in {cfg.gdrive_remote}:{cfg.gdrive_base}/Week{week}")
+    # Locate local minutes
+    minutes_dir = find_local_minutes(cfg, week)
+    local_files = list_local_files(minutes_dir)
+    if not local_files:
+        logger.warning(f"⚠️  No .md or .pdf files found in {minutes_dir}")
+        return 0
+
+    logger.info(f"📁 Found {len(local_files)} file(s) in {minutes_dir}")
+    for p in local_files:
+        logger.info(f" • {p.name}")
+
+    if not prompt_yes_no(f"Proceed to convert/upload Week {week} minutes to Drive and Teams?"):
+        logger.info("ℹ️  Upload cancelled by user")
         return 0
 
     with tempfile.TemporaryDirectory(prefix=f"minutes_week{week}_") as tmpdir:
         tmp_path = Path(tmpdir)
         logger.info(f"📂 Working directory: {tmp_path}")
 
-        # Download
-        md_paths = download_files(cfg, week, files, tmp_path)
-        if not md_paths:
-            logger.error("❌ Failed to download markdown files.")
-            return 1
-
-        # Convert
+        # Prepare PDFs (convert .md; copy .pdf)
         pdf_paths: List[Path] = []
-        for md in md_paths:
-            pdf = md.with_suffix(".pdf")
-            if convert_md_to_pdf(cfg.pandoc_path, md, pdf):
-                pdf_paths.append(pdf)
+        for f in local_files:
+            if f.suffix.lower() == ".pdf":
+                # copy to temp so we have a single upload set
+                dst = tmp_path / f.name
+                dst.write_bytes(f.read_bytes())
+                logger.info(f"📄 Using existing PDF: {f.name}")
+                pdf_paths.append(dst)
+            elif f.suffix.lower() == ".md":
+                out_pdf = tmp_path / (f.stem + ".pdf")
+                if convert_md_to_pdf(cfg.pandoc_path, f, out_pdf):
+                    pdf_paths.append(out_pdf)
 
         if not pdf_paths:
             logger.error("❌ No PDFs were created.")
             return 1
 
-        # Upload
-        if not upload_pdfs_to_teams(cfg, week, pdf_paths):
+        # Upload to both remotes
+        ok_drive = upload_pdfs_to_gdrive(cfg, week, pdf_paths)
+        ok_teams = upload_pdfs_to_teams(cfg, week, pdf_paths)
+        if not (ok_drive and ok_teams):
             return 1
 
     logger.info("✅ Minutes export completed")
     return 0
 
 
+def _parse_cli() -> dict:
+    import argparse
+    parser = argparse.ArgumentParser(description="Export CITS3200 meeting minutes")
+    parser.add_argument("--week", type=int, help="Week number (2-11)")
+    args = parser.parse_args()
+    return {"week": args.week}
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    cli = _parse_cli()
+    sys.exit(main(cli.get("week")))
 
 
