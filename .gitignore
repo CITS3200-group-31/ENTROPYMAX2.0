@@ -61,3 +61,4 @@ frontend/*.png
 frontend/*.jpg
 frontend/*.jpeg
 output_maps/
+output.csv
