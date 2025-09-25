@@ -61,7 +61,3 @@ frontend/*.png
 frontend/*.jpg
 frontend/*.jpeg
 output_maps/
-
-# Parquet outputs and large data artifacts (keep tracked samples under tests/ only)
-data/parquet/*.parquet
-!tests/data/*.parquet
