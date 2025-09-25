@@ -1,9 +1,19 @@
 // NOTE: Minimal CSV loader with safety checks (no quoted fields). First header column is sample_id.
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
 #include "run_entropymax.h"
 #include "preprocess.h"
 #include "metrics.h"
 #include "sweep.h"
 #include "grouping.h"
+
+#ifdef _MSC_VER
+// MSVC compatibility: map POSIX-like APIs to MSVC equivalents
+#define strdup _strdup
+#define strtok_r strtok_s
+#endif
 
 static void rstrip_newline(char *s) {
     if (!s) return;
@@ -95,15 +105,17 @@ int read_csv(const char *filename, double **data, int *rows, int *cols, char ***
 int main(int argc, char **argv) {
     (void)argc; (void)argv; // ignore CLI args; enforce fixed IO paths per requirements
 
-    const char *fixed_input_path = "data/input.csv";
+    const char *fixed_input_path = "data/raw/sample_input.csv";
+    const char *gps_csv_path = "data/raw/sample_coordinates.csv";
     const char *fixed_output_path = "data/processed/sample_outputt.csv";
+    const char *final_parquet_path = "data/parquet/output.parquet";
 
     double *data = NULL; // raw data as read
     int rows = 0, cols = 0;
     char **rownames = NULL, **colnames = NULL;
     char **raw_values = NULL;
 
-    if (read_csv(fixed_input_path, &data, &rows, &cols, &rownames, &colnames, &sample_header, &raw_values) != 0) {
+    if (read_csv(fixed_input_path, &data, &rows, &cols, &rownames, &colnames, NULL, &raw_values) != 0) {
         fprintf(stderr, "Failed to read input CSV\n");
         return 1;
     }
@@ -187,6 +199,15 @@ int main(int argc, char **argv) {
     }
     fclose(out);
 
+    // Post-step: compiled Parquet writer (if available)
+    extern int em_csv_to_parquet_with_gps(const char*, const char*, const char*);
+    if (em_csv_to_parquet_with_gps) {
+        int prc = em_csv_to_parquet_with_gps(fixed_output_path, gps_csv_path, final_parquet_path);
+        if (prc != 0) {
+            fprintf(stderr, "Failed to write final parquet (rc=%d)\n", prc);
+        }
+    }
+
     // Free memory
     for (int i = 0; i < rows; ++i) free(rownames[i]);
     for (int j = 0; j < cols; ++j) free(colnames[j]);
@@ -194,8 +215,8 @@ int main(int argc, char **argv) {
         for (int i = 0; i < rows * cols; ++i) free(raw_values[i]);
         free(raw_values);
     }
-    free(rownames); free(colnames); free(sample_header); free(data); free(Y); free(metrics); free(member1); free(group_means); free(all_member1); free(data_proc);
+    free(rownames); free(colnames); free(data); free(Y); free(metrics); free(member1); free(group_means); free(all_member1); free(data_proc);
 
-    printf("Done. Output written to %s\n", fixed_output_path);
+    printf("Done. Output written to %s (csv) and %s (parquet)\n", fixed_output_path, final_parquet_path);
     return 0;
 }
