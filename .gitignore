@@ -45,9 +45,7 @@ data/processed/sample_outputt.csv
 
 *.xlsx
 
-# Parquet artifacts
-*.parquet
-data/parquet/
+
 
 # Vcpkg build directory
 backend/build-vcpkg/
