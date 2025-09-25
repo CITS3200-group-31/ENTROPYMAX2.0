@@ -94,26 +94,3 @@ flowchart TD
     E --> F[STEP 6: Export results]
     F --> F1[Pop up options MAP PNG JPG n Graphs CSV Path logs]
 ```
-
-## Compilation / Packaging Tool Tutorials 
-### macOS ARM Arch
-
-```shell
-conda activate entro
-# Factory version solved a tons of bugs
-pip install nuitka --pre
-sudo xcode-select -s /Library/Developer/CommandLineTools
-export SDKROOT=$(xcrun --sdk macosx --show-sdk-path)
-LDFLAGS="-L${SDKROOT}/usr/lib" nuitka --mode=app --enable-plugin=pyside6 main.py
-```
-
-### Windows x86 Arch
-
-```shell
-# install conda from https://repo.anaconda.com/miniconda/ 
-conda create -n entro python=3.11
-conda activate entro
-pip install nuitka --pre
-nuitka --mode=app --enable-plugin=pyside6 main.py
-# nuitka program will automatically download MinGW and set up dependencies
-```
