@@ -1,19 +1,19 @@
 """
-Handles interactive map display with sample selection and arrow drawing functionality.
+Map widget component for EntropyMax frontend.
+Handles interactive map display with sample selection.
 """
 
 import os
 import folium
 from statistics import mean
-from PyQt6.QtCore import QUrl
-from PyQt6.QtCore import pyqtSignal as Signal
-from PyQt6.QtWebEngineWidgets import QWebEngineView
-from PyQt6.QtWebEngineCore import QWebEngineSettings
-from PyQt6.QtWidgets import QWidget, QVBoxLayout
+from PySide6.QtCore import QUrl, Signal
+from PySide6.QtWebEngineWidgets import QWebEngineView
+from PySide6.QtWebEngineCore import QWebEngineSettings
+from PySide6.QtWidgets import QWidget, QVBoxLayout
 
 
 class MapWidget(QWidget):
-    """Interactive map widget with sample selection and arrow drawing capability."""
+    """Interactive map widget with sample selection capability."""
     
     # Signal emitted when samples are selected/deselected
     selectionChanged = Signal(list)  # list of selected sample names
@@ -42,7 +42,7 @@ class MapWidget(QWidget):
         
     def render_map(self, markers_data, center=None, zoom=None):
         """
-        Render the interactive map with markers and arrow drawing capability.
+        Render the interactive map with markers.
         
         Args:
             markers_data: List of dictionaries with 'lat', 'lon', 'name', 'group' keys
@@ -63,11 +63,10 @@ class MapWidget(QWidget):
         if zoom is None:
             zoom = 5
         
-        # Create map with satellite imagery only, disable zoom controls
+        # Create map with satellite imagery only
         m = folium.Map(
             location=center, 
             zoom_start=zoom, 
-            zoom_control=False,  # Disable zoom in/out buttons
             control_scale=True, 
             tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
             attr='Esri',
@@ -77,6 +76,9 @@ class MapWidget(QWidget):
         
         # Simplified color palette - using blue tones for unselected, green for selected
         colors = ['lightblue', 'blue', 'darkblue']
+        
+        # Track selected samples in JavaScript
+        selected_names = [s['name'] for s in markers_data if s.get('selected', False)]
         
         # Add markers
         for mk in markers_data:
@@ -110,9 +112,6 @@ class MapWidget(QWidget):
             )
             
             marker.add_to(m)
-        
-        # Add arrow drawing capability using optimized tool
-        self._add_arrow_tool(m)
         
         # Save and load HTML
         html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'map.html'))
@@ -162,16 +161,3 @@ class MapWidget(QWidget):
         self.selected_samples = selected_names
         # Re-render to update marker colors
         self.render_map(self.markers_data)
-        
-    def _add_arrow_tool(self, folium_map):
-        """
-        Add arrow drawing functionality to the map.
-        """
-        try:
-            from .arrow_tool import SimpleArrowTool
-            map_var_name = folium_map.get_name()
-            # Position it at top-left
-            arrow_html = SimpleArrowTool.get_arrow_html(map_var_name, position="topleft")
-            folium_map.get_root().html.add_child(folium.Element(arrow_html))
-        except Exception as e:
-            print(f"Warning: Could not add arrow tool: {e}")
