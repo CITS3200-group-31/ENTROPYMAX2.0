@@ -1,11 +1,13 @@
 import sys
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
-                             QHBoxLayout, QFrame, QMessageBox, QLabel, QMenuBar,
-                             QMenu)
+                             QHBoxLayout, QFrame, QMessageBox, QMenu, QFileDialog)
 from components.control_panel import ControlPanel
 from components.group_detail_popup import GroupDetailPopup
-from components.fullscreen_chart_widget import FullscreenChartWidget
-from components.fullscreen_map_sample_widget import FullscreenMapSampleWidget
+from components.module_preview_card import ModulePreviewCard
+from components.standalone_window import StandaloneWindow
+from components.simple_map_sample_widget import SimpleMapSampleWidget
+from components.chart_widget import ChartWidget
+from components.settings_dialog import SettingsDialog
 from utils.csv_export import export_analysis_results
 from help import FormatExamplesDialog
 
@@ -30,12 +32,12 @@ class BentoBox(QFrame):
 
 
 class EntropyMaxFinal(QMainWindow):
-    """Final application with a minimalist, bento box design."""
+    """Main application with module preview cards."""
     
     def __init__(self):
         super().__init__()
         self.setWindowTitle("EntropyMax 2.0")
-        self.setGeometry(100, 100, 1600, 900)
+        self.setGeometry(100, 100, 1200, 700)
         self.setStyleSheet("""
             QMainWindow { 
                 background-color: #f8f9fa; 
@@ -56,20 +58,29 @@ class EntropyMaxFinal(QMainWindow):
         self.current_analysis_data = {}
         self.group_detail_popup = GroupDetailPopup()
         
+        # Initialize settings dialog
+        self.settings_dialog = SettingsDialog(self)
+        
+        # Window references
+        self.map_window = None
+        self.ch_window = None
+        self.rs_window = None
+        
         self._setup_ui()
         self._setup_menu()
+        self._init_standalone_windows()
         self._connect_signals()
         self._reset_workflow()
         
     def _setup_ui(self):
-        """Initialize the bento box UI."""
+        """Initialize UI with preview cards."""
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QHBoxLayout(central_widget)
         main_layout.setContentsMargins(15, 15, 15, 15)
         main_layout.setSpacing(15)
         
-        # Left panel: Controls (fixed width)
+        # Left panel: Controls
         left_panel = BentoBox(title="Controls")
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(5, 5, 5, 5)
@@ -80,64 +91,98 @@ class EntropyMaxFinal(QMainWindow):
         left_panel.setFixedWidth(340)
         main_layout.addWidget(left_panel)
         
-        # Right panel: Data visualization (fixed layout, no resizing)
+        # Right panel: Module preview cards
         right_container = QWidget()
         right_layout = QVBoxLayout(right_container)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(15)
         
-        # Top right: Map and sample list with fullscreen capability
-        top_box = BentoBox()
-        top_layout = QVBoxLayout(top_box)
-        top_layout.setContentsMargins(10, 10, 10, 10)
+        # Map preview card
+        self.map_preview_card = ModulePreviewCard(
+            title="Map & Sample List",
+            description="View GPS locations and manage sample selection"
+        )
+        self.map_preview_card.openRequested.connect(self._open_map_window)
+        right_layout.addWidget(self.map_preview_card)
         
-        # Create fullscreen-capable map and sample widget
-        self.map_sample_widget = FullscreenMapSampleWidget()
+        # CH analysis preview card
+        self.ch_preview_card = ModulePreviewCard(
+            title="CH Analysis",
+            description="Calinski-Harabasz Index visualization"
+        )
+        self.ch_preview_card.openRequested.connect(self._open_ch_window)
+        right_layout.addWidget(self.ch_preview_card)
+        
+        # RS analysis preview card
+        self.rs_preview_card = ModulePreviewCard(
+            title="Rs Analysis", 
+            description="Rs Percentage visualization"
+        )
+        self.rs_preview_card.openRequested.connect(self._open_rs_window)
+        right_layout.addWidget(self.rs_preview_card)
+        
+        right_layout.addStretch()
+        main_layout.addWidget(right_container)
+    
+    def _init_standalone_windows(self):
+        """Initialize standalone window components"""
+        # Map window
+        self.map_sample_widget = SimpleMapSampleWidget()
+        self.map_window = StandaloneWindow("Map & Sample List", self.map_sample_widget)
+        self.map_window.exportRequested.connect(lambda: self._export_window_content(self.map_sample_widget, "map"))
         self.map_widget = self.map_sample_widget.map_widget
         self.sample_list = self.map_sample_widget.sample_list
-        top_layout.addWidget(self.map_sample_widget)
         
-        # Add top container to right layout with stretch factor
-        right_layout.addWidget(top_box, 5)  # 5:4 ratio for top:bottom
-        
-        # Bottom right: Charts (fixed layout)
-        bottom_container = QWidget()
-        bottom_layout = QHBoxLayout(bottom_container)
-        bottom_layout.setContentsMargins(0, 0, 0, 0)
-        bottom_layout.setSpacing(15)
-        
-        # CH Chart with fullscreen capability
-        ch_box = BentoBox(title="CH Analysis")
-        ch_layout = QVBoxLayout(ch_box)
-        ch_layout.setContentsMargins(10, 10, 10, 10)
-        
-        self.ch_chart = FullscreenChartWidget(
+        # CH chart window
+        self.ch_chart = ChartWidget(
             title="CH Index",
-            ylabel="CH Index",
-            chart_title_display="Calinski-Harabasz Index"
+            ylabel="CH Index"
         )
-        ch_layout.addWidget(self.ch_chart)
-        bottom_layout.addWidget(ch_box)
+        self.ch_window = StandaloneWindow("CH Analysis", self.ch_chart)
+        self.ch_window.exportRequested.connect(lambda: self._export_window_content(self.ch_chart, "ch"))
         
-        # Rs Chart with fullscreen capability
-        rs_box = BentoBox(title="Rs Analysis")
-        rs_layout = QVBoxLayout(rs_box)
-        rs_layout.setContentsMargins(10, 10, 10, 10)
-        
-        self.rs_chart = FullscreenChartWidget(
+        # RS chart window
+        self.rs_chart = ChartWidget(
             title="Rs %",
-            ylabel="Rs %",
-            chart_title_display="Rs Percentage"
+            ylabel="Rs %"
         )
-        rs_layout.addWidget(self.rs_chart)
-        bottom_layout.addWidget(rs_box)
-
+        self.rs_window = StandaloneWindow("Rs Analysis", self.rs_chart)
+        self.rs_window.exportRequested.connect(lambda: self._export_window_content(self.rs_chart, "rs"))
+    
+    def _open_map_window(self):
+        """Open map window"""
+        if self.map_window:
+            self.map_window.show()
+            self.map_window.raise_()
+            self.map_window.activateWindow()
+    
+    def _open_ch_window(self):
+        """Open CH analysis window"""
+        if self.ch_window:
+            self.ch_window.show()
+            self.ch_window.raise_()
+            self.ch_window.activateWindow()
+    
+    def _open_rs_window(self):
+        """Open RS analysis window"""
+        if self.rs_window:
+            self.rs_window.show()
+            self.rs_window.raise_()
+            self.rs_window.activateWindow()
+    
+    def _export_window_content(self, widget, window_type):
+        """Export window content as PNG"""
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            f"Export {window_type.upper()} as PNG",
+            f"{window_type}_export.png",
+            "PNG Files (*.png)"
+        )
         
-        
-        # Add bottom container to right layout with stretch factor
-        right_layout.addWidget(bottom_container, 4)  # 5:4 ratio for top:bottom
-        
-        main_layout.addWidget(right_container)
+        if file_path:
+            pixmap = widget.grab()
+            pixmap.save(file_path)
+            self.statusBar().showMessage(f"Exported to {file_path}", 3000)
     
     def _setup_menu(self):
         """Setup the menu bar with Help menu."""
@@ -193,15 +238,17 @@ class EntropyMaxFinal(QMainWindow):
         """Connect all signals to their handlers."""
         self.control_panel.inputFileSelected.connect(self._on_input_file_selected)
         self.control_panel.gpsFileSelected.connect(self._on_gps_file_selected)
-        self.control_panel.outputFileSelected.connect(self._on_output_file_selected)
         self.control_panel.generateMapRequested.connect(self._on_generate_map)
         self.control_panel.runAnalysisRequested.connect(self._on_run_analysis)
         self.control_panel.showGroupDetailsRequested.connect(self._on_show_group_details)
         self.control_panel.exportResultsRequested.connect(self._on_export_results)
         
-        # Connect signals from the fullscreen map-sample widget
+        # Connect signals from map-sample widget
         self.map_sample_widget.selectionChanged.connect(self._on_selection_changed)
         self.map_sample_widget.sampleLocateRequested.connect(self._on_locate_sample)
+        
+        # Connect signal from group detail popup to sample list
+        self.group_detail_popup.sampleLineClicked.connect(self._on_sample_line_clicked)
         
     def _on_input_file_selected(self, file_path):
         self.input_file_path = file_path
@@ -251,9 +298,6 @@ class EntropyMaxFinal(QMainWindow):
             self.control_panel.gps_label.setStyleSheet("color: gray; padding: 5px;")
             self.control_panel._update_button_states()
         
-    def _on_output_file_selected(self, file_path):
-        self.output_file_path = file_path
-        
     def _on_generate_map(self):
         """Load data from CSV and render map."""
         try:
@@ -263,42 +307,50 @@ class EntropyMaxFinal(QMainWindow):
                                   "Please select both grain size and GPS files.")
                 return
             
-            # TODO: Replace with actual CSV parsing from backend API
-            # For now, parse GPS file to get coordinates
+            # Parse GPS file to get coordinates
             markers = self._parse_gps_csv(self.gps_file_path)
             self.map_sample_widget.load_data(markers)
-            self.statusBar().showMessage("Map and sample list loaded from GPS data.", 3000)
+            
+            # Update preview cards status
+            self.map_preview_card.update_status(f"Loaded {len(markers)} samples")
+            self.ch_preview_card.update_status("Ready for analysis")
+            self.rs_preview_card.update_status("Ready for analysis")
+            
+            # Enable run analysis button after successful map generation
+            self.control_panel.run_analysis_btn.setEnabled(True)
+            self.statusBar().showMessage("Map and sample list loaded from GPS data. Analysis ready.", 3000)
         except Exception as e:
             QMessageBox.critical(self, "Error Loading File", str(e))
             self._reset_workflow()
             
     def _on_selection_changed(self, selected_samples):
         self.selected_samples = selected_samples
-        self.control_panel.run_analysis_btn.setEnabled(len(selected_samples) > 0)
         
     def _on_locate_sample(self, name, lat, lon):
         self.map_widget.zoom_to_location(lat, lon)
+    
+
+        
+    def _on_sample_line_clicked(self, sample_name):
+        """Handle sample line click from group detail popup."""
+        # Just highlight the sample normally in the sample list
+        self.sample_list.highlight_sample(sample_name)
+        self.statusBar().showMessage(f"Highlighted sample: {sample_name}", 3000)
         
     def _on_run_analysis(self, params):
-        """Run analysis on selected data."""
-        selected_data = self.map_sample_widget.get_selected_samples_data()
-        if not selected_data:
-            QMessageBox.warning(self, "No Samples Selected", 
-                              "Please select samples from the list.")
+        """Run analysis on all loaded data."""
+        # Get all samples data
+        all_data = self.map_sample_widget.get_all_samples_data()
+        if not all_data:
+            QMessageBox.warning(self, "No Sample Data", 
+                              "Please load data first by generating the map.")
             return
         
-        # TODO: Import Parquet data
-        # It should contains:
-        # - k_values array
-        # - ch_values array (Calinski-Harabasz index values)
-        # - rs_values array (Rs percentage values)
-        # - optimal_k value
-        
-        # For now, use sample data for demonstration
+        # Use sample data for demonstration
         self.current_analysis_data = {
             **params,
-            'num_samples': len(selected_data),
-            'selected_samples': selected_data,
+            'num_samples': len(all_data),
+            'selected_samples': all_data,
             'k_values': SAMPLE_CH_RS_DATA['k_values'],
             'ch_values': SAMPLE_CH_RS_DATA['ch_values'],
             'rs_values': SAMPLE_CH_RS_DATA['rs_values'],
@@ -307,6 +359,12 @@ class EntropyMaxFinal(QMainWindow):
         
         self._plot_analysis_results()
         self.control_panel.enable_analysis_buttons(True)
+        
+        # Update preview cards status
+        optimal_k = self.current_analysis_data['optimal_k']
+        self.ch_preview_card.update_status(f"Analysis complete (k={optimal_k})")
+        self.rs_preview_card.update_status(f"Analysis complete (k={optimal_k})")
+        
         self.statusBar().showMessage("Analysis complete.", 3000)
         
     def _on_show_group_details(self):
@@ -336,9 +394,20 @@ class EntropyMaxFinal(QMainWindow):
                               "Please run an analysis first.")
             return
         
+        # Let user choose output file location
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, 
+            "Export Analysis Results", 
+            "analysis_results.csv", 
+            "CSV Files (*.csv)"
+        )
+        
+        if not file_path:  # User cancelled
+            return
+        
         try:
             saved_path = export_analysis_results(
-                self.output_file_path, 
+                file_path, 
                 self.current_analysis_data
             )
             QMessageBox.information(self, "Export Successful", 
@@ -369,6 +438,7 @@ class EntropyMaxFinal(QMainWindow):
         self.gps_file_path = None
         self.output_file_path = None
         self.selected_samples = []
+        
         # Reset UI components
         self.control_panel.reset_workflow()
         self.map_sample_widget.load_data([])
@@ -376,6 +446,12 @@ class EntropyMaxFinal(QMainWindow):
         self.rs_chart.clear()
         self.group_detail_popup.close_all()
         self.current_analysis_data = {}
+        
+        # Reset preview cards
+        self.map_preview_card.update_status("Not loaded")
+        self.ch_preview_card.update_status("Not loaded")
+        self.rs_preview_card.update_status("Not loaded")
+        
         self.statusBar().showMessage("Workflow reset. Select input files to begin.", 5000)
         
     def _parse_gps_csv(self, file_path):

@@ -6,6 +6,7 @@ Handles CH and Rs analysis visualization.
 import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
+from .visualization_settings import VisualizationSettings
 
 
 class ChartWidget(QWidget):
@@ -15,22 +16,70 @@ class ChartWidget(QWidget):
         super().__init__(parent)
         self.title = title
         self.ylabel = ylabel
+        self.settings = VisualizationSettings()
         self._setup_ui()
+        
+        # Connect to settings changes
+        self.settings.settingsChanged.connect(self._update_plot_styling)
         
     def _setup_ui(self):
         """Initialize the UI components."""
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(10, 10, 10, 10)
         
         # Create plot widget
         self.plot_widget = pg.PlotWidget()
-        self.plot_widget.setLabel('left', self.ylabel)
-        self.plot_widget.setLabel('bottom', 'Number of Groups (k)')
-        self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
+        
+        # Set initial styling from settings
+        self._apply_styling()
         
         # Set background color
         self.plot_widget.setBackground('w')
         
         layout.addWidget(self.plot_widget)
+        
+    def _apply_styling(self):
+        """Apply current settings to plot styling."""
+        axis_style = self.settings.get_axis_style()
+        tick_style = self.settings.get_tick_style()
+        
+        # Apply axis labels with settings
+        self.plot_widget.setLabel('left', self.ylabel, **axis_style)
+        self.plot_widget.setLabel('bottom', 'Number of Groups (k)', **axis_style)
+        
+        # Apply tick font styling
+        left_axis = self.plot_widget.getAxis('left')
+        bottom_axis = self.plot_widget.getAxis('bottom')
+        
+        # Create pens for axis ticks
+        tick_pen = pg.mkPen(color=tick_style['color'])
+        left_axis.setPen(tick_pen)
+        bottom_axis.setPen(tick_pen)
+        left_axis.setTextPen(tick_style['color'])
+        bottom_axis.setTextPen(tick_style['color'])
+        
+        # Set tick text offset for better visibility
+        left_axis.setStyle(tickTextOffset=10)
+        bottom_axis.setStyle(tickTextOffset=10)
+        
+        # Apply tick font size using QFont
+        from PyQt6.QtGui import QFont
+        tick_font = QFont()
+        tick_font.setPointSize(self.settings.tick_font_size)
+        left_axis.setTickFont(tick_font)
+        bottom_axis.setTickFont(tick_font)
+        
+        # Show grid
+        self.plot_widget.showGrid(x=True, y=True, alpha=0.3)
+    
+    def _update_plot_styling(self):
+        """Update plot styling when settings change."""
+        self._apply_styling()
+        
+        # Replot data with new line thickness if data exists
+        if hasattr(self, '_last_plot_data'):
+            k_values, y_values, color, symbol, name = self._last_plot_data
+            self.plot_data(k_values, y_values, color, symbol, name)
         
     def plot_data(self, k_values, y_values, color='b', symbol='o', name=None):
         """
@@ -45,8 +94,14 @@ class ChartWidget(QWidget):
         """
         self.plot_widget.clear()
         
-        # Create pen for line
-        pen = pg.mkPen(color=color, width=2)
+        # Store plot data for replotting when settings change
+        self._last_plot_data = (k_values, y_values, color, symbol, name)
+        
+        # Create pen for line with current thickness setting
+        pen = pg.mkPen(color=color, width=self.settings.line_thickness)
+        
+        # Calculate symbol size based on line thickness
+        symbol_size = max(6, int(self.settings.line_thickness * 3))
         
         # Plot the data
         self.plot_widget.plot(
@@ -54,7 +109,7 @@ class ChartWidget(QWidget):
             y_values, 
             pen=pen, 
             symbol=symbol, 
-            symbolSize=8,
+            symbolSize=symbol_size,
             symbolBrush=color, 
             name=name
         )
