@@ -176,6 +176,13 @@ Outputs:
 - Static library: `backend/build/libentropymax.*`
 - CLI executable: `backend/build/emx_cli` (intended: accepts raw Parquet, writes processed Parquet)
 
+Single sources of truth (paths used by runner and frontend):
+- Input CSVs (authoritative raw inputs):
+  - `data/raw/inputs/<dataset>_input.csv` (bin data)
+  - `data/raw/gps/<dataset>_coordinates.csv` (GPS)
+- Processed Parquet (authoritative analysis result consumed by frontend):
+  - `data/parquet/output.parquet`
+
 Run tests (via CTest):
 ```bash
 cd backend/build
