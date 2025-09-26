@@ -2,6 +2,7 @@ import sys
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QFrame, QMessageBox, QLabel, QMenuBar,
                              QMenu)
+from PyQt6.QtCore import QTimer
 from components.control_panel import ControlPanel
 from components.group_detail_popup import GroupDetailPopup
 from components.fullscreen_chart_widget import FullscreenChartWidget
@@ -17,6 +18,7 @@ import shutil
 import subprocess
 import pandas as pd
 import pyarrow.parquet as pq
+import time
 
 
 class BentoBox(QFrame):
@@ -259,12 +261,13 @@ class EntropyMaxFinal(QMainWindow):
                 QMessageBox.warning(self, "Missing Files", 
                                   "Please select both grain size and GPS files.")
                 return
-            
-            # TODO: Replace with actual CSV parsing from backend API
-            # For now, parse GPS file to get coordinates
+            # Initial map load should NOT reflect analysis groupings. Always use GPS CSV
+            # and set default group to 1 for all samples.
             markers = self._parse_gps_csv(self.gps_file_path)
-            self.map_sample_widget.load_data(markers)
+            for m in markers:
+                m['group'] = 1
             self.statusBar().showMessage("Map and sample list loaded from GPS data.", 3000)
+            self.map_sample_widget.load_data(markers)
         except Exception as e:
             QMessageBox.critical(self, "Error Loading File", str(e))
             self._reset_workflow()
@@ -285,12 +288,26 @@ class EntropyMaxFinal(QMainWindow):
             return
         try:
             # 1) Run compiled backend to generate Parquet
+            start_ts = time.time()
             self._run_compiled_backend()
             # 2) Load metrics from Parquet
             project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            parquet_path = os.path.join(project_root, 'data', 'parquet', 'output.parquet')
-            if not os.path.exists(parquet_path):
-                raise FileNotFoundError(f"Expected Parquet not found: {parquet_path}")
+            # Wait briefly for a fresh, non-empty Parquet (handles slow AV/disk)
+            parquet_path = None
+            for _ in range(40):  # ~6s max
+                latest = self._find_latest_parquet(project_root, min_mtime=start_ts)
+                if latest and os.path.exists(latest):
+                    try:
+                        st = os.stat(latest)
+                        # Require file modified at or after start time and non-empty
+                        if st.st_mtime >= start_ts and st.st_size > 0:
+                            parquet_path = latest
+                            break
+                    except Exception:
+                        pass
+                time.sleep(0.15)
+            if not parquet_path:
+                raise RuntimeError("Parquet not refreshed after backend run.")
             k_values, ch_values, rs_values, optimal_k = self._load_metrics_from_parquet(parquet_path)
             self.current_analysis_data = {
                 **params,
@@ -310,6 +327,13 @@ class EntropyMaxFinal(QMainWindow):
             except Exception as ge:
                 # Surface but do not block charts if grouping fails
                 QMessageBox.warning(self, "Grouping Update Warning", str(ge))
+            # 4) Refresh markers from freshly generated Parquet to avoid stale view
+            try:
+                markers = self._parse_markers_from_parquet(parquet_path)
+                if markers:
+                    self.map_sample_widget.load_data(markers)
+            except Exception:
+                pass
             self._plot_analysis_results()
             self.control_panel.enable_analysis_buttons(True)
             self.statusBar().showMessage("Analysis complete.", 3000)
@@ -419,10 +443,46 @@ class EntropyMaxFinal(QMainWindow):
         except Exception as e:
             print(f"Error parsing GPS file: {e}")
 
+    def _parse_markers_from_parquet(self, parquet_path):
+        """Parse markers (name, lat, lon, optional group) from Parquet output."""
+        table = pq.read_table(parquet_path)
+        cols = [f.name for f in table.schema]
+        def find_col(sub):
+            for c in cols:
+                if sub.lower() in c.lower():
+                    return c
+            return None
+        name_col = 'Sample' if 'Sample' in cols else find_col('sample')
+        lat_col = 'latitude' if 'latitude' in cols else find_col('latitude')
+        lon_col = 'longitude' if 'longitude' in cols else find_col('longitude')
+        grp_col = 'Group' if 'Group' in cols else find_col('group')
+        if not name_col or not lat_col or not lon_col:
+            return []
+        df = table.select([c for c in [name_col, lat_col, lon_col, grp_col] if c]).to_pandas()
+        df = df.dropna(subset=[name_col, lat_col, lon_col])
+        # Deduplicate on name (first occurrence)
+        df = df.drop_duplicates(subset=[name_col], keep='first')
+        markers = []
+        for _, row in df.iterrows():
+            try:
+                markers.append({
+                    'name': str(row[name_col]).strip(),
+                    'lat': float(row[lat_col]),
+                    'lon': float(row[lon_col]),
+                    'group': int(row[grp_col]) if grp_col and pd.notna(row[grp_col]) else 1,
+                    'selected': False
+                })
+            except Exception:
+                continue
+        return markers
+
     def _find_backend_executable(self):
         """Locate the compiled backend runner executable across common build layouts."""
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         candidates = [
+            os.path.join(project_root, 'backend', 'build-vcpkg', 'Release', 'run_entropymax.exe'),
+            os.path.join(project_root, 'backend', 'build-vcpkg', 'Debug', 'run_entropymax.exe'),
+            os.path.join(project_root, 'backend', 'build-vcpkg', 'run_entropymax.exe'),
             os.path.join(project_root, 'backend', 'build', 'run_entropymax.exe'),
             os.path.join(project_root, 'backend', 'build', 'Release', 'run_entropymax.exe'),
             os.path.join(project_root, 'backend', 'build', 'Debug', 'run_entropymax.exe'),
@@ -445,6 +505,15 @@ class EntropyMaxFinal(QMainWindow):
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         data_raw = os.path.join(project_root, 'data', 'raw')
         os.makedirs(data_raw, exist_ok=True)
+        # Remove stale Parquet before running
+        try:
+            out_dir = os.path.join(project_root, 'data', 'parquet')
+            os.makedirs(out_dir, exist_ok=True)
+            stale = os.path.join(out_dir, 'output.parquet')
+            if os.path.exists(stale):
+                os.remove(stale)
+        except Exception:
+            pass
         target_raw = os.path.join(data_raw, 'sample_input.csv')
         target_gps = os.path.join(data_raw, 'sample_coordinates.csv')
         def _same_path(a, b):
@@ -468,6 +537,19 @@ class EntropyMaxFinal(QMainWindow):
             stderr = proc.stderr.strip()
             stdout = proc.stdout.strip()
             raise RuntimeError(f"Backend failed (exit {proc.returncode}).\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}")
+        # Wait for Parquet to be generated
+        parquet_path = os.path.join(project_root, 'data', 'parquet', 'output.parquet')
+        if not os.path.exists(parquet_path):
+            raise FileNotFoundError(f"Expected Parquet not found after backend run: {parquet_path}")
+        # Wait for Parquet to be generated
+        max_wait_time = 30 # seconds
+        start_time = time.time()
+        while time.time() - start_time < max_wait_time:
+            if os.path.exists(parquet_path):
+                break
+            time.sleep(1)
+        if not os.path.exists(parquet_path):
+            raise FileNotFoundError(f"Parquet file did not appear after backend run: {parquet_path}")
 
     def _load_metrics_from_parquet(self, parquet_path):
         """Extract k, CH and Rs series and optimal K from the processed Parquet."""
@@ -545,10 +627,94 @@ class EntropyMaxFinal(QMainWindow):
         if selected_before:
             self.map_sample_widget.sample_list.set_selection(selected_before)
 
+    def _find_latest_parquet(self, project_root, min_mtime=None):
+        """Return the path to the newest .parquet in data/parquet (optionally newer than min_mtime)."""
+        try:
+            pdir = os.path.join(project_root, 'data', 'parquet')
+            if not os.path.isdir(pdir):
+                return None
+            candidates = []
+            for name in os.listdir(pdir):
+                if name.lower().endswith('.parquet'):
+                    full = os.path.join(pdir, name)
+                    try:
+                        st = os.stat(full)
+                        if min_mtime is None or st.st_mtime >= float(min_mtime):
+                            candidates.append((st.st_mtime, full))
+                    except Exception:
+                        continue
+            if not candidates:
+                return None
+            candidates.sort(reverse=True)
+            return candidates[0][1]
+        except Exception:
+            return None
+
 
 if __name__ == '__main__':
+    # Graceful Ctrl+C/SIGTERM handling
+    import signal
+    def _handle_sig(signum, frame):
+        try:
+            _app = QApplication.instance()
+            if _app is not None:
+                _app.quit()
+        except Exception:
+            pass
+    try:
+        signal.signal(signal.SIGINT, _handle_sig)
+    except Exception:
+        pass
+    try:
+        signal.signal(signal.SIGTERM, _handle_sig)
+    except Exception:
+        pass
+
     app = QApplication(sys.argv)
     app.setStyle('Fusion')
+
+    # Timer tick ensures Python signal handlers are processed during Qt event loop
+    _sig_timer = QTimer()
+    _sig_timer.timeout.connect(lambda: None)
+    _sig_timer.start(250)
+
     window = EntropyMaxFinal()
     window.show()
+
+    # Debug mode: preload sample files and default output
+    try:
+        if '--debug' in sys.argv:
+            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            input_path = os.path.join(project_root, 'data', 'raw', 'inputs', 'sample_group_3_input.csv')
+            gps_path = os.path.join(project_root, 'data', 'raw', 'gps', 'sample_group_3_coordinates.csv')
+            output_path = os.path.join(project_root, 'output.csv')
+
+            cp = window.control_panel
+
+            # Preload input CSV
+            cp.input_file = input_path
+            cp.input_label.setText(f"✓ {os.path.basename(input_path)}")
+            cp.input_label.setStyleSheet("color: green; padding: 5px;")
+            cp.inputFileSelected.emit(input_path)
+
+            # Preload GPS CSV
+            cp.gps_file = gps_path
+            cp.gps_label.setText(f"✓ {os.path.basename(gps_path)}")
+            cp.gps_label.setStyleSheet("color: green; padding: 5px;")
+            cp.gpsFileSelected.emit(gps_path)
+
+            # Preload output CSV (project root)
+            cp.output_file = output_path
+            display_name = os.path.basename(output_path)
+            if display_name.endswith('.csv'):
+                display_name = display_name[:-4]
+            cp.output_label.setText(f"✓ {display_name}")
+            cp.output_label.setStyleSheet("color: green; padding: 5px;")
+            cp.outputFileSelected.emit(output_path)
+
+            cp._update_button_states()
+            window.statusBar().showMessage("Debug mode: preloaded sample files.", 3000)
+    except Exception as e:
+        # Surface debug preload issues in the console without interrupting the app
+        print(f"DEBUG preload failed: {e}", file=sys.stderr)
     sys.exit(app.exec())
