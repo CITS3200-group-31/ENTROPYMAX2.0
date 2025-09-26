@@ -106,11 +106,6 @@ Responsibilities emphasize frontend reliability, UX verification, and end-to-end
   - Deliverable: updated docs, test utilities for screenshots.
   - Acceptance: doc links valid; visual regression job stable and non-flaky.
 
-### Milestones and timelines
-- Week 1: Ben (repo/Makefile/CI skeleton), Noah (unit tests scaffolding), Jeremy (pytest-qt harness, 1-2 component tests).
-- Week 2: Ben (fixtures + schema linter), Noah (property tests + integration CTest), Jeremy (integration test headless, initial visual regression).
-- Week 3: Performance budget + ASan (Noah), broaden component coverage (Jeremy), finalize CI gates (Ben).
-
 ## 7) Exit criteria
 - All unit and integration tests green in CI.
 - No -Wall/-Wextra warnings in backend builds.

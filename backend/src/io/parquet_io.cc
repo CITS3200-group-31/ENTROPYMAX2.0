@@ -109,6 +109,55 @@ int em_csv_to_parquet_with_gps(
     if (!algo_table_res.ok()) return 22;
     std::shared_ptr<arrow::Table> algo_table = *algo_table_res;
 
+    // Determine optimal K by maximum CH (Calinski-Harabasz)
+    int idx_k_for_opt = -1;
+    int idx_ch_for_opt = -1;
+    {
+      auto sch = algo_table->schema();
+      idx_k_for_opt = sch->GetFieldIndex("K");
+      // Match CH column name as emitted by runner
+      idx_ch_for_opt = sch->GetFieldIndex("Calinski-Harabasz pseudo-F statistic");
+    }
+    int64_t opt_k_value = -1;
+    if (idx_k_for_opt >= 0 && idx_ch_for_opt >= 0) {
+      // Assume single chunk per column (CSV reader yields one chunk)
+      auto k_arr = std::static_pointer_cast<arrow::Int64Array>(algo_table->column(idx_k_for_opt)->chunk(0));
+      auto ch_arr = std::static_pointer_cast<arrow::DoubleArray>(algo_table->column(idx_ch_for_opt)->chunk(0));
+      int64_t n = algo_table->num_rows();
+      // Track first CH encountered per K and pick max
+      std::unordered_map<int64_t, double> k_to_ch;
+      for (int64_t i = 0; i < n; ++i) {
+        if (k_arr->IsNull(i) || ch_arr->IsNull(i)) continue;
+        int64_t k = k_arr->Value(i);
+        if (k_to_ch.find(k) == k_to_ch.end()) {
+          k_to_ch.emplace(k, ch_arr->Value(i));
+        }
+      }
+      double best_ch = -std::numeric_limits<double>::infinity();
+      for (const auto &kv : k_to_ch) {
+        if (kv.second > best_ch) { best_ch = kv.second; opt_k_value = kv.first; }
+      }
+      // Filter algo_table to rows where K == opt_k_value (if valid)
+      if (opt_k_value >= 0) {
+        auto k_chunk = algo_table->column(idx_k_for_opt)->chunk(0);
+        auto eq_res = arrow::compute::CallFunction("equal", {k_chunk, arrow::Datum((int64_t)opt_k_value)});
+        if (eq_res.ok() && eq_res->is_array()) {
+          std::vector<std::shared_ptr<arrow::ChunkedArray>> filtered_cols;
+          filtered_cols.reserve(algo_table->num_columns());
+          for (int c = 0; c < algo_table->num_columns(); ++c) {
+            auto col_chunk0 = algo_table->column(c)->chunk(0);
+            auto filt_res = arrow::compute::Filter(col_chunk0, *eq_res);
+            if (!filt_res.ok() || !filt_res->is_array()) { filtered_cols.clear(); break; }
+            auto arr = filt_res->make_array();
+            filtered_cols.push_back(std::make_shared<arrow::ChunkedArray>(arr));
+          }
+          if (!filtered_cols.empty()) {
+            algo_table = arrow::Table::Make(algo_table->schema(), filtered_cols);
+          }
+        }
+      }
+    }
+
     // Read GPS CSV (header present)
     auto gps_in_res = arrow::io::ReadableFile::Open(gps_csv_path);
     if (!gps_in_res.ok()) return 23;
@@ -223,6 +272,26 @@ int em_csv_to_parquet_with_gps(
       cols.push_back(pair.first);
       fields.push_back(pair.second);
     }
+    // If legacy expects an initial bin labeled "0.02" but it's missing in algo output, insert a zero column
+    {
+      int legacy_zero_idx = algo_schema->GetFieldIndex("0.02");
+      if (legacy_zero_idx < 0) {
+        int64_t nrows = algo_table->num_rows();
+        arrow::DoubleBuilder zero_b(pool);
+        // Pre-size for performance
+        ARROW_UNUSED(zero_b.Reserve(nrows));
+        for (int64_t r = 0; r < nrows; ++r) {
+          ARROW_UNUSED(zero_b.Append(0.0));
+        }
+        std::shared_ptr<arrow::Array> zero_arr;
+        if (zero_b.Finish(&zero_arr).ok()) {
+          auto zero_chunked = std::make_shared<arrow::ChunkedArray>(zero_arr);
+          cols.insert(cols.begin() + 2, zero_chunked); // after Group,Sample
+          fields.insert(fields.begin() + 2, arrow::field("0.02", arrow::float64()));
+        }
+      }
+    }
+
     // Append K third-from-last
     cols.push_back(algo_table->column(idx_k));
     fields.push_back(algo_schema->field(idx_k));
@@ -274,6 +343,51 @@ int em_csv_to_both_with_gps(
     auto algo_table_res = (*algo_reader_res)->Read();
     if (!algo_table_res.ok()) return 22;
     std::shared_ptr<arrow::Table> algo_table = *algo_table_res;
+
+    // Determine optimal K by maximum CH (Calinski-Harabasz) and filter rows
+    int idx_k_for_opt = -1;
+    int idx_ch_for_opt = -1;
+    {
+      auto sch = algo_table->schema();
+      idx_k_for_opt = sch->GetFieldIndex("K");
+      idx_ch_for_opt = sch->GetFieldIndex("Calinski-Harabasz pseudo-F statistic");
+    }
+    int64_t opt_k_value = -1;
+    if (idx_k_for_opt >= 0 && idx_ch_for_opt >= 0) {
+      auto k_arr = std::static_pointer_cast<arrow::Int64Array>(algo_table->column(idx_k_for_opt)->chunk(0));
+      auto ch_arr = std::static_pointer_cast<arrow::DoubleArray>(algo_table->column(idx_ch_for_opt)->chunk(0));
+      int64_t n = algo_table->num_rows();
+      std::unordered_map<int64_t, double> k_to_ch;
+      for (int64_t i = 0; i < n; ++i) {
+        if (k_arr->IsNull(i) || ch_arr->IsNull(i)) continue;
+        int64_t k = k_arr->Value(i);
+        if (k_to_ch.find(k) == k_to_ch.end()) {
+          k_to_ch.emplace(k, ch_arr->Value(i));
+        }
+      }
+      double best_ch = -std::numeric_limits<double>::infinity();
+      for (const auto &kv : k_to_ch) {
+        if (kv.second > best_ch) { best_ch = kv.second; opt_k_value = kv.first; }
+      }
+      if (opt_k_value >= 0) {
+        auto k_chunk = algo_table->column(idx_k_for_opt)->chunk(0);
+        auto eq_res = arrow::compute::CallFunction("equal", {k_chunk, arrow::Datum((int64_t)opt_k_value)});
+        if (eq_res.ok() && eq_res->is_array()) {
+          std::vector<std::shared_ptr<arrow::ChunkedArray>> filtered_cols;
+          filtered_cols.reserve(algo_table->num_columns());
+          for (int c = 0; c < algo_table->num_columns(); ++c) {
+            auto col_chunk0 = algo_table->column(c)->chunk(0);
+            auto filt_res = arrow::compute::Filter(col_chunk0, *eq_res);
+            if (!filt_res.ok() || !filt_res->is_array()) { filtered_cols.clear(); break; }
+            auto arr = filt_res->make_array();
+            filtered_cols.push_back(std::make_shared<arrow::ChunkedArray>(arr));
+          }
+          if (!filtered_cols.empty()) {
+            algo_table = arrow::Table::Make(algo_table->schema(), filtered_cols);
+          }
+        }
+      }
+    }
 
     // Read GPS
     auto gps_in_res = arrow::io::ReadableFile::Open(gps_csv_path);
@@ -338,6 +452,25 @@ int em_csv_to_both_with_gps(
     cols.push_back(algo_table->column(idx_sample)); fields.push_back(algo_schema->field(idx_sample));
     // bins
     for (int i = idx_sample + 1; i < idx_metrics_start; ++i) { cols.push_back(algo_table->column(i)); fields.push_back(algo_schema->field(i)); }
+    // If legacy expects an initial bin labeled "0.02" but it's missing in algo output, insert a zero column
+    {
+      int legacy_zero_idx = algo_schema->GetFieldIndex("0.02");
+      if (legacy_zero_idx < 0) {
+        int64_t nrows = algo_table->num_rows();
+        arrow::DoubleBuilder zero_b(pool);
+        ARROW_UNUSED(zero_b.Reserve(nrows));
+        for (int64_t r = 0; r < nrows; ++r) {
+          ARROW_UNUSED(zero_b.Append(0.0));
+        }
+        std::shared_ptr<arrow::Array> zero_arr;
+        if (zero_b.Finish(&zero_arr).ok()) {
+          auto zero_chunked = std::make_shared<arrow::ChunkedArray>(zero_arr);
+          // Insert right after Sample, before existing bins
+          cols.insert(cols.begin() + 2, zero_chunked);
+          fields.insert(fields.begin() + 2, arrow::field("0.02", arrow::float64()));
+        }
+      }
+    }
     // metrics (skip K)
     int nfields = static_cast<int>(algo_schema->num_fields());
     for (int i = idx_metrics_start; i < nfields; ++i) { if (i == idx_k) continue; cols.push_back(algo_table->column(i)); fields.push_back(algo_schema->field(i)); }
