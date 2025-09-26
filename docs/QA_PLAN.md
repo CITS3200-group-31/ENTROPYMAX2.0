@@ -51,18 +51,31 @@
 - Artifacts: test logs and sample Parquet from integration tests (not committed).
 
 ## 6) Task ownership and allocation
-- Ben
-  - Migrate/retire legacy Python IO scripts (move to `scripts/`, update docs).
-  - Implement Makefile cleanup; replace CSV parity with Parquet schema checks.
-  - Add CI jobs for Python (ruff/flake8, black) and PyQt smoke test.
-- Noah
-  - Backend unit tests for preprocess/metrics; define numeric tolerances.
-  - Property-based and regression tests for CH/inequality; seed determinism.
-  - Wire CTest in CI; AddressSanitizer build job; performance budget test.
-- Jeremy
-  - Frontend test harness (pytest-qt); component tests for map, charts, settings, popups.
-  - Integration test: headless run of main workflow including Parquet wait and chart assertions.
-  - Update frontend README to current components; cover export/help flows.
+### Ben
+- Repository and build QA
+  - Migrate/retire legacy Python IO scripts into `scripts/` and update `backend/src/io/README.md` accordingly.
+  - Implement Makefile verification changes (schema inspection over CSV parity); maintain `legacy_parquet` target for historical conversions.
+  - Add Python CI jobs (ruff/flake8, black --check) and headless PyQt smoke (xvfb).
+- Data fixtures and tooling
+  - Curate minimal test datasets under `tests/data/` (synthetic + edge cases).
+  - Maintain `scripts/inspect_parquet.py` and add a simple Parquet schema linter used by CI.
+
+### Noah
+- Backend unit and property tests
+  - Implement unit tests for `preprocess.c` and `metrics.c`; define numeric tolerances for floating-point comparisons.
+  - Add property-based tests for CH/inequality invariants (e.g., duplication monotonicity) using deterministic seeds.
+  - Ensure deterministic RNG seeding is exposed/configurable; document expected determinism in tests.
+- Integration and performance
+  - Add CTest integration test invoking `run_entropymax` on tiny fixture; validate Parquet schema and counts.
+  - Add AddressSanitizer job and a performance budget test on a medium dataset; set thresholds and fail on regressions.
+
+### Jeremy
+- Frontend tests and harness
+  - Build pytest + pytest-qt harness; write component tests for `InteractiveMapWidget`, `ChartWidget`, `SettingsDialog`, and `GroupDetailPopup` (signals, state, rendering).
+  - Implement headless integration test: load CSV/GPS, Generate Map, Run Analysis, wait for Parquet, assert charts populated and optimal K marker placed.
+- Docs and UX QA
+  - Update `frontend/README.md` where component names/flows change; ensure help dialogs and export flow are documented and tested.
+  - Optional lightweight visual regression: capture PNG snapshots of charts/map and compare using image hash tolerances.
 
 ## 7) Exit criteria
 - All unit and integration tests green in CI.
