@@ -24,8 +24,15 @@ emx_cli
 *.dll
 *.pyc
 
-# Generated CSV (keep baseline CORRECT; ignore transient)
-data/processed/sample_outputt.csv
+# Generated CSV/Parquet artifacts (keep explicit baselines)
+# CSV
+data/processed/*.csv
+!data/processed/sample_output_CORRECT.csv
+
+# Parquet
+data/processed/*.parquet
+data/parquet/*.parquet
+data/parquet/**/*.parquet
 
 # OS/editor noise
 .DS_Store
