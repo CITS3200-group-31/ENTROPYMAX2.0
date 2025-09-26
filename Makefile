@@ -82,6 +82,12 @@ ARROW_LIBS    := $(shell pkg-config --libs arrow parquet 2>/dev/null)
 ifneq ($(ARROW_CFLAGS),)
   CPPFLAGS += $(ARROW_CFLAGS)
   PARQUET_LIBS += $(ARROW_LIBS)
+  # Derive Arrow lib dir from pkg-config libs (first -L path)
+  ARROW_LIBDIR := $(patsubst -L%,%,$(firstword $(filter -L%,$(ARROW_LIBS))))
+  # Embed rpath so the runtime loader can find libparquet/libarrow
+  ifneq ($(ARROW_LIBDIR),)
+    LDFLAGS += -Wl,-rpath,$(ARROW_LIBDIR)
+  endif
   PARQUET_SRC := $(IO_DIR)/parquet_io.cc
   PARQUET_OBJ := $(patsubst %.cc,$(OBJ_DIR)/%.o,$(PARQUET_SRC))
 endif
@@ -154,12 +160,20 @@ $(OBJ_DIR)/%.o: %.cc
 	@$(MKDIR) $(dir $@)
 	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
 
-# Verification: run runner to generate Parquet and inspect schema
-verify: pydeps prepare runner
-	@echo "[verify] Generating Parquet via runner"
+# Verification: run runner, generate expected CSV, and compare
+verify: runner
+	@echo "[verify] Staging sample inputs"
+	@cp -f data/raw/inputs/sample_group_3_input.csv data/raw/sample_input.csv
+	@cp -f data/raw/gps/sample_group_3_coordinates.csv data/raw/sample_coordinates.csv
+	@echo "[verify] Running backend runner (CSV + Parquet)"
 	@$(RUNNER_BIN)
-	@echo "[verify] Inspecting Parquet schema"
-	$(PYTHON) scripts/inspect_parquet.py data/parquet/output.parquet
+	@echo "[verify] Building expected CSV from legacy+GPS"
+	$(PYTHON) scripts/convert_legacy_groupings.py \
+		--legacy data/raw/legacy_outputs/sample_group_3_output.csv \
+		--gps data/raw/gps/sample_group_3_coordinates.csv \
+		--out data/processed/sample_output_EXPECTED.csv
+	@echo "[verify] Comparing frontend CSV vs expected"
+	$(PYTHON) scripts/compare_csvs.py data/processed/sample_output_EXPECTED.csv data/processed/sample_output_frontend.csv
 
 # Prepare: merge raw sample CSV and GPS CSV into processed inputs and Parquet
 prepare: pydeps
