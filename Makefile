@@ -71,6 +71,21 @@ endif
 
 CFLAGS += $(PICFLAG)
 
+# Parquet/Arrow optional integration (define BEFORE rules so deps expand correctly)
+CXX      ?= c++
+CXXSTD   ?= c++17
+CXXFLAGS += -std=$(CXXSTD) -O2 -Wall -Wextra -Wpedantic
+PARQUET_OBJ :=
+# Try pkg-config for arrow/parquet
+ARROW_CFLAGS  := $(shell pkg-config --cflags arrow parquet 2>/dev/null)
+ARROW_LIBS    := $(shell pkg-config --libs arrow parquet 2>/dev/null)
+ifneq ($(ARROW_CFLAGS),)
+  CPPFLAGS += $(ARROW_CFLAGS)
+  PARQUET_LIBS += $(ARROW_LIBS)
+  PARQUET_SRC := $(IO_DIR)/parquet_io.cc
+  PARQUET_OBJ := $(patsubst %.cc,$(OBJ_DIR)/%.o,$(PARQUET_SRC))
+endif
+
 # Sources
 CORE_SRCS := \
   $(ALGO_DIR)/preprocess.c \
@@ -163,20 +178,6 @@ run_parquet: pydeps runner
 	@[ -n "$(IN)" ] || (echo "IN not set (path to input merged parquet)" && exit 2)
 	@[ -n "$(OUT)" ] || (echo "OUT not set (path to output parquet)" && exit 2)
 	$(PYTHON) $(IO_DIR)/run_parquet.py $(IN) $(OUT)
-
-# Parquet/Arrow optional integration
-CXX      ?= c++
-CXXFLAGS += -O2 -Wall -Wextra -Wpedantic
-PARQUET_OBJ :=
-# Try pkg-config for arrow/parquet
-ARROW_CFLAGS  := $(shell pkg-config --cflags arrow parquet 2>/dev/null)
-ARROW_LIBS    := $(shell pkg-config --libs arrow parquet 2>/dev/null)
-ifneq ($(ARROW_CFLAGS),)
-  CPPFLAGS += $(ARROW_CFLAGS)
-  PARQUET_LIBS += $(ARROW_LIBS)
-  PARQUET_SRC := $(IO_DIR)/parquet_arrow.cc
-  PARQUET_OBJ := $(patsubst %.cc,$(OBJ_DIR)/%.o,$(PARQUET_SRC))
-endif
 
 clean:
 	-$(RMDIR) $(BUILD_DIR)
