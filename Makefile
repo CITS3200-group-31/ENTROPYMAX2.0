@@ -141,11 +141,12 @@ $(OBJ_DIR)/%.o: %.cc
 
 # Verification: regenerate CSV and diff against baseline
 verify: pydeps prepare runner
-	@echo "[verify] Generating CSV via runner"
-	@$(RUNNER_BIN)
-	@echo "[verify] Comparing against baseline (ignoring Latitude/Longitude if absent in baseline)"
-	$(PYTHON) $(IO_DIR)/verify_csv.py data/processed/sample_output_CORRECT.csv data/processed/sample_outputt.csv
-	@echo "[verify] Baseline match OK"
+    @echo "[verify] Generating CSV via runner"
+    @$(RUNNER_BIN)
+    @echo "[verify] Creating expected processed CSV from legacy + GPS"
+    $(PYTHON) scripts/convert_legacy_groupings.py --legacy data/raw/legacy_outputs/sample_group_3_output.csv --gps data/raw/gps/sample_group_3_coordinates.csv --out data/processed/sample_output_EXPECTED.csv
+    @echo "[verify] Comparing processed frontend CSV vs expected"
+    $(PYTHON) scripts/compare_csvs.py data/processed/sample_output_EXPECTED.csv data/processed/sample_output_frontend.csv
 
 # Prepare: merge raw sample CSV and GPS CSV into processed inputs and Parquet
 prepare: pydeps
