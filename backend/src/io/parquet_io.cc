@@ -4,11 +4,13 @@
 #include <arrow/io/api.h>
 #include <parquet/arrow/writer.h>
 #include <parquet/arrow/reader.h>
+#include <arrow/compute/api.h>
 #include <arrow/csv/api.h>
 #include <unordered_map>
 #include <memory>
 #include <string>
 #include <vector>
+#include <fstream>
 
 // Minimal compiled postprocess: write output parquet given CSV-like columns in memory.
 // Expose simple C-linkage wrappers as needed from C code.
@@ -183,18 +185,43 @@ int em_csv_to_parquet_with_gps(
     cols.push_back(algo_table->column(idx_sample));
     fields.push_back(algo_schema->field(idx_sample));
 
+    // Helper to cast numeric columns to float64 for consistency
+    auto cast_to_f64 = [&](const std::shared_ptr<arrow::ChunkedArray>& col,
+                           const std::shared_ptr<arrow::Field>& field)
+                          -> std::pair<std::shared_ptr<arrow::ChunkedArray>, std::shared_ptr<arrow::Field>> {
+      if (field->type()->Equals(arrow::float64()) || field->type()->Equals(arrow::utf8()) || field->type()->Equals(arrow::large_utf8())) {
+        return {col, field};
+      }
+      // Cast integers/floats to float64; leave non-numeric untouched
+      if (arrow::is_integer(field->type()->id()) || arrow::is_floating(field->type()->id())) {
+        arrow::compute::CastOptions opts;
+        opts.to_type = arrow::float64();
+        auto casted_res = arrow::compute::Cast(arrow::Datum(col), opts);
+        if (casted_res.ok()) {
+          auto casted_arr = casted_res->chunked_array();
+          auto f = arrow::field(field->name(), arrow::float64());
+          return {casted_arr, f};
+        } else {
+          // Fallback to original if cast fails
+          return {col, field};
+        }
+      }
+      return {col, field};
+    };
+
     // Bins: from (idx_sample+1) up to (idx_metrics_start-1)
     for (int i = idx_sample + 1; i < idx_metrics_start; ++i) {
-      cols.push_back(algo_table->column(i));
-      fields.push_back(algo_schema->field(i));
+      auto pair = cast_to_f64(algo_table->column(i), algo_schema->field(i));
+      cols.push_back(pair.first);
+      fields.push_back(pair.second);
     }
-    // Metrics: from idx_metrics_start up to (excluding) idx_k? In CSV, K was before Group and metrics after bins.
-    // However, we rely on explicit K at end, so include all columns except K among the remaining.
+    // Metrics: from idx_metrics_start up to (excluding) idx_k; cast to float64 for consistency
     int nfields = static_cast<int>(algo_schema->num_fields());
     for (int i = idx_metrics_start; i < nfields; ++i) {
       if (i == idx_k) continue; // skip original K; we'll append at the end
-      cols.push_back(algo_table->column(i));
-      fields.push_back(algo_schema->field(i));
+      auto pair = cast_to_f64(algo_table->column(i), algo_schema->field(i));
+      cols.push_back(pair.first);
+      fields.push_back(pair.second);
     }
     // Append K third-from-last
     cols.push_back(algo_table->column(idx_k));
@@ -217,6 +244,174 @@ int em_csv_to_parquet_with_gps(
     std::shared_ptr<arrow::io::OutputStream> sink = std::static_pointer_cast<arrow::io::OutputStream>(*sink_res2);
     auto st = parquet::arrow::WriteTable(*final_tbl, pool, sink, 1024);
     if (!st.ok()) return 12;
+    return 0;
+  } catch (...) {
+    return 99;
+  }
+}
+
+// Write both Parquet and a processed CSV in the frontend-required order.
+int em_csv_to_both_with_gps(
+  const char *algo_csv_path,
+  const char *gps_csv_path,
+  const char *out_parquet_path,
+  const char *out_csv_path)
+{
+  // Reuse the implementation above by factoring minimal shared code:
+  try {
+    arrow::MemoryPool *pool = arrow::default_memory_pool();
+    // Read algorithm CSV
+    auto read_opts = arrow::csv::ReadOptions::Defaults();
+    read_opts.autogenerate_column_names = false;
+    auto parse_opts = arrow::csv::ParseOptions::Defaults();
+    auto convert_opts = arrow::csv::ConvertOptions::Defaults();
+    arrow::io::IOContext io_ctx(pool);
+
+    auto algo_in_res = arrow::io::ReadableFile::Open(algo_csv_path);
+    if (!algo_in_res.ok()) return 20;
+    auto algo_reader_res = arrow::csv::TableReader::Make(io_ctx, *algo_in_res, read_opts, parse_opts, convert_opts);
+    if (!algo_reader_res.ok()) return 21;
+    auto algo_table_res = (*algo_reader_res)->Read();
+    if (!algo_table_res.ok()) return 22;
+    std::shared_ptr<arrow::Table> algo_table = *algo_table_res;
+
+    // Read GPS
+    auto gps_in_res = arrow::io::ReadableFile::Open(gps_csv_path);
+    if (!gps_in_res.ok()) return 23;
+    auto gps_reader_res = arrow::csv::TableReader::Make(io_ctx, *gps_in_res, read_opts, parse_opts, convert_opts);
+    if (!gps_reader_res.ok()) return 24;
+    auto gps_table_res = (*gps_reader_res)->Read();
+    if (!gps_table_res.ok()) return 25;
+    std::shared_ptr<arrow::Table> gps_table = *gps_table_res;
+
+    // Normalize GPS schema
+    auto gps_schema = gps_table->schema();
+    int sample_idx_gps = gps_schema->GetFieldIndex("Sample");
+    if (sample_idx_gps < 0) sample_idx_gps = gps_schema->GetFieldIndex("Sample Name");
+    int lat_idx = gps_schema->GetFieldIndex("Latitude");
+    int lon_idx = gps_schema->GetFieldIndex("Longitude");
+    if (sample_idx_gps < 0 || lat_idx < 0 || lon_idx < 0) return 10;
+    std::unordered_map<std::string, std::pair<double,double>> gps_map;
+    auto gps_sample = std::static_pointer_cast<arrow::StringArray>(gps_table->column(sample_idx_gps)->chunk(0));
+    auto gps_lat = std::static_pointer_cast<arrow::DoubleArray>(gps_table->column(lat_idx)->chunk(0));
+    auto gps_lon = std::static_pointer_cast<arrow::DoubleArray>(gps_table->column(lon_idx)->chunk(0));
+    int64_t gps_rows = gps_table->num_rows();
+    for (int64_t i = 0; i < gps_rows; ++i) {
+      if (gps_sample->IsNull(i) || gps_lat->IsNull(i) || gps_lon->IsNull(i)) continue;
+      std::string s = gps_sample->GetString(i);
+      while (!s.empty() && (s.back()==' '||s.back()=='\t')) s.pop_back();
+      size_t p = 0; while (p<s.size() && (s[p]==' '||s[p]=='\t')) ++p; if (p>0) s = s.substr(p);
+      if (gps_map.find(s) == gps_map.end()) {
+        gps_map.emplace(std::move(s), std::make_pair(gps_lat->Value(i), gps_lon->Value(i)));
+      }
+    }
+
+    // Build final table in frontend-required order (reuse code path via function above would avoid dup, but we inline here)
+    auto algo_schema = algo_table->schema();
+    int idx_group = algo_schema->GetFieldIndex("Group");
+    int idx_sample = algo_schema->GetFieldIndex("Sample");
+    int idx_k = algo_schema->GetFieldIndex("K");
+    if (idx_group < 0 || idx_sample < 0 || idx_k < 0) return 41;
+    int idx_metrics_start = algo_schema->GetFieldIndex("% explained");
+    if (idx_metrics_start < 0) return 43;
+
+    // Build lat/lon aligned arrays
+    auto algo_sample_arr = std::static_pointer_cast<arrow::StringArray>(algo_table->column(idx_sample)->chunk(0));
+    int64_t rows = algo_table->num_rows();
+    arrow::DoubleBuilder lat_b(pool), lon_b(pool);
+    for (int64_t i = 0; i < rows; ++i) {
+      std::string s = algo_sample_arr->IsNull(i) ? std::string() : algo_sample_arr->GetString(i);
+      while (!s.empty() && (s.back()==' '||s.back()=='\t')) s.pop_back();
+      size_t p = 0; while (p<s.size() && (s[p]==' '||s[p]=='\t')) ++p; if (p>0) s = s.substr(p);
+      auto it = gps_map.find(s);
+      if (it == gps_map.end()) { lat_b.AppendNull(); lon_b.AppendNull(); }
+      else { lat_b.Append(it->second.first); lon_b.Append(it->second.second); }
+    }
+    std::shared_ptr<arrow::Array> lat_arr, lon_arr;
+    if (!lat_b.Finish(&lat_arr).ok()) return 30;
+    if (!lon_b.Finish(&lon_arr).ok()) return 31;
+
+    // Columns
+    std::vector<std::shared_ptr<arrow::ChunkedArray>> cols;
+    std::vector<std::shared_ptr<arrow::Field>> fields;
+    cols.push_back(algo_table->column(idx_group)); fields.push_back(algo_schema->field(idx_group));
+    cols.push_back(algo_table->column(idx_sample)); fields.push_back(algo_schema->field(idx_sample));
+    // bins
+    for (int i = idx_sample + 1; i < idx_metrics_start; ++i) { cols.push_back(algo_table->column(i)); fields.push_back(algo_schema->field(i)); }
+    // metrics (skip K)
+    int nfields = static_cast<int>(algo_schema->num_fields());
+    for (int i = idx_metrics_start; i < nfields; ++i) { if (i == idx_k) continue; cols.push_back(algo_table->column(i)); fields.push_back(algo_schema->field(i)); }
+    // K
+    cols.push_back(algo_table->column(idx_k)); fields.push_back(algo_schema->field(idx_k));
+    // lat/lon
+    auto lat_chunked = std::make_shared<arrow::ChunkedArray>(lat_arr);
+    cols.push_back(lat_chunked); fields.push_back(arrow::field("latitude", arrow::float64()));
+    auto lon_chunked = std::make_shared<arrow::ChunkedArray>(lon_arr);
+    cols.push_back(lon_chunked); fields.push_back(arrow::field("longitude", arrow::float64()));
+
+    auto final_schema = std::make_shared<arrow::Schema>(fields);
+    auto final_tbl = arrow::Table::Make(final_schema, cols);
+
+    // Write Parquet
+    {
+      auto sink_res2 = arrow::io::FileOutputStream::Open(out_parquet_path);
+      if (!sink_res2.ok()) return 34;
+      std::shared_ptr<arrow::io::OutputStream> sink = std::static_pointer_cast<arrow::io::OutputStream>(*sink_res2);
+      auto st = parquet::arrow::WriteTable(*final_tbl, pool, sink, 1024);
+      if (!st.ok()) return 12;
+    }
+
+    // Write CSV (simple writer)
+    if (out_csv_path && std::string(out_csv_path).size() > 0) {
+      std::ofstream ofs(out_csv_path, std::ios::out | std::ios::trunc);
+      if (!ofs.is_open()) return 35;
+      // header
+      for (int i = 0; i < final_schema->num_fields(); ++i) {
+        if (i) ofs << ",";
+        ofs << final_schema->field(i)->name();
+      }
+      ofs << "\n";
+      int num_cols = static_cast<int>(final_tbl->num_columns());
+      int64_t num_rows = final_tbl->num_rows();
+      // For simplicity, access first chunk of each column
+      std::vector<std::shared_ptr<arrow::Array>> col_arrays;
+      col_arrays.reserve(num_cols);
+      for (int c = 0; c < num_cols; ++c) {
+        auto chunk0 = final_tbl->column(c)->chunk(0);
+        col_arrays.push_back(chunk0);
+      }
+      for (int64_t r = 0; r < num_rows; ++r) {
+        for (int c = 0; c < num_cols; ++c) {
+          if (c) ofs << ",";
+          auto arr = col_arrays[c];
+          auto type = arr->type_id();
+          switch (type) {
+            case arrow::Type::STRING: {
+              auto sa = std::static_pointer_cast<arrow::StringArray>(arr);
+              if (sa->IsNull(r)) { /* empty */ }
+              else ofs << sa->GetString(r);
+              break;
+            }
+            case arrow::Type::DOUBLE: {
+              auto da = std::static_pointer_cast<arrow::DoubleArray>(arr);
+              if (!da->IsNull(r)) ofs << da->Value(r);
+              break;
+            }
+            case arrow::Type::INT64: {
+              auto ia = std::static_pointer_cast<arrow::Int64Array>(arr);
+              if (!ia->IsNull(r)) ofs << ia->Value(r);
+              break;
+            }
+          default: {
+              // leave empty for unsupported types
+              break;
+          }
+          }
+        }
+        ofs << "\n";
+      }
+      ofs.close();
+    }
     return 0;
   } catch (...) {
     return 99;

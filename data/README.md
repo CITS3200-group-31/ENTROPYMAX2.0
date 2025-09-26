@@ -11,10 +11,10 @@ This directory holds all inputs/outputs exchanged with the client and the backen
 
 - parquet/
   - raw/: pre‑algorithm Parquet (e.g., merged inputs if needed)
-  - processed/: post‑algorithm Parquet (frontend‑ready). The backend writes `parquet/processed/output.parquet`.
+  - processed/: post‑algorithm Parquet (frontend‑ready). The backend writes `data/parquet/output.parquet`.
 
 - processed/
-  - csv/: backend CSV outputs for parity/regression (e.g., `processed/csv/sample_outputt.csv`)
+  - csv/: legacy/dev CSV outputs if generated for parity/regression (not required for frontend)
 
 All other files under data/ should be considered transient artifacts.
 
@@ -25,10 +25,8 @@ All other files under data/ should be considered transient artifacts.
 - Legacy outputs
   - `raw/legacy_outputs/<dataset>_legacy_output.csv`
 - Parquet
-  - `parquet/raw/<dataset>_merged_input.parquet` (optional)
-  - `parquet/processed/output.parquet` (current backend default)
-- Processed CSV (parity only)
-  - `processed/csv/sample_outputt.csv`
+  - `data/parquet/raw/<dataset>_merged_input.parquet` (optional)
+  - `data/parquet/output.parquet` (current backend default)
 
 ### Frontend schema contract (processed Parquet)
 - Column order must be:
@@ -56,7 +54,7 @@ Behavior:
 - Preserves all numeric values and header names as-is.
 
 ### Notes
-- The backend’s compiled code writes `parquet/processed/output.parquet`. For reproducible runs, clear `data/processed/` and `data/parquet/` before re‑execution if needed.
+- The backend’s compiled code writes `data/parquet/output.parquet`. For reproducible runs, clear `data/parquet/` before re‑execution if needed.
 - All Parquet and build artifacts are ignored by Git; the structure and this README are kept.
 
 

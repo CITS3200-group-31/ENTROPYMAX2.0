@@ -21,6 +21,29 @@ static void rstrip_newline(char *s) {
     while (n > 0 && (s[n-1] == '\n' || s[n-1] == '\r')) { s[n-1] = '\0'; n--; }
 }
 
+// Trim leading/trailing ASCII whitespace in-place. Returns the same pointer.
+static char *trim_inplace(char *s) {
+    if (!s) return s;
+    char *start = s;
+    while (*start == ' ' || *start == '\t' || *start == '\r' || *start == '\n') start++;
+    char *end = start + strlen(start);
+    while (end > start && (end[-1] == ' ' || end[-1] == '\t' || end[-1] == '\r' || end[-1] == '\n')) {
+        *--end = '\0';
+    }
+    if (start != s) memmove(s, start, (size_t)(end - start + 1));
+    return s;
+}
+
+// strdup + trim convenience
+static char *strdup_trim(const char *src) {
+    if (!src) return strdup("");
+    size_t len = strlen(src);
+    char *copy = (char*)malloc(len + 1);
+    if (!copy) return NULL;
+    memcpy(copy, src, len + 1);
+    return trim_inplace(copy);
+}
+
 // Read header-driven bin labels from the input CSV
 
 int read_csv(const char *filename, double **data, int *rows, int *cols, char ***rownames, char ***colnames, char **sample_header_out, char ***raw_values_out) {
@@ -36,7 +59,7 @@ int read_csv(const char *filename, double **data, int *rows, int *cols, char ***
     char *saveptr_hdr = NULL;
     char *tok_hdr = strtok_r(line, ",", &saveptr_hdr);
     if (!tok_hdr) { fclose(fp); return -1; }
-    if (sample_header_out) { *sample_header_out = strdup(tok_hdr); }
+    if (sample_header_out) { *sample_header_out = strdup_trim(tok_hdr); }
     // Count remaining comma-separated tokens for bins
     int hdr_bins_cap = 128;
     int hdr_bins_count = 0;
@@ -48,7 +71,7 @@ int read_csv(const char *filename, double **data, int *rows, int *cols, char ***
             if (!new_bins) { fclose(fp); free(hdr_bins); return -1; }
             hdr_bins = new_bins; hdr_bins_cap = new_cap;
         }
-        hdr_bins[hdr_bins_count++] = strdup(tok_hdr);
+        hdr_bins[hdr_bins_count++] = strdup_trim(tok_hdr);
     }
     *cols = hdr_bins_count;
     *colnames = (char**)calloc((size_t)(*cols), sizeof(char*));
@@ -86,12 +109,19 @@ int read_csv(const char *filename, double **data, int *rows, int *cols, char ***
         saveptr = NULL;
         char *tok = strtok_r(line, ",", &saveptr);
         if (!tok) continue;
-        (*rownames)[*rows] = strdup(tok);
+        (*rownames)[*rows] = strdup_trim(tok);
         for (int j = 0; j < *cols; j++) {
             tok = strtok_r(NULL, ",", &saveptr);
-            (*data)[(size_t)(*rows) * (size_t)(*cols) + (size_t)j] = tok ? atof(tok) : 0.0;
+            // Trim token for robust parsing and storage
+            char *tok_copy = tok ? strdup(tok) : strdup("0");
+            if (!tok_copy) { fclose(fp); return -1; }
+            trim_inplace(tok_copy);
+            (*data)[(size_t)(*rows) * (size_t)(*cols) + (size_t)j] = tok_copy[0] ? atof(tok_copy) : 0.0;
             if (raw_values) {
-                raw_values[(size_t)(*rows) * (size_t)(*cols) + (size_t)j] = tok ? strdup(tok) : strdup("0");
+                raw_values[(size_t)(*rows) * (size_t)(*cols) + (size_t)j] = tok_copy;
+            }
+            else {
+                free(tok_copy);
             }
         }
         (*rows)++;
@@ -137,6 +167,7 @@ int main(int argc, char **argv) {
     em_total_inequality(data_proc, rows, cols, Y, &tineq);
 
     // Sweep groups 2–20
+    // Sweep k=2..20 (legacy default)
     int k_min = 2, k_max = 20;
     int metrics_cap = k_max - k_min + 1;
     em_k_metric_t *metrics = malloc(metrics_cap * sizeof(em_k_metric_t));
@@ -199,12 +230,12 @@ int main(int argc, char **argv) {
     }
     fclose(out);
 
-    // Post-step: compiled Parquet writer (if available)
-    extern int em_csv_to_parquet_with_gps(const char*, const char*, const char*);
-    if (em_csv_to_parquet_with_gps) {
-        int prc = em_csv_to_parquet_with_gps(fixed_output_path, gps_csv_path, final_parquet_path);
+    // Post-step: write Parquet and processed CSV in frontend order (if available)
+    extern int em_csv_to_both_with_gps(const char*, const char*, const char*, const char*);
+    if (em_csv_to_both_with_gps) {
+        int prc = em_csv_to_both_with_gps(fixed_output_path, gps_csv_path, final_parquet_path, "data/processed/sample_output_frontend.csv");
         if (prc != 0) {
-            fprintf(stderr, "Failed to write final parquet (rc=%d)\n", prc);
+            fprintf(stderr, "Failed to write final parquet/csv (rc=%d)\n", prc);
         }
     }
 

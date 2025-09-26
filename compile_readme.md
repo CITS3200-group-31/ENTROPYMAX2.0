@@ -11,8 +11,8 @@ make
 What it does:
 - Builds the static library: build-make/lib/libentropymax.a
 - Builds the runner: build-make/bin/run_entropymax
-- Runs the runner to generate data/processed/sample_outputt.csv
-- Diffs the generated CSV against data/processed/sample_output_CORRECT.csv
+- Runs the runner to generate data/parquet/output.parquet
+- Verifies the build by running basic checks (see backend docs)
 
 Notes:
 - Override compiler with `CC=clang` or `CC=gcc` if desired, e.g.: `make CC=clang`

@@ -141,11 +141,42 @@ $(OBJ_DIR)/%.o: %.cc
 
 # Verification: regenerate CSV and diff against baseline
 verify: pydeps prepare runner
-	@echo "[verify] Generating CSV via runner"
-	@$(RUNNER_BIN)
-	@echo "[verify] Comparing against baseline (ignoring Latitude/Longitude if absent in baseline)"
-	$(PYTHON) $(IO_DIR)/verify_csv.py data/processed/sample_output_CORRECT.csv data/processed/sample_outputt.csv
-	@echo "[verify] Baseline match OK"
+    @echo "[verify] Generating CSV via runner"
+    @$(RUNNER_BIN)
+    @echo "[verify] Creating expected processed CSV from legacy + GPS"
+    $(PYTHON) scripts/convert_legacy_groupings.py --legacy data/raw/legacy_outputs/sample_group_3_output.csv --gps data/raw/gps/sample_group_3_coordinates.csv --out data/processed/sample_output_EXPECTED.csv
+    @echo "[verify] Comparing processed frontend CSV vs expected"
+    $(PYTHON) scripts/compare_csvs.py data/processed/sample_output_EXPECTED.csv data/processed/sample_output_frontend.csv
+
+# Prepare: merge raw sample CSV and GPS CSV into processed inputs and Parquet
+prepare: pydeps
+	@echo "[prepare] Merging raw+GPS into processed inputs"
+	$(PYTHON) $(IO_DIR)/prepare_input.py data/input.csv data/raw/sample_coordinates.csv
+
+parquet: pydeps verify
+	@echo "[parquet] Converting output CSV to Parquet"
+	$(PYTHON) $(IO_DIR)/convert_output_to_parquet.py data/processed/sample_outputt.csv data/processed/sample_outputt.parquet
+
+# Run end-to-end from Parquet input to Parquet output
+# Usage: make run_parquet IN=data/processed/input_merged.parquet OUT=data/processed/result.parquet
+run_parquet: pydeps runner
+	@[ -n "$(IN)" ] || (echo "IN not set (path to input merged parquet)" && exit 2)
+	@[ -n "$(OUT)" ] || (echo "OUT not set (path to output parquet)" && exit 2)
+	$(PYTHON) $(IO_DIR)/run_parquet.py $(IN) $(OUT)
+
+# Parquet/Arrow optional integration
+CXX      ?= c++
+CXXFLAGS += -O2 -Wall -Wextra -Wpedantic
+PARQUET_OBJ :=
+# Try pkg-config for arrow/parquet
+ARROW_CFLAGS  := $(shell pkg-config --cflags arrow parquet 2>/dev/null)
+ARROW_LIBS    := $(shell pkg-config --libs arrow parquet 2>/dev/null)
+ifneq ($(ARROW_CFLAGS),)
+  CPPFLAGS += $(ARROW_CFLAGS)
+  PARQUET_LIBS += $(ARROW_LIBS)
+  PARQUET_SRC := $(IO_DIR)/parquet_arrow.cc
+  PARQUET_OBJ := $(patsubst %.cc,$(OBJ_DIR)/%.o,$(PARQUET_SRC))
+endif
 
 # Prepare: merge raw sample CSV and GPS CSV into processed inputs and Parquet
 prepare: pydeps

@@ -18,7 +18,6 @@ Compiled-only IO: C/C++ validation/merge and Arrow/Parquet read/write. No Python
     - RAW CSV: `data/raw/sample_input.csv`
     - GPS CSV: `data/raw/sample_coordinates.csv`
   - Outputs:
-    - CSV (parity/regression): `data/processed/sample_outputt.csv`
     - Parquet (frontend): `data/parquet/output.parquet`
 
 ### Parquet schema (frontend contract)
