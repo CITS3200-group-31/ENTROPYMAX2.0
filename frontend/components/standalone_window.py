@@ -6,6 +6,7 @@ by introducing a new `StandaloneWindow` class to eliminate duplicated code and s
 from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QToolBar
 from PyQt6.QtCore import pyqtSignal as Signal, Qt
 from PyQt6.QtGui import QAction
+from .settings_dialog import SettingsDialog
 
 
 class StandaloneWindow(QMainWindow):
@@ -21,6 +22,9 @@ class StandaloneWindow(QMainWindow):
         
         # Set as independent window
         self.setWindowFlags(Qt.WindowType.Window)
+        
+        # Initialize settings dialog
+        self.settings_dialog = SettingsDialog(self)
         
         self._setup_ui()
         self._setup_toolbar()
@@ -38,16 +42,31 @@ class StandaloneWindow(QMainWindow):
         self.resize(1200, 800)
         
     def _setup_toolbar(self):
-        """Setup toolbar with export function"""
+        """Setup toolbar with export and settings functions"""
         toolbar = QToolBar()
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
+        
+        # Visualization Settings action
+        settings_action = QAction("Settings", self)
+        settings_action.setToolTip("Adjust visualization settings for publication standards")
+        settings_action.triggered.connect(self._show_settings)
+        toolbar.addAction(settings_action)
+        
+        # Separator
+        toolbar.addSeparator()
         
         # Export action
         export_action = QAction("Export as PNG", self)
         export_action.setToolTip("Export current view as PNG")
         export_action.triggered.connect(self.exportRequested.emit)
         toolbar.addAction(export_action)
+    
+    def _show_settings(self):
+        """Show visualization settings dialog."""
+        self.settings_dialog.show()
+        self.settings_dialog.raise_()
+        self.settings_dialog.activateWindow()
         
     def closeEvent(self, event):
         """Handle window close"""

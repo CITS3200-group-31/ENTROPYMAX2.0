@@ -2,7 +2,6 @@
 Components package for EntropyMax frontend.
 """
 
-from .map_widget import MapWidget
 from .chart_widget import ChartWidget, DualChartWidget
 from .control_panel import ControlPanel
 from .module_preview_card import ModulePreviewCard
@@ -13,8 +12,7 @@ from .sample_list_widget import SampleListWidget
 from .group_detail_popup import GroupDetailPopup
 
 __all__ = [
-    'MapWidget', 
-    'ChartWidget', 
+    'ChartWidget',
     'DualChartWidget', 
     'ControlPanel',
     'ModulePreviewCard',
