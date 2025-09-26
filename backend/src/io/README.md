@@ -1,6 +1,6 @@
 ### IO module (backend/src/io)
 
-Compiled-only IO: C/C++ validation/merge and Arrow/Parquet read/write. No Python at runtime.
+Primary IO path is compiled: C/C++ validation/merge and Arrow/Parquet read/write. Python utilities remain available under `backend/src/io` and `scripts/` for legacy conversion and development workflows; they are not required in production.
 
 ### Build/runtime dependencies
 - Apache Arrow/Parquet C++ (installed via vcpkg; toolchain enabled in CMake)

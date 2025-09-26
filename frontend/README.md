@@ -48,7 +48,8 @@ Frontend
 ├── main.py (Main Application Window)
 ├── components/
 │   ├── control_panel.py (Control Panel - Workflow Management)
-│   ├── map_widget.py (Map Component - Sample Visualization)
+│   ├── interactive_map_widget.py (Map Component - Sample Visualization)
+│   ├── simple_map_sample_widget.py (Map + Sample List container)
 │   ├── chart_widget.py (Chart Component - CH/Rs Analysis Charts)
 │   ├── sample_list_widget.py (Sample List - Selection Management)
 │   └── group_detail_popup.py (Group Detail Popup - Detailed Analysis)

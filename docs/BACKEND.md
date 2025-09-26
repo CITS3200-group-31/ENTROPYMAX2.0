@@ -158,7 +158,7 @@ Tests (C): add tests under `backend/tests/` and register with CTest in CMake.
   - preprocess.c (Noah), metrics.c (Noah), grouping.c (Will), sweep.c (Will)
   - Each function currently returns `-1` and includes a TODO with the VB6 mapping
 - Entry point `em_run_algo` is implemented as orchestration glue
-- Parquet writer is a stub; Steve to implement
+- Parquet writer is implemented via `backend/src/io/parquet_io.cc` and invoked by the developer runner `run_entropymax` to produce `data/parquet/output.parquet`. Python utilities remain for legacy/regression workflows only.
 
 ## Build
 

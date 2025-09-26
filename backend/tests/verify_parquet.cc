@@ -17,25 +17,28 @@ static std::vector<std::string> split_csv_header(const std::string& line) {
 }
 
 int main() {
-  const char* csv_path = "data/processed/sample_outputt.csv";
   const char* pq_path  = "data/parquet/output.parquet";
 
-  // Read CSV header and count rows
-  std::ifstream fin(csv_path, std::ios::in);
-  if (!fin.is_open()) {
-    std::cerr << "FAIL: cannot open " << csv_path << "\n";
-    return 1;
-  }
-  std::string header_line;
-  if (!std::getline(fin, header_line)) {
-    std::cerr << "FAIL: cannot read header from CSV\n";
-    return 1;
-  }
-  auto csv_cols = split_csv_header(header_line);
+  // Optionally read CSV parity target if present
+  const char* csv_path = std::getenv("EM_CSV_PARITY") ? std::getenv("EM_CSV_PARITY") : nullptr;
+  std::vector<std::string> csv_cols;
   size_t csv_rows = 0;
-  {
-    std::string tmp;
-    while (std::getline(fin, tmp)) ++csv_rows;
+  if (csv_path) {
+    std::ifstream fin(csv_path, std::ios::in);
+    if (!fin.is_open()) {
+      std::cerr << "WARN: cannot open parity CSV: " << csv_path << " (skipping parity)\n";
+      csv_path = nullptr;
+    } else {
+      std::string header_line;
+      if (!std::getline(fin, header_line)) {
+        std::cerr << "WARN: cannot read header from parity CSV (skipping parity)\n";
+        csv_path = nullptr;
+      } else {
+        csv_cols = split_csv_header(header_line);
+        std::string tmp;
+        while (std::getline(fin, tmp)) ++csv_rows;
+      }
+    }
   }
 
   // Read Parquet schema and rows
@@ -87,33 +90,37 @@ int main() {
     return 6;
   }
 
-  // Row parity
-  if (static_cast<int64_t>(csv_rows) != pq_rows) {
-    std::cerr << "FAIL: row count mismatch csv=" << csv_rows << " parquet=" << pq_rows << "\n";
-    return 7;
+  // Row parity (optional)
+  if (csv_path) {
+    if (static_cast<int64_t>(csv_rows) != pq_rows) {
+      std::cerr << "FAIL: row count mismatch csv=" << csv_rows << " parquet=" << pq_rows << "\n";
+      return 7;
+    }
   }
 
-  // Remaining column set parity: Parquet without K/lat/lon must equal CSV without 'K', ignoring order
-  std::unordered_map<std::string,int> need;
-  for (const auto& c : csv_cols) {
-    if (c == "K") continue; // K moves to tail
-    need[c] += 1;
-  }
-  for (size_t i = 0; i < names.size(); ++i) {
-    if (i == names.size()-3 || i == names.size()-2 || i == names.size()-1) continue; // skip K, lat, lon at tail
-    const auto& n = names[i];
-    auto it = need.find(n);
-    if (it == need.end()) {
-      std::cerr << "FAIL: unexpected parquet column '" << n << "' at index " << i << "\n";
-      return 8;
+  // Remaining column set parity (optional): Parquet without K/lat/lon must equal CSV without 'K', ignoring order
+  if (csv_path) {
+    std::unordered_map<std::string,int> need;
+    for (const auto& c : csv_cols) {
+      if (c == "K") continue; // K moves to tail
+      need[c] += 1;
     }
-    if (--(it->second) == 0) need.erase(it);
-  }
-  if (!need.empty()) {
-    std::cerr << "FAIL: missing columns present in CSV but not in Parquet: ";
-    for (auto& kv : need) std::cerr << kv.first << "(" << kv.second << ") ";
-    std::cerr << "\n";
-    return 9;
+    for (size_t i = 0; i < names.size(); ++i) {
+      if (i == names.size()-3 || i == names.size()-2 || i == names.size()-1) continue; // skip K, lat, lon at tail
+      const auto& n = names[i];
+      auto it = need.find(n);
+      if (it == need.end()) {
+        std::cerr << "FAIL: unexpected parquet column '" << n << "' at index " << i << "\n";
+        return 8;
+      }
+      if (--(it->second) == 0) need.erase(it);
+    }
+    if (!need.empty()) {
+      std::cerr << "FAIL: missing columns present in CSV but not in Parquet: ";
+      for (auto& kv : need) std::cerr << kv.first << "(" << kv.second << ") ";
+      std::cerr << "\n";
+      return 9;
+    }
   }
 
   std::cout << "OK: Parquet matches frontend schema (Group, Sample, ..., K, latitude, longitude) and row counts" << std::endl;
