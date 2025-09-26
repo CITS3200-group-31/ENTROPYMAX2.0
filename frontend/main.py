@@ -2,7 +2,7 @@ import sys
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QFrame, QMessageBox, QLabel, QMenuBar,
                              QMenu, QFileDialog)
-from PyQt6.QtCore import QTimer
+from PyQt6.QtCore import QTimer, Qt
 from components.control_panel import ControlPanel
 from components.group_detail_popup import GroupDetailPopup
 from components.module_preview_card import ModulePreviewCard
@@ -731,6 +731,8 @@ class EntropyMaxFinal(QMainWindow):
 if __name__ == '__main__':
     # Graceful Ctrl+C/SIGTERM handling
     import signal
+    import platform
+    import os as _os
     def _handle_sig(signum, frame):
         try:
             _app = QApplication.instance()
@@ -744,6 +746,20 @@ if __name__ == '__main__':
         pass
     try:
         signal.signal(signal.SIGTERM, _handle_sig)
+    except Exception:
+        pass
+
+    # Linux: default to software rendering and X11 unless user overrides
+    try:
+        if platform.system() == 'Linux' and _os.environ.get('EMAX_FORCE_SOFTWARE_GL', '1') == '1':
+            _os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
+            _os.environ.setdefault('QT_OPENGL', 'software')
+            _os.environ.setdefault('QSG_RHI_BACKEND', 'software')
+            _os.environ.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
+            _os.environ.setdefault('MESA_LOADER_DRIVER_OVERRIDE', 'llvmpipe')
+            _os.environ.setdefault('QTWEBENGINE_CHROMIUM_FLAGS', '--disable-gpu --disable-gpu-compositing --use-gl=swiftshader --disable-features=Vulkan')
+            # Must be set before creating QApplication
+            QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseSoftwareOpenGL, on=True)
     except Exception:
         pass
 
