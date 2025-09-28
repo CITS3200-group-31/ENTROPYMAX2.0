@@ -1,7 +1,9 @@
 # Minimal Makefile to build the backend runner
 
 CC      ?= cc
+CXX     ?= c++
 CFLAGS  ?= -O2 -std=c11 -Wall -Wextra -Wpedantic
+CXXFLAGS ?= -O2 -std=c++17 -Wall -Wextra -Wpedantic
 CPPFLAGS += -Ibackend/include -Ibackend/src/algo
 LDFLAGS ?=
 LIBS    ?= -lm
@@ -11,49 +13,64 @@ OBJ_DIR   := $(BUILD_DIR)/obj
 BIN_DIR   := $(BUILD_DIR)/bin
 
 RUNNER_SRC := backend/src/algo/run_entropymax.c
-CORE_SRCS  := \
+# Core C sources (always built)
+CORE_SRCS_C := \
 	backend/src/algo/preprocess.c \
 	backend/src/algo/metrics.c \
 	backend/src/algo/grouping.c \
 	backend/src/algo/sweep.c \
-	backend/src/util/util.c \
-	backend/src/io/csv_stub.c
+	backend/src/util/util.c
+
+# IO layer sources (conditional)
+IO_SRC_C   := backend/src/io/parquet_stub.c
+CORE_SRCS_CC :=
 
 # -----------------------------------------------------------------------------
 # Optional Arrow/Parquet (C++) support
-# If pkg-config finds arrow and parquet, enable compiled Parquet path.
-# You can also force with ENABLE_ARROW=1 and provide ARROW_LIBS/ARROW_CFLAGS.
+# Define platform/paths early so detection works on re-parse invocations
 
-HAVE_PKGCFG := $(shell command -v pkg-config >/dev/null 2>&1 && echo 1 || echo 0)
-ifeq ($(ENABLE_ARROW),1)
-CPPFLAGS += $(ARROW_CFLAGS)
-CORE_SRCS += backend/src/io/parquet_arrow.cc
-LIBS += $(ARROW_LIBS)
-CPPFLAGS += -DENABLE_ARROW
+UNAME_S := $(shell uname -s 2>/dev/null)
+UNAME_M := $(shell uname -m 2>/dev/null)
+VCPKG_ROOT ?= $(CURDIR)/third_party/vcpkg
+# Triplet detection
+ifeq ($(UNAME_S),Darwin)
+  ifeq ($(UNAME_M),arm64)
+    VCPKG_TRIPLET ?= arm64-osx
+  else
+    VCPKG_TRIPLET ?= x64-osx
+  endif
+else ifeq ($(UNAME_S),Linux)
+  VCPKG_TRIPLET ?= x64-linux
 else
-ifeq ($(HAVE_PKGCFG),1)
-HAVE_ARROW := $(shell pkg-config --exists arrow parquet && echo 1 || echo 0)
-ifeq ($(HAVE_ARROW),1)
-CPPFLAGS += $(shell pkg-config --cflags arrow parquet) -DENABLE_ARROW
-CORE_SRCS += backend/src/io/parquet_arrow.cc
-LIBS += $(shell pkg-config --libs arrow parquet)
+  VCPKG_TRIPLET ?= x64-windows-static
 endif
+
+# Make vcpkg pkg-config discoverable if present
+PKGCFG_VCPKG := $(VCPKG_ROOT)/installed/$(VCPKG_TRIPLET)/lib/pkgconfig
+ifneq ($(wildcard $(PKGCFG_VCPKG)),)
+  export PKG_CONFIG_PATH := $(PKGCFG_VCPKG):$(PKG_CONFIG_PATH)
 endif
-endif
+
+# If pkg-config finds arrow/parquet or vcpkg is installed, enable C++ path
+HAVE_PKGCFG := $(shell command -v pkg-config >/dev/null 2>&1 && echo 1 || echo 0)
 
 # Enforce compiled Parquet by default
 ENABLE_ARROW ?= 1
 
 ifeq ($(ENABLE_ARROW),1)
   HAVE_PKGCFG := $(shell command -v pkg-config >/dev/null 2>&1 && echo 1 || echo 0)
-  # Auto-pick Arrow from vcpkg if present and not explicitly set
-  ifeq ($(strip $(ARROW_CFLAGS)),)
+  # Prefer pkg-config
+  ifeq ($(HAVE_PKGCFG),1)
+    HAVE_ARROW := $(shell pkg-config --exists arrow parquet && echo 1 || echo 0)
+  else
+    HAVE_ARROW := 0
+  endif
+  # If not via pkg-config, check vcpkg installed path
+  ifeq ($(HAVE_ARROW),0)
     ifneq ($(wildcard $(VCPKG_ROOT)/installed/$(VCPKG_TRIPLET)/include),)
-      ARROW_INC_DIR := $(VCPKG_ROOT)/installed/$(VCPKG_TRIPLET)/include
-      ARROW_LIB_DIR := $(VCPKG_ROOT)/installed/$(VCPKG_TRIPLET)/lib
-      ARROW_CFLAGS := -I$(ARROW_INC_DIR)
-      ARROW_LIBS := -L$(ARROW_LIB_DIR) -lparquet -larrow
-      # Set rpath for local libs when bundling
+      ARROW_CFLAGS := -I$(VCPKG_ROOT)/installed/$(VCPKG_TRIPLET)/include
+      ARROW_LIBS := -L$(VCPKG_ROOT)/installed/$(VCPKG_TRIPLET)/lib -lparquet -larrow
+      HAVE_ARROW := 1
       ifeq ($(UNAME_S),Darwin)
         LDFLAGS += -Wl,-rpath,@loader_path
       else ifeq ($(UNAME_S),Linux)
@@ -61,29 +78,34 @@ ifeq ($(ENABLE_ARROW),1)
       endif
     endif
   endif
-  ifneq ($(strip $(ARROW_CFLAGS)),)
-    CPPFLAGS += $(ARROW_CFLAGS) -DENABLE_ARROW
-    LIBS += $(ARROW_LIBS)
-    CORE_SRCS += backend/src/io/parquet_arrow.cc
-  else ifeq ($(HAVE_PKGCFG),1)
-    HAVE_ARROW := $(shell pkg-config --exists arrow parquet && echo 1 || echo 0)
-    ifeq ($(HAVE_ARROW),1)
-      CPPFLAGS += $(shell pkg-config --cflags arrow parquet) -DENABLE_ARROW
-      LIBS += $(shell pkg-config --libs arrow parquet)
-      CORE_SRCS += backend/src/io/parquet_arrow.cc
+  ifeq ($(HAVE_ARROW),1)
+    # Prefer pkg-config even when ARROW_CFLAGS was set from vcpkg
+    ARROW_PKG_CFLAGS := $(shell pkg-config --cflags arrow parquet 2>/dev/null)
+    ARROW_PKG_LIBS := $(shell pkg-config --libs arrow parquet 2>/dev/null)
+    ifneq ($(strip $(ARROW_PKG_LIBS)),)
+      CPPFLAGS += $(ARROW_PKG_CFLAGS) -DENABLE_ARROW
+      LIBS += $(ARROW_PKG_LIBS)
     else
-      $(warning Apache Arrow/Parquet dev libs not found via pkg-config. Try vcpkg with `make arrow-vcpkg`.)
+      CPPFLAGS += $(ARROW_CFLAGS) -DENABLE_ARROW
+      # Manual fallback: include transitive deps commonly required by Arrow/Parquet
+      LIBS += $(ARROW_LIBS)
     endif
+    # Ensure transitive compression/RPC deps are linked (pkg-config may omit)
+    LIBS += -lthrift -lre2 -lsnappy -lz -lzstd -llz4 -lbz2 -lbrotlienc -lbrotlidec -lbrotlicommon -lssl -lcrypto
+    ifeq ($(UNAME_S),Linux)
+      LIBS += -ldl
+    endif
+    CORE_SRCS_CC += backend/src/io/parquet_arrow.cc
+    IO_SRC_C :=
   else
-    $(warning pkg-config not found. You can set ARROW_CFLAGS/ARROW_LIBS manually or use `make arrow-vcpkg`.)
+    $(warning Apache Arrow/Parquet dev libs not found; will build with stub IO.)
   endif
-else
-  # Without Arrow support, compile stub (note: backend will error if Parquet required)
-  CORE_SRCS += backend/src/io/parquet_stub.c
 endif
 
 RUNNER_OBJ := $(OBJ_DIR)/backend/src/algo/run_entropymax.o
-CORE_OBJS  := $(CORE_SRCS:%.c=$(OBJ_DIR)/%.o)
+CORE_OBJS_C  := $(CORE_SRCS_C:%.c=$(OBJ_DIR)/%.o)
+CORE_OBJS_CC := $(CORE_SRCS_CC:%.cc=$(OBJ_DIR)/%.o)
+IO_OBJ_C     := $(IO_SRC_C:%.c=$(OBJ_DIR)/%.o)
 
 RUNNER_BIN := $(BIN_DIR)/run_entropymax
 
@@ -91,14 +113,19 @@ RUNNER_BIN := $(BIN_DIR)/run_entropymax
 
 all: runner
 
-runner: $(CORE_OBJS) $(RUNNER_OBJ)
+runner: $(CORE_OBJS_C) $(CORE_OBJS_CC) $(IO_OBJ_C) $(RUNNER_OBJ)
 	@mkdir -p $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $(RUNNER_BIN) $(CORE_OBJS) $(RUNNER_OBJ) $(LDFLAGS) $(LIBS)
+	$(CXX) $(CXXFLAGS) -o $(RUNNER_BIN) $(CORE_OBJS_C) $(CORE_OBJS_CC) $(IO_OBJ_C) $(RUNNER_OBJ) $(LDFLAGS) $(LIBS)
 	@echo Built $(RUNNER_BIN)
 
 $(OBJ_DIR)/%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CC) $(CPPFLAGS) $(CFLAGS) -c $< -o $@
+
+
+$(OBJ_DIR)/%.o: %.cc
+	@mkdir -p $(dir $@)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c $< -o $@
 
 clean:
 	@rm -rf $(BUILD_DIR)
@@ -109,9 +136,13 @@ distclean: clean
 # -----------------------------------------------------------------------------
 # Setup and dependency installation
 
-.PHONY: setup deps arrow-deps pydeps
+.PHONY: setup setup-all deps arrow-deps arrow-auto pydeps
 
-setup: deps runner
+# High-level setup targets run sub-makes so that any newly generated config
+# (e.g., vcpkg installs) is picked up on a fresh parse for the runner build.
+setup:
+	@$(MAKE) arrow-auto
+	@$(MAKE) runner
 
 deps: arrow-auto pydeps
 
@@ -136,8 +167,69 @@ else
 	@echo "Unknown Linux package manager. Please install Arrow dev libs (arrow, parquet) manually." && true
 endif
 else
-	@echo "Windows or unknown OS: compiled Arrow not auto-installed; Python fallback will be used." && true
+	@echo "Windows or unknown OS: compiled Arrow not auto-installed. Use vcpkg or set ARROW_CFLAGS/ARROW_LIBS." && true
 endif
+
+# Auto-check Arrow via pkg-config, otherwise install via vcpkg
+arrow-auto:
+	@echo "Checking for Arrow/Parquet development libraries..."
+	@if pkg-config --exists arrow parquet 2>/dev/null; then \
+	  echo "Found Arrow via pkg-config."; \
+	  exit 0; \
+	fi; \
+	if [ "$(UNAME_S)" = "Linux" ] && [ "$(HAS_APT)" = "1" ]; then \
+	  echo "Installing Arrow/Parquet via apt-get..."; \
+	  if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then \
+	    DEBIAN_FRONTEND=noninteractive sudo -n apt-get update -y && \
+	    DEBIAN_FRONTEND=noninteractive sudo -n apt-get install -y libarrow-dev libparquet-dev pkg-config cmake ninja-build g++ curl zip unzip tar flex bison || true; \
+	  elif command -v sudo >/dev/null 2>&1; then \
+	    if [ -t 1 ]; then \
+	      sudo apt-get update -y && sudo apt-get install -y libarrow-dev libparquet-dev pkg-config cmake ninja-build g++ curl zip unzip tar flex bison || true; \
+	    else \
+	      echo "sudo requires a password but no TTY is available. Please run:"; \
+	      echo "  sudo apt-get update -y && sudo apt-get install -y libarrow-dev libparquet-dev pkg-config cmake ninja-build g++ curl zip unzip tar flex bison"; \
+	    fi; \
+	  elif [ "$$(id -u)" = "0" ]; then \
+	    DEBIAN_FRONTEND=noninteractive apt-get update -y && \
+	    DEBIAN_FRONTEND=noninteractive apt-get install -y libarrow-dev libparquet-dev pkg-config cmake ninja-build g++ curl zip unzip tar flex bison || true; \
+	  else \
+	    echo "sudo not found. Please run as root:"; \
+	    echo "  apt-get update -y && apt-get install -y libarrow-dev libparquet-dev pkg-config cmake ninja-build g++ curl zip unzip tar flex bison"; \
+	  fi; \
+	  if pkg-config --exists arrow parquet; then \
+	    echo "Installed Arrow via apt-get."; \
+	    exit 0; \
+	  fi; \
+	fi; \
+	if [ "$(UNAME_S)" = "Darwin" ] && [ "$(HAS_BREW)" = "1" ]; then \
+	  echo "Installing Arrow/Parquet via Homebrew..."; \
+	  brew update && brew install apache-arrow || true; \
+	  if pkg-config --exists arrow parquet; then \
+	    echo "Installed Arrow via Homebrew."; \
+	    exit 0; \
+	  fi; \
+	fi; \
+	if [ "$(UNAME_S)" = "Darwin" ] && [ "$(HAS_BREW)" != "1" ]; then \
+	  echo "Homebrew not found. Installing Homebrew..."; \
+	  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" || true; \
+	  eval "$$(/opt/homebrew/bin/brew shellenv)" 2>/dev/null || eval "$$(/usr/local/bin/brew shellenv)" 2>/dev/null || true; \
+	  echo "Installing Arrow/Parquet via Homebrew..."; \
+	  brew update && brew install apache-arrow || true; \
+	  if pkg-config --exists arrow parquet; then \
+	    echo "Installed Arrow via Homebrew (post-install)."; \
+	    exit 0; \
+	  fi; \
+	fi; \
+	echo "Arrow not available via system package manager. Using vcpkg..."; \
+	$(MAKE) bootstrap-vcpkg; \
+	cd $(VCPKG_ROOT) && git pull || true; \
+	"$(VCPKG_ROOT)/vcpkg" update || true; \
+	if ! "$(VCPKG_ROOT)/vcpkg" install arrow[parquet]:$(VCPKG_TRIPLET); then \
+	  echo "vcpkg install failed, attempting clean and retry..."; \
+	  rm -rf "$(VCPKG_ROOT)/packages/arrow_$(VCPKG_TRIPLET)" "$(VCPKG_ROOT)/buildtrees/arrow" "$(VCPKG_ROOT)/installed/$(VCPKG_TRIPLET)/share/arrow/vcpkg_abi_info.txt" || true; \
+	  "$(VCPKG_ROOT)/vcpkg" remove --recurse arrow:$(VCPKG_TRIPLET) || true; \
+	  "$(VCPKG_ROOT)/vcpkg" install arrow[parquet]:$(VCPKG_TRIPLET) || { echo "vcpkg install failed after cleanup"; exit 2; }; \
+	fi;
 
 pydeps:
 	@echo "Setting up Python venv and installing pyarrow/pandas..."
@@ -155,7 +247,36 @@ UNAME_M := $(shell uname -m 2>/dev/null)
 
 bootstrap-vcpkg:
 	@mkdir -p third_party && test -d $(VCPKG_ROOT) || git clone https://github.com/microsoft/vcpkg.git $(VCPKG_ROOT)
-	@cd $(VCPKG_ROOT) && ./bootstrap-vcpkg.sh || ./bootstrap-vcpkg.bat || true
+	@echo "Bootstrapping vcpkg..."
+
+ifeq ($(UNAME_S),Linux)
+	@if [ "$(HAS_APT)" = "1" ]; then \
+	  echo "Ensuring curl/zip/unzip/tar/flex/bison/pkg-config/cmake/ninja/g++ are installed..."; \
+	  if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then \
+	    DEBIAN_FRONTEND=noninteractive sudo -n apt-get update -y && \
+	    DEBIAN_FRONTEND=noninteractive sudo -n apt-get install -y curl zip unzip tar flex bison pkg-config cmake ninja-build g++; \
+	  elif command -v sudo >/dev/null 2>&1; then \
+	    if [ -t 1 ]; then \
+	      sudo apt-get update -y && sudo apt-get install -y curl zip unzip tar flex bison pkg-config cmake ninja-build g++; \
+	    else \
+	      echo "sudo requires a password but no TTY is available. Please run:"; \
+	      echo "  sudo apt-get update -y && sudo apt-get install -y curl zip unzip tar flex bison pkg-config cmake ninja-build g+"; \
+	    fi; \
+	  elif [ "$$(id -u)" = "0" ]; then \
+	    DEBIAN_FRONTEND=noninteractive apt-get update -y && \
+	    DEBIAN_FRONTEND=noninteractive apt-get install -y curl zip unzip tar flex bison pkg-config cmake ninja-build g++; \
+	  else \
+	    echo "sudo not found. Please run as root:"; \
+	    echo "  apt-get update -y && apt-get install -y curl zip unzip tar flex bison pkg-config cmake ninja-build g+"; \
+	  fi; \
+	fi
+	@cd $(VCPKG_ROOT) && ./bootstrap-vcpkg.sh
+else ifeq ($(UNAME_S),Darwin)
+	@cd $(VCPKG_ROOT) && ./bootstrap-vcpkg.sh
+else
+	@cd $(VCPKG_ROOT) && ./bootstrap-vcpkg.bat
+endif
+	@([ -x "$(VCPKG_ROOT)/vcpkg" ] || [ -x "$(VCPKG_ROOT)/vcpkg.exe" ]) || (echo "vcpkg bootstrap failed" && false)
 
 # Triplet detection
 ifeq ($(UNAME_S),Darwin)
@@ -170,9 +291,10 @@ else
   VCPKG_TRIPLET ?= x64-windows-static
 endif
 
+
 arrow-vcpkg: bootstrap-vcpkg
 	@echo "Installing Arrow/Parquet via vcpkg for $(VCPKG_TRIPLET)..."
-	$(VCPKG_ROOT)/vcpkg install arrow[parquet]:$(VCPKG_TRIPLET)
+	@"$(VCPKG_ROOT)/vcpkg" install arrow[parquet]:$(VCPKG_TRIPLET)
 	@echo "Setting ARROW_CFLAGS/ARROW_LIBS from vcpkg installed tree"
 	@echo "Note: export ARROW_CFLAGS and ARROW_LIBS or pass as make variables for subsequent builds."
 	@echo "ARROW_CFLAGS=-I$(VCPKG_ROOT)/installed/$(VCPKG_TRIPLET)/include"
@@ -242,6 +364,9 @@ frontend-test:
 	. frontend/.venv/bin/activate && python -m pytest -q frontend/test || true
 
 # Convenience: full stack setup
-setup-all: deps frontend-deps runner
+setup-all:
+	@$(MAKE) arrow-auto
+	@$(MAKE) frontend-deps
+	@$(MAKE) runner
 
 
