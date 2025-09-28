@@ -23,3 +23,14 @@ int parquet_read_matrix_with_coords(const char *path,
 }
 
 
+// Stub for compiled postprocess helper referenced by run_entropymax.c when
+// Arrow/Parquet C++ is not available. Returns non-zero to indicate no-op.
+int em_csv_to_both_with_gps(const char *algo_csv_path,
+                            const char *gps_csv_path,
+                            const char *out_parquet_path,
+                            const char *out_csv_frontend_path) {
+  (void)algo_csv_path; (void)gps_csv_path; (void)out_parquet_path; (void)out_csv_frontend_path;
+  return -1;
+}
+
+

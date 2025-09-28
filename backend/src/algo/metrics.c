@@ -75,7 +75,10 @@ int em_ch_stat(const double *class_table, int32_t samples, int32_t classes, int3
             double value = class_table[i * (classes + 1) + j + 1];
             totsum[j] += value;
             clsum[cluster][j] += value;
-            clsam[cluster] += 1.0;
+            if (j == 0) {
+                // Count each sample once per cluster
+                clsam[cluster] += 1.0;
+            }
         }
     }
 

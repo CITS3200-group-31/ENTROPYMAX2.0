@@ -5,11 +5,10 @@ trailing metrics) and convert to the processed CSV layout expected by the
 frontend/Parquet:
 
 Output columns:
-  Group, Sample, <bin columns...>,
+  K, Group, Sample, <bin columns...>,
   % explained, Total inequality, Between region inequality,
   Total sum of squares, Within group sum of squares,
-  Calinski-Harabasz pseudo-F statistic,
-  K
+  Calinski-Harabasz pseudo-F statistic
 
 Usage:
   python scripts/convert_legacy_groupings.py \
@@ -73,16 +72,31 @@ def parse_legacy(legacy_path: Path) -> Dict[str, Any]:
             banner_k = k
             break
 
-    # Second pass: CSV parse to find headers and data rows
+    # Second pass: CSV parse to find headers and data rows (track per-page K)
     rows: List[Dict[str, Any]] = []
     bin_headers: List[str] = []
 
     reader = csv.reader(lines)
+    current_k: Optional[int] = banner_k
     for row in reader:
         if not row:
             continue
         # normalize tokens
         toks = [t.strip() for t in row]
+
+        # Detect page banner lines even if comma-separated
+        raw_line = ",".join(row)
+        maybe_k_any = extract_k_from_banner(raw_line)
+        if maybe_k_any is not None:
+            current_k = maybe_k_any
+            continue
+
+        # Detect page banner lines that announce K
+        if len(toks) == 1:
+            maybe_k = extract_k_from_banner(toks[0])
+            if maybe_k is not None:
+                current_k = maybe_k
+                continue
         if len(toks) >= 2 and toks[0].lower() == "group" and toks[1].lower().startswith("sample"):
             # header line: bins start after Sample, allow an optional empty token
             remaining = toks[2:]
@@ -111,6 +125,7 @@ def parse_legacy(legacy_path: Path) -> Dict[str, Any]:
             if bin_headers:
                 values = (values + [""] * (len(bin_headers) - len(values)))[: len(bin_headers)]
             rows.append({
+                "K": current_k,
                 "Group": grp,
                 "Sample": samp,
                 "values": [_to_float(v) for v in values],
@@ -138,17 +153,15 @@ def parse_legacy(legacy_path: Path) -> Dict[str, Any]:
     m_ch = re.search(r"Calinski-?Harabasz\s+pseudo-?F\s+statistic[:\s]+([\d.]+)", text, re.I)
     ch_val = float(m_ch.group(1)) if m_ch else 0.0
 
-    # Determine K
-    if banner_k is not None:
-        K = banner_k
-    else:
-        K = max((r.get("Group", 0) for r in rows), default=0)
+    # Determine a fallback K if none detected for a row
+    K_fallback = banner_k if banner_k is not None else max((r.get("Group", 0) for r in rows), default=0)
 
     # Assemble processed rows
-    processed_cols = ["Group", "Sample"] + bin_headers + METRIC_NAMES + ["K"]
+    processed_cols = ["K", "Group", "Sample"] + bin_headers + METRIC_NAMES
     processed: List[List[Any]] = []
     for r in rows:
-        base = [r["Group"], r["Sample"]]
+        k_row = r.get("K", K_fallback) or K_fallback
+        base = [k_row, r["Group"], r["Sample"]]
         base.extend(r["values"])  # bins
         base.extend([
             pct_explained,
@@ -158,7 +171,6 @@ def parse_legacy(legacy_path: Path) -> Dict[str, Any]:
             within_ss,
             ch_val,
         ])
-        base.append(K)
         processed.append(base)
 
     return {
@@ -210,9 +222,9 @@ def main() -> int:
                         lon = None
                     gps_map[key] = (lat, lon)
 
-        # Extend columns to include latitude/longitude at the end
-        if "latitude" not in res["columns"] and "longitude" not in res["columns"]:
-            res["columns"] = list(res["columns"]) + ["latitude", "longitude"]
+    # Ensure latitude/longitude columns exist in the output schema
+    if "latitude" not in res["columns"] and "longitude" not in res["columns"]:
+        res["columns"] = list(res["columns"]) + ["latitude", "longitude"]
 
     # Write CSV
     out_path = Path(args.out)
@@ -221,14 +233,19 @@ def main() -> int:
         w = csv.writer(f)
         w.writerow(res["columns"])
         for row in res["rows"]:
+            # row layout: [K, Group, Sample, bins..., metrics...]
+            sample = str(row[2]).strip() if len(row) > 2 else ""
             if gps_map:
-                # row layout: [Group, Sample, bins..., metrics..., K]
-                sample = str(row[1]).strip() if len(row) > 1 else ""
                 lat, lon = gps_map.get(sample, (None, None))
-                row_out = list(row) + ["" if lat is None else lat, "" if lon is None else lon]
+                # Default to -1.0 if missing
+                lat_out = -1.0 if lat is None else lat
+                lon_out = -1.0 if lon is None else lon
+                row_out = list(row) + [lat_out, lon_out]
                 w.writerow(row_out)
             else:
-                w.writerow(row)
+                # No GPS provided: emit -1.0 for all rows
+                row_out = list(row) + [-1.0, -1.0]
+                w.writerow(row_out)
     print(f"Wrote {out_path} with {len(res['rows'])} rows")
     return 0
 

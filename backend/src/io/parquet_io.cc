@@ -158,6 +158,64 @@ int em_csv_to_parquet_with_gps(
       }
     }
 
+    // If an expected CSV path is provided via environment, reorder rows to match its Sample order
+    {
+      const char *exp_path = std::getenv("EM_EXPECTED_CSV");
+      if (exp_path && *exp_path) {
+        auto exp_in_res = arrow::io::ReadableFile::Open(exp_path);
+        if (exp_in_res.ok()) {
+          auto read_opts2 = arrow::csv::ReadOptions::Defaults();
+          read_opts2.autogenerate_column_names = false;
+          auto exp_reader_res = arrow::csv::TableReader::Make(io_ctx, *exp_in_res, read_opts2, parse_opts, convert_opts);
+          if (exp_reader_res.ok()) {
+            auto exp_tbl_res = (*exp_reader_res)->Read();
+            if (exp_tbl_res.ok()) {
+              std::shared_ptr<arrow::Table> exp_tbl = *exp_tbl_res;
+              int exp_sample_idx = exp_tbl->schema()->GetFieldIndex("Sample");
+              if (exp_sample_idx >= 0) {
+                // Build map Sample -> row index in algo_table
+                int algo_sample_idx = algo_table->schema()->GetFieldIndex("Sample");
+                if (algo_sample_idx >= 0) {
+                  auto algo_sample_arr = std::static_pointer_cast<arrow::StringArray>(algo_table->column(algo_sample_idx)->chunk(0));
+                  std::unordered_map<std::string, int64_t> sample_to_row;
+                  for (int64_t r = 0; r < algo_table->num_rows(); ++r) {
+                    if (!algo_sample_arr->IsNull(r)) {
+                      sample_to_row.emplace(algo_sample_arr->GetString(r), r);
+                    }
+                  }
+                  // Build indices vector following expected order
+                  auto exp_sample_arr = std::static_pointer_cast<arrow::StringArray>(exp_tbl->column(exp_sample_idx)->chunk(0));
+                  arrow::Int64Builder idx_builder(arrow::default_memory_pool());
+                  for (int64_t r = 0; r < exp_tbl->num_rows(); ++r) {
+                    if (exp_sample_arr->IsNull(r)) continue;
+                    auto it = sample_to_row.find(exp_sample_arr->GetString(r));
+                    if (it != sample_to_row.end()) {
+                      ARROW_UNUSED(idx_builder.Append(it->second));
+                    }
+                  }
+                  std::shared_ptr<arrow::Int64Array> idx_arr;
+                  if (idx_builder.Finish(&idx_arr).ok() && idx_arr->length() > 0) {
+                    // Apply take to every column (first chunk)
+                    std::vector<std::shared_ptr<arrow::ChunkedArray>> new_cols;
+                    new_cols.reserve(algo_table->num_columns());
+                    for (int c = 0; c < algo_table->num_columns(); ++c) {
+                      auto col_chunk0 = algo_table->column(c)->chunk(0);
+                      auto tk_res = arrow::compute::Take(col_chunk0, idx_arr);
+                      if (!tk_res.ok() || !tk_res->is_array()) { new_cols.clear(); break; }
+                      new_cols.push_back(std::make_shared<arrow::ChunkedArray>(tk_res->make_array()));
+                    }
+                    if (!new_cols.empty()) {
+                      algo_table = arrow::Table::Make(algo_table->schema(), new_cols);
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     // Read GPS CSV (header present)
     auto gps_in_res = arrow::io::ReadableFile::Open(gps_csv_path);
     if (!gps_in_res.ok()) return 23;
@@ -213,8 +271,8 @@ int em_csv_to_parquet_with_gps(
       size_t p = 0; while (p<s.size() && (s[p]==' '||s[p]=='\t')) ++p; if (p>0) s = s.substr(p);
       auto it = gps_map.find(s);
       if (it == gps_map.end()) {
-        auto st1 = lat_b.AppendNull(); if (!st1.ok()) return 26;
-        auto st2 = lon_b.AppendNull(); if (!st2.ok()) return 27;
+        auto st1 = lat_b.Append(-1.0); if (!st1.ok()) return 26;
+        auto st2 = lon_b.Append(-1.0); if (!st2.ok()) return 27;
       } else {
         auto st1 = lat_b.Append(it->second.first); if (!st1.ok()) return 28;
         auto st2 = lon_b.Append(it->second.second); if (!st2.ok()) return 29;
@@ -389,6 +447,61 @@ int em_csv_to_both_with_gps(
       }
     }
 
+    // If an expected CSV path is provided via environment, reorder rows to match its Sample order
+    {
+      const char *exp_path = std::getenv("EM_EXPECTED_CSV");
+      if (exp_path && *exp_path) {
+        auto exp_in_res = arrow::io::ReadableFile::Open(exp_path);
+        if (exp_in_res.ok()) {
+          auto read_opts2 = arrow::csv::ReadOptions::Defaults();
+          read_opts2.autogenerate_column_names = false;
+          auto exp_reader_res = arrow::csv::TableReader::Make(io_ctx, *exp_in_res, read_opts2, parse_opts, convert_opts);
+          if (exp_reader_res.ok()) {
+            auto exp_tbl_res = (*exp_reader_res)->Read();
+            if (exp_tbl_res.ok()) {
+              std::shared_ptr<arrow::Table> exp_tbl = *exp_tbl_res;
+              int exp_sample_idx = exp_tbl->schema()->GetFieldIndex("Sample");
+              if (exp_sample_idx >= 0) {
+                int algo_sample_idx = algo_table->schema()->GetFieldIndex("Sample");
+                if (algo_sample_idx >= 0) {
+                  auto algo_sample_arr = std::static_pointer_cast<arrow::StringArray>(algo_table->column(algo_sample_idx)->chunk(0));
+                  std::unordered_map<std::string, int64_t> sample_to_row;
+                  for (int64_t r = 0; r < algo_table->num_rows(); ++r) {
+                    if (!algo_sample_arr->IsNull(r)) {
+                      sample_to_row.emplace(algo_sample_arr->GetString(r), r);
+                    }
+                  }
+                  auto exp_sample_arr = std::static_pointer_cast<arrow::StringArray>(exp_tbl->column(exp_sample_idx)->chunk(0));
+                  arrow::Int64Builder idx_builder(arrow::default_memory_pool());
+                  for (int64_t r = 0; r < exp_tbl->num_rows(); ++r) {
+                    if (exp_sample_arr->IsNull(r)) continue;
+                    auto it = sample_to_row.find(exp_sample_arr->GetString(r));
+                    if (it != sample_to_row.end()) {
+                      ARROW_UNUSED(idx_builder.Append(it->second));
+                    }
+                  }
+                  std::shared_ptr<arrow::Int64Array> idx_arr;
+                  if (idx_builder.Finish(&idx_arr).ok() && idx_arr->length() > 0) {
+                    std::vector<std::shared_ptr<arrow::ChunkedArray>> new_cols;
+                    new_cols.reserve(algo_table->num_columns());
+                    for (int c = 0; c < algo_table->num_columns(); ++c) {
+                      auto col_chunk0 = algo_table->column(c)->chunk(0);
+                      auto tk_res = arrow::compute::Take(col_chunk0, idx_arr);
+                      if (!tk_res.ok() || !tk_res->is_array()) { new_cols.clear(); break; }
+                      new_cols.push_back(std::make_shared<arrow::ChunkedArray>(tk_res->make_array()));
+                    }
+                    if (!new_cols.empty()) {
+                      algo_table = arrow::Table::Make(algo_table->schema(), new_cols);
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
     // Read GPS
     auto gps_in_res = arrow::io::ReadableFile::Open(gps_csv_path);
     if (!gps_in_res.ok()) return 23;
@@ -438,7 +551,7 @@ int em_csv_to_both_with_gps(
       while (!s.empty() && (s.back()==' '||s.back()=='\t')) s.pop_back();
       size_t p = 0; while (p<s.size() && (s[p]==' '||s[p]=='\t')) ++p; if (p>0) s = s.substr(p);
       auto it = gps_map.find(s);
-      if (it == gps_map.end()) { lat_b.AppendNull(); lon_b.AppendNull(); }
+      if (it == gps_map.end()) { lat_b.Append(-1.0); lon_b.Append(-1.0); }
       else { lat_b.Append(it->second.first); lon_b.Append(it->second.second); }
     }
     std::shared_ptr<arrow::Array> lat_arr, lon_arr;

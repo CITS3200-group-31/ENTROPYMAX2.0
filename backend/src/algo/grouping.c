@@ -37,13 +37,14 @@ int em_initial_groups(int32_t rows, int32_t k, int32_t *member1) {
     return -1;
   }
 
-  int base = rows / k;
-  int extra = rows % k;
-
-  int idx = 0;
-  for (int g = 0; g < k; g++) {
-    int count = base + (g == (k - 1) ? extra : 0);
-    for (int j = 0; j < count; j++) {
+  // Legacy semantics: equal-sized contiguous blocks; remainder to the last group.
+  // VB6 code assigns groups 1..k; here we use 0..k-1.
+  int32_t base = rows / k;
+  int32_t remainder = rows - (base * k);
+  int32_t idx = 0;
+  for (int32_t g = 0; g < k; g++) {
+    int32_t count = base + ((g == k - 1) ? remainder : 0);
+    for (int32_t c = 0; c < count && idx < rows; c++) {
       member1[idx++] = g;
     }
   }

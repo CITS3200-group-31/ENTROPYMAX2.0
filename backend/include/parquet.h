@@ -9,3 +9,6 @@ int em_csv_to_parquet_with_gps(const char *algo_csv_path,
                                const char *gps_csv_path,
                                const char *out_parquet_path);
 
+// Availability probe: returns 1 when Arrow/Parquet is compiled in, 0 otherwise.
+int parquet_is_available(void);
+
