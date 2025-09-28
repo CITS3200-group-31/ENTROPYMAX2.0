@@ -9,6 +9,12 @@
 #include <memory>
 #include <string>
 
+extern "C" {
+int em_csv_to_parquet_with_gps(const char *algo_csv_path,
+                               const char *gps_csv_path,
+                               const char *out_parquet_path);
+}
+
 static arrow::Status ReadCsvToTable(const std::string &csv_path,
                                     std::shared_ptr<arrow::Table> *out) {
   ARROW_ASSIGN_OR_RAISE(auto infile, arrow::io::ReadableFile::Open(csv_path));
@@ -25,9 +31,9 @@ static arrow::Status ReadCsvToTable(const std::string &csv_path,
   return arrow::Status::OK();
 }
 
-int parquet_is_available(void) { return 1; }
+extern "C" int parquet_is_available(void) { return 1; }
 
-int parquet_write_table(const char *path, const double *data, int32_t rows, int32_t cols,
+extern "C" int parquet_write_table(const char *path, const double *data, int32_t rows, int32_t cols,
                         const char *const *colnames, const char *const *rownames) {
   (void)data; (void)rows; (void)cols; (void)colnames; (void)rownames; (void)path;
   // Not used in current flow; CSV->Parquet path is used instead.
