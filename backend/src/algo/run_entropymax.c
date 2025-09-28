@@ -499,31 +499,15 @@ int main(int argc, char **argv) {
     fclose(out);
 
     // Post-step: write Parquet and processed CSV in frontend order (if available)
-    int wrote_parquet = 0;
-    if (parquet_is_available()) {
-        extern int em_csv_to_both_with_gps(const char*, const char*, const char*, const char*);
-        int prc = em_csv_to_both_with_gps(fixed_output_path, gps_csv_path, final_parquet_path, "data/processed/sample_output_frontend.csv");
-        if (prc == 0) {
-            wrote_parquet = 1;
-        } else {
-            fprintf(stderr, "Failed to write final parquet/csv (rc=%d)\n", prc);
-        }
-    }
-    // Fallback: if parquet wasn't produced via compiled path, convert CSV -> Parquet via Python helper
-    if (!wrote_parquet) {
-        (void)system("mkdir -p data/parquet");
-        (void)system("rm -f data/parquet/output.parquet");
-        char cmd[1024];
-        // Prefer local venv python to use preinstalled deps from make pydeps
-        snprintf(cmd, sizeof(cmd), "./.venv/bin/python backend/src/io/convert_output_to_parquet.py %s %s", fixed_output_path, final_parquet_path);
-        int rc_py = system(cmd);
-        if (rc_py != 0) {
-            // Fallback to system python3
-            snprintf(cmd, sizeof(cmd), "python3 backend/src/io/convert_output_to_parquet.py %s %s", fixed_output_path, final_parquet_path);
-            rc_py = system(cmd);
-        }
-        if (rc_py != 0) {
-            fprintf(stderr, "Fallback CSV->Parquet conversion failed (rc=%d)\n", rc_py);
+    // Produce Parquet via compiled Arrow path
+    (void)system("mkdir -p data/parquet");
+    (void)system("rm -f data/parquet/output.parquet");
+    {
+        extern int em_csv_to_parquet_with_gps(const char*, const char*, const char*);
+        int prc = em_csv_to_parquet_with_gps(fixed_output_path, gps_csv_path, final_parquet_path);
+        if (prc != 0) {
+            fprintf(stderr, "Compiled CSV->Parquet conversion failed (rc=%d)\n", prc);
+            return 1;
         }
     }
 
