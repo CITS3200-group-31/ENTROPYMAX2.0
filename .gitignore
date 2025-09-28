@@ -65,3 +65,4 @@ output.csv
 
 .venv/
 output.parquet
+.cursor
