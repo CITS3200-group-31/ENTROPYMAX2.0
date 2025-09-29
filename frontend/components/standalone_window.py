@@ -23,8 +23,8 @@ class StandaloneWindow(QMainWindow):
         # Set as independent window
         self.setWindowFlags(Qt.WindowType.Window)
         
-        # Initialize settings dialog
-        self.settings_dialog = SettingsDialog(self)
+        # Initialize settings dialog lazily to avoid early QObject init issues
+        self.settings_dialog = None
         
         self._setup_ui()
         self._setup_toolbar()
@@ -64,6 +64,8 @@ class StandaloneWindow(QMainWindow):
     
     def _show_settings(self):
         """Show visualization settings dialog."""
+        if self.settings_dialog is None:
+            self.settings_dialog = SettingsDialog(self)
         self.settings_dialog.show()
         self.settings_dialog.raise_()
         self.settings_dialog.activateWindow()

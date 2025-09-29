@@ -204,8 +204,8 @@ class GroupDetailWindow(QMainWindow):
         # Get visualization settings instance
         self.settings = VisualizationSettings()
         
-        # Initialize settings dialog
-        self.settings_dialog = SettingsDialog(self)
+        # Initialize settings dialog lazily
+        self.settings_dialog = None
         
         self._setup_ui()
         self._plot_data()
@@ -311,6 +311,8 @@ class GroupDetailWindow(QMainWindow):
     
     def _show_settings(self):
         """Show visualization settings dialog."""
+        if self.settings_dialog is None:
+            self.settings_dialog = SettingsDialog(self)
         self.settings_dialog.show()
         self.settings_dialog.raise_()
         self.settings_dialog.activateWindow()
