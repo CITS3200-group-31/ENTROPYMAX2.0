@@ -363,6 +363,77 @@ frontend-test:
 	@echo "Running frontend tests..."
 	. frontend/.venv/bin/activate && python -m pytest -q frontend/test || true
 
+# -----------------------------------------------------------------------------
+# Frontend Linux runtime setup and launcher
+
+.PHONY: frontend-linux-setup frontend-launch-linux
+
+# Common runtime packages for Qt WebEngine on Ubuntu/WSL
+FRONTEND_LINUX_DEPS := \
+  libxcb-cursor0 libxkbcommon-x11-0 libxcb-xinerama0 libxkbfile1 \
+  libnss3 libnspr4 libxcomposite1 libxrandr2 libxdamage1 libxkbcommon0 \
+  libgbm1 libasound2t64 libxtst6 libx11-xcb1 libxcb-xkb1 libxcb-icccm4 \
+  libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 \
+  libxcb-shape0 libxcb-sync1 libxcb-xfixes0 libxshmfence1 libegl1 \
+  libgl1-mesa-dri mesa-vulkan-drivers fonts-dejavu-core fonts-liberation
+
+frontend-linux-setup:
+ifeq ($(UNAME_S),Linux)
+ifeq ($(HAS_APT),1)
+	@echo "Installing Qt WebEngine runtime libraries via apt-get..."
+	@if command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then \
+	  DEBIAN_FRONTEND=noninteractive sudo -n apt-get update -y && \
+	  DEBIAN_FRONTEND=noninteractive sudo -n apt-get install -y $(FRONTEND_LINUX_DEPS) || true; \
+	elif command -v sudo >/dev/null 2>&1; then \
+	  if [ -t 1 ]; then \
+	    sudo apt-get update -y && sudo apt-get install -y $(FRONTEND_LINUX_DEPS) || true; \
+	  else \
+	    echo "sudo requires a password but no TTY is available. Please run:"; \
+	    echo "  sudo apt-get update -y && sudo apt-get install -y $(FRONTEND_LINUX_DEPS)"; \
+	  fi; \
+	elif [ "$$("id" -u)" = "0" ]; then \
+	  DEBIAN_FRONTEND=noninteractive apt-get update -y && \
+	  DEBIAN_FRONTEND=noninteractive apt-get install -y $(FRONTEND_LINUX_DEPS) || true; \
+	else \
+	  echo "sudo not found. Please run as root:"; \
+	  echo "  apt-get update -y && apt-get install -y $(FRONTEND_LINUX_DEPS)"; \
+	fi
+else
+	@echo "Non-apt Linux distro detected. Please install WebEngine runtime libs equivalent to: $(FRONTEND_LINUX_DEPS)" && true
+endif
+else
+	@echo "frontend-linux-setup is only for Linux." && true
+endif
+
+frontend-launch-linux: frontend-deps
+	@echo "Creating Linux launcher script..."
+	@mkdir -p bin
+	@printf '%s\n' '#!/usr/bin/env bash' \
+	  'set -euo pipefail' \
+	  'SCRIPT_DIR="$$(cd "$$(dirname "$$0")" && pwd)"' \
+	  'ROOT_DIR="$${SCRIPT_DIR%/bin}"' \
+	  'VENV_DIR="$$ROOT_DIR/frontend/.venv"' \
+	  'if [ ! -f "$$VENV_DIR/bin/activate" ]; then' \
+	  '  echo "Frontend venv missing. Run: make frontend-deps"; exit 1; fi' \
+	  'source "$$VENV_DIR/bin/activate"' \
+	  'export QTWEBENGINE_DISABLE_SANDBOX=1' \
+	  'if [ -n "$$WAYLAND_DISPLAY" ]; then' \
+	  '  export QT_QPA_PLATFORM=wayland' \
+	  '  export QT_OPENGL=desktop' \
+	  '  export QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --ozone-platform=wayland"' \
+	  'else' \
+	  '  export QT_QPA_PLATFORM=xcb' \
+	  '  export QT_OPENGL=desktop' \
+	  '  export QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox"' \
+	  'fi' \
+	  'python "$$ROOT_DIR/frontend/main.py" || {' \
+	  '  echo "Primary launch failed, retrying with software rendering..."; ' \
+	  '  export QT_OPENGL=software; export QSG_RHI_BACKEND=software; export LIBGL_ALWAYS_SOFTWARE=1; export MESA_LOADER_DRIVER_OVERRIDE=llvmpipe;' \
+	  '  export QTWEBENGINE_CHROMIUM_FLAGS="--no-sandbox --disable-gpu --disable-gpu-compositing --in-process-gpu --single-process --no-zygote --disable-software-rasterizer";' \
+	  '  python "$$ROOT_DIR/frontend/main.py"; }' \
+	  > bin/run-frontend-linux.sh
+	@chmod +x bin/run-frontend-linux.sh
+
 # Convenience: full stack setup
 setup-all:
 	@$(MAKE) arrow-auto
