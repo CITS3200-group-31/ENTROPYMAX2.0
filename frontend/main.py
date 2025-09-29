@@ -446,6 +446,7 @@ class EntropyMaxFinal(QMainWindow):
                 QMessageBox.warning(self, "Grouping Update Warning", str(ge))
             # 4) Refresh markers from freshly generated Parquet for the SAME K to avoid stale K=2 groups
             try:
+                # Pass k_for_groups so markers reflect the selected K's grouping labels
                 markers = self._parse_markers_from_parquet(parquet_path, k_value=k_for_groups)
                 if markers:
                     self.map_sample_widget.load_data(markers)
@@ -582,7 +583,7 @@ class EntropyMaxFinal(QMainWindow):
 
     def _parse_markers_from_parquet(self, parquet_path, k_value=None):
         """Parse markers (name, lat, lon, optional group) from Parquet output.
-        If k_value is provided, filter rows to that K to avoid stale group values.
+        If k_value is provided, filter rows by K==k_value so group labels reflect the selected K.
         """
         table = pq.read_table(parquet_path)
         cols = [f.name for f in table.schema]
@@ -600,6 +601,7 @@ class EntropyMaxFinal(QMainWindow):
             return []
         select_cols = [c for c in [name_col, lat_col, lon_col, grp_col, k_col] if c]
         df = table.select(select_cols).to_pandas()
+        # If a specific K is requested, filter first so dedup picks the intended grouping
         if k_value is not None and k_col in df.columns:
             df = df[df[k_col] == k_value]
         df = df.dropna(subset=[name_col, lat_col, lon_col])
@@ -665,16 +667,22 @@ class EntropyMaxFinal(QMainWindow):
             pass
         target_raw = os.path.join(data_raw, 'sample_input.csv')
         target_gps = os.path.join(data_raw, 'sample_coordinates.csv')
-        def _same_path(a, b):
-            try:
-                return os.path.samefile(a, b)
-            except Exception:
-                return os.path.normcase(os.path.normpath(a)) == os.path.normcase(os.path.normpath(b))
+        # Always overwrite the staged inputs to avoid stale runs
         try:
-            if not _same_path(self.input_file_path, target_raw):
-                shutil.copyfile(self.input_file_path, target_raw)
-            if not _same_path(self.gps_file_path, target_gps):
-                shutil.copyfile(self.gps_file_path, target_gps)
+            shutil.copyfile(self.input_file_path, target_raw)
+            shutil.copyfile(self.gps_file_path, target_gps)
+            try:
+                rel_in = os.path.relpath(self.input_file_path, project_root)
+            except Exception:
+                rel_in = self.input_file_path
+            try:
+                rel_gps = os.path.relpath(self.gps_file_path, project_root)
+            except Exception:
+                rel_gps = self.gps_file_path
+            self.statusBar().showMessage(
+                f"Staged inputs: {rel_in} -> data/raw/sample_input.csv; {rel_gps} -> data/raw/sample_coordinates.csv",
+                5000
+            )
         except Exception as e:
             raise RuntimeError(f"Failed to stage input files: {e}")
         # Execute backend with explicit input arguments (runner requires CSV paths)
