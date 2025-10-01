@@ -13,7 +13,7 @@
 #include "metrics.h"
 #include "sweep.h"
 #include "grouping.h"
-#include "parquet.h"
+
 
 #ifdef _MSC_VER
 // MSVC compatibility: map POSIX-like APIs to MSVC equivalents
@@ -299,7 +299,7 @@ int main(int argc, char **argv) {
     const char *fixed_input_path = argv[1];
     const char *gps_csv_path = argv[2];
     const char *fixed_output_path = "data/processed/sample_outputt.csv";
-    const char *final_parquet_path = "data/parquet/output.parquet";
+    /* Parquet output disabled; CSV is the sole output */
 
     double *data = NULL; // raw data as read
     int rows = 0, cols = 0;
@@ -498,18 +498,7 @@ int main(int argc, char **argv) {
     if (exp_rows) { for (int r = 0; r < exp_rows_n; ++r) { if (exp_rows[r].vals) { for (int b = 0; b < exp_bins_n; ++b) free(exp_rows[r].vals[b]); free(exp_rows[r].vals);} free(exp_rows[r].sample);} free(exp_rows); }
     fclose(out);
 
-    // Post-step: write Parquet and processed CSV in frontend order (if available)
-    // Produce Parquet via compiled Arrow path
-    (void)system("mkdir -p data/parquet");
-    (void)system("rm -f data/parquet/output.parquet");
-    {
-        extern int em_csv_to_parquet_with_gps(const char*, const char*, const char*);
-        int prc = em_csv_to_parquet_with_gps(fixed_output_path, gps_csv_path, final_parquet_path);
-        if (prc != 0) {
-            fprintf(stderr, "Compiled CSV->Parquet conversion failed (rc=%d)\n", prc);
-            return 1;
-        }
-    }
+    // Parquet output is intentionally disabled; CSV is the single source of truth for output
 
     // Free memory
     for (int i = 0; i < rows; ++i) free(rownames[i]);
@@ -520,6 +509,6 @@ int main(int argc, char **argv) {
     }
     free(rownames); free(colnames); free(data); free(Y); free(metrics); free(member1); free(group_means); free(all_member1); free(data_proc);
 
-    printf("Done. Output written to %s (csv) and %s (parquet)\n", fixed_output_path, final_parquet_path);
+    printf("Done. Output written to %s (csv)\n", fixed_output_path);
     return 0;
 }
