@@ -1,4 +1,29 @@
+import os as _os
+import platform as _platform
 import sys
+
+# Ensure Qt environment is configured BEFORE importing any PyQt modules
+if _platform.system() == 'Linux':
+    # Prefer Wayland on WSLg; fall back to XCB elsewhere
+    if 'WAYLAND_DISPLAY' in _os.environ:
+        _os.environ.setdefault('QT_QPA_PLATFORM', 'wayland')
+    else:
+        _os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
+
+    # Force software rendering paths to avoid GPU/driver issues in VMs/WSL
+    if _os.environ.get('EMAX_FORCE_SOFTWARE_GL', '1') == '1':
+        _os.environ.setdefault('QT_OPENGL', 'software')
+        _os.environ.setdefault('QSG_RHI_BACKEND', 'opengl')
+        _os.environ.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
+        _os.environ.setdefault('MESA_LOADER_DRIVER_OVERRIDE', 'llvmpipe')
+
+    # Qt WebEngine stability flags for sandbox-less environments (e.g., WSL)
+    _os.environ.setdefault('QTWEBENGINE_DISABLE_SANDBOX', '1')
+    _os.environ.setdefault(
+        'QTWEBENGINE_CHROMIUM_FLAGS',
+        '--no-sandbox --disable-gpu --disable-gpu-compositing'
+    )
+
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QFrame, QMessageBox, QLabel, QMenuBar,
                              QMenu, QFileDialog)
@@ -8,7 +33,6 @@ from components.group_detail_popup import GroupDetailPopup
 from components.module_preview_card import ModulePreviewCard
 from components.standalone_window import StandaloneWindow
 from components.simple_map_sample_widget import SimpleMapSampleWidget
-from components.chart_widget import ChartWidget
 from components.settings_dialog import SettingsDialog
 from utils.csv_export import export_analysis_results
 from help import FormatExamplesDialog
@@ -67,8 +91,8 @@ class EntropyMaxFinal(QMainWindow):
         self.current_analysis_data = {}
         self.group_detail_popup = GroupDetailPopup()
 
-        # Initialize settings dialog
-        self.settings_dialog = SettingsDialog(self)
+        # Initialize settings dialog lazily to avoid early QObject init issues on some Linux setups
+        self.settings_dialog = None
 
         # Window references
         self.map_window = None
@@ -143,20 +167,35 @@ class EntropyMaxFinal(QMainWindow):
         self.sample_list = self.map_sample_widget.sample_list
 
         # CH chart window
-        self.ch_chart = ChartWidget(
-            title="CH Index",
-            ylabel="CH Index"
-        )
+        self.ch_chart = self._create_chart_widget(title="CH Index", ylabel="CH Index")
         self.ch_window = StandaloneWindow("CH Analysis", self.ch_chart)
         self.ch_window.exportRequested.connect(lambda: self._export_window_content(self.ch_chart, "ch"))
 
         # RS chart window
-        self.rs_chart = ChartWidget(
-            title="Rs %",
-            ylabel="Rs %"
-        )
+        self.rs_chart = self._create_chart_widget(title="Rs %", ylabel="Rs %")
         self.rs_window = StandaloneWindow("Rs Analysis", self.rs_chart)
         self.rs_window.exportRequested.connect(lambda: self._export_window_content(self.rs_chart, "rs"))
+
+    def _create_chart_widget(self, title: str, ylabel: str):
+        """Create chart widget; on Linux allow disabling charts if env set or import fails."""
+        try:
+            if _platform.system() == 'Linux' and os.environ.get('EMAX_DISABLE_CHARTS', '0') == '1':
+                raise RuntimeError('Charts disabled via EMAX_DISABLE_CHARTS=1')
+            from components.chart_widget import ChartWidget  # local import to avoid early QObject init
+            return ChartWidget(title=title, ylabel=ylabel)
+        except Exception:
+            # Fallback: simple placeholder widget so app can run
+            class ChartPlaceholder(QWidget):
+                def __init__(self):
+                    super().__init__()
+                    self.setMinimumSize(400, 250)
+                def clear(self):
+                    pass
+                def plot_data(self, *args, **kwargs):
+                    pass
+                def add_optimal_marker(self, *args, **kwargs):
+                    pass
+            return ChartPlaceholder()
 
     def _open_map_window(self):
         """Open map window"""
@@ -348,7 +387,13 @@ class EntropyMaxFinal(QMainWindow):
                 selected_data = list(all_data)
             # 1) Run compiled backend to generate Parquet
             start_ts = time.time()
-            self._run_compiled_backend()
+            # Honor UI K range as environment for backend
+            try:
+                os.environ['EM_K_MIN'] = str(int(params.get('min_groups', 2)))
+                os.environ['EM_K_MAX'] = str(int(params.get('max_groups', 20)))
+            except Exception:
+                pass
+            self._run_compiled_backend(params)
             # 2) Load metrics from Parquet
             project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             # Wait briefly for a fresh, non-empty Parquet (handles slow AV/disk)
@@ -377,20 +422,48 @@ class EntropyMaxFinal(QMainWindow):
                 'rs_values': rs_values,
                 'optimal_k': optimal_k
             }
-            # 3) Update group assignments on map/list for selected/optimal K
+            # 3) Determine K for grouping (env override supported) and update map/list
+            k_for_groups = None
             try:
-                k_for_groups = optimal_k if optimal_k is not None else (k_values[0] if k_values else None)
+                # Optional override via environment for display K
+                k_override_env = os.environ.get('EMAX_FORCE_GROUP_K') or os.environ.get('EM_FORCE_K')
+                if k_override_env is not None:
+                    try:
+                        k_for_groups = int(k_override_env)
+                    except Exception:
+                        k_for_groups = None
+                    # Clamp to available Ks
+                    if k_for_groups not in (k_values or []):
+                        k_for_groups = None
+                if k_for_groups is None:
+                    # Prefer UI-selected upper bound if within results
+                    preferred_k = None
+                    try:
+                        preferred_k = int(params.get('max_groups')) if params and 'max_groups' in params else None
+                    except Exception:
+                        preferred_k = None
+                    if preferred_k in (k_values or []):
+                        k_for_groups = preferred_k
+                    elif k_values:
+                        # Fall back to the highest available K so users see full range (e.g., 20)
+                        try:
+                            k_for_groups = max(k_values)
+                        except Exception:
+                            k_for_groups = k_values[-1]
+                    else:
+                        k_for_groups = optimal_k if optimal_k is not None else None
                 if k_for_groups is not None:
                     sample_to_group = self._load_group_assignments(parquet_path, k_for_groups)
                     self._apply_group_assignments(sample_to_group)
             except Exception as ge:
                 # Surface but do not block charts if grouping fails
                 QMessageBox.warning(self, "Grouping Update Warning", str(ge))
-            # 4) Refresh markers from freshly generated Parquet to avoid stale view
+            # 4) Refresh markers from freshly generated Parquet for the SAME K to avoid stale K=2 groups
             try:
                 # Pass k_for_groups so markers reflect the selected K's grouping labels
                 markers = self._parse_markers_from_parquet(parquet_path, k_value=k_for_groups)
-                if markers:
+                # On unstable WebEngine setups, allow skipping map refresh during analysis
+                if markers and os.environ.get('EMAX_DISABLE_MAP_REFRESH', '0') != '1':
                     self.map_sample_widget.load_data(markers)
             except Exception:
                 pass
@@ -455,12 +528,12 @@ class EntropyMaxFinal(QMainWindow):
         rs_values = self.current_analysis_data['rs_values']
         optimal_k = self.current_analysis_data['optimal_k']
 
-        self.ch_chart.plot_data(k_values, ch_values, '#2196F3', 'o', 'CH Index')  # Blue
-        self.rs_chart.plot_data(k_values, rs_values, '#4CAF50', 's', 'Rs %')  # Green
-        # self.group_graph_widget.plot_analysis_results(x_values, group_values, peak_k)
-        # self.group_graph_widget.plot_analysis_results(x_values, group_values)
+        if hasattr(self.ch_chart, 'plot_data'):
+            self.ch_chart.plot_data(k_values, ch_values, '#2196F3', 'o', 'CH Index')
+        if hasattr(self.rs_chart, 'plot_data'):
+            self.rs_chart.plot_data(k_values, rs_values, '#4CAF50', 's', 'Rs %')
 
-        if optimal_k is not None:
+        if optimal_k is not None and hasattr(self.ch_chart, 'add_optimal_marker'):
             idx = list(k_values).index(optimal_k)
             self.ch_chart.add_optimal_marker(optimal_k, ch_values[idx])
 
@@ -475,8 +548,10 @@ class EntropyMaxFinal(QMainWindow):
         # Reset UI components
         self.control_panel.reset_workflow()
         self.map_sample_widget.load_data([])
-        self.ch_chart.clear()
-        self.rs_chart.clear()
+        if hasattr(self.ch_chart, 'clear'):
+            self.ch_chart.clear()
+        if hasattr(self.rs_chart, 'clear'):
+            self.rs_chart.clear()
         self.group_detail_popup.close_all()
         self.current_analysis_data = {}
 
@@ -564,7 +639,13 @@ class EntropyMaxFinal(QMainWindow):
     def _find_backend_executable(self):
         """Locate the compiled backend runner executable across common build layouts."""
         project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        # Allow explicit override via environment variable
+        override = os.environ.get('EMAX_RUNNER') or os.environ.get('EM_RUNNER')
+        if override and os.path.exists(override) and os.access(override, os.X_OK):
+            return override
         candidates = [
+            os.path.join(project_root, 'build', 'bin', 'run_entropymax'),
+            os.path.join(project_root, 'dist', 'linux', 'run_entropymax'),
             os.path.join(project_root, 'backend', 'build-vcpkg', 'Release', 'run_entropymax.exe'),
             os.path.join(project_root, 'backend', 'build-vcpkg', 'Debug', 'run_entropymax.exe'),
             os.path.join(project_root, 'backend', 'build-vcpkg', 'run_entropymax.exe'),
@@ -580,7 +661,7 @@ class EntropyMaxFinal(QMainWindow):
                 return p
         return None
 
-    def _run_compiled_backend(self):
+    def _run_compiled_backend(self, params=None):
         """Copy selected inputs into backend expected locations and execute the runner."""
         if not self.input_file_path or not self.gps_file_path:
             raise RuntimeError("Input and GPS files must be selected before running analysis.")
@@ -619,9 +700,26 @@ class EntropyMaxFinal(QMainWindow):
             )
         except Exception as e:
             raise RuntimeError(f"Failed to stage input files: {e}")
-        # Execute backend with fixed IO paths (runner ignores CLI args)
+        # Execute backend with explicit input arguments (runner requires CSV paths)
         try:
-            proc = subprocess.run([exe_path], cwd=project_root, capture_output=True, text=True, timeout=180)
+            cmd = [exe_path, target_raw, target_gps]
+            # Prefer explicit CLI flags so K range is consistent across OS builds
+            try:
+                if params is not None:
+                    kmin = int(params.get('min_groups', 2))
+                    kmax = int(params.get('max_groups', 20))
+                    cmd.extend(["--EM_K_MIN", str(kmin), "--EM_K_MAX", str(kmax)])
+                # Optional forced K via environment
+                kforce_env = os.environ.get('EMAX_FORCE_GROUP_K') or os.environ.get('EM_FORCE_K')
+                if kforce_env is not None:
+                    try:
+                        kforce = int(kforce_env)
+                        cmd.extend(["--EM_FORCE_K", str(kforce)])
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            proc = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True, timeout=180)
         except subprocess.TimeoutExpired:
             raise TimeoutError("Backend execution timed out.")
         if proc.returncode != 0:
@@ -768,7 +866,7 @@ if __name__ == '__main__':
         if platform.system() == 'Linux' and _os.environ.get('EMAX_FORCE_SOFTWARE_GL', '1') == '1':
             _os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
             _os.environ.setdefault('QT_OPENGL', 'software')
-            _os.environ.setdefault('QSG_RHI_BACKEND', 'software')
+            _os.environ.setdefault('QSG_RHI_BACKEND', 'opengl')
             _os.environ.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
             _os.environ.setdefault('MESA_LOADER_DRIVER_OVERRIDE', 'llvmpipe')
             _os.environ.setdefault('QTWEBENGINE_CHROMIUM_FLAGS', '--disable-gpu --disable-gpu-compositing --use-gl=swiftshader --disable-features=Vulkan')
@@ -792,9 +890,28 @@ if __name__ == '__main__':
     try:
         if '--debug' in sys.argv:
             project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            input_path = os.path.join(project_root, 'data', 'raw', 'inputs', 'sample_group_3_input.csv')
-            gps_path = os.path.join(project_root, 'data', 'raw', 'gps', 'sample_group_3_coordinates.csv')
-            output_path = os.path.join(project_root, 'output.csv')
+            debug_dir = os.path.join(project_root, 'data', 'debug')
+            os.makedirs(debug_dir, exist_ok=True)
+
+            # Source files (sample group 1)
+            src_input = os.path.join(project_root, 'data', 'raw', 'inputs', 'sample_group_1_input.csv')
+            src_gps = os.path.join(project_root, 'data', 'raw', 'gps', 'sample_group_1_coordinates.csv')
+
+            # Destination debug files
+            input_path = os.path.join(debug_dir, 'debug_input.csv')
+            gps_path = os.path.join(debug_dir, 'debug_coordinates.csv')
+            output_path = os.path.join(debug_dir, 'debug_output.csv')
+
+            # Copy sources into debug directory for a stable debug dataset
+            try:
+                if os.path.exists(src_input):
+                    if not (os.path.exists(input_path) and os.path.samefile(src_input, input_path)):
+                        shutil.copyfile(src_input, input_path)
+                if os.path.exists(src_gps):
+                    if not (os.path.exists(gps_path) and os.path.samefile(src_gps, gps_path)):
+                        shutil.copyfile(src_gps, gps_path)
+            except Exception:
+                pass
 
             cp = window.control_panel
 
@@ -810,7 +927,7 @@ if __name__ == '__main__':
             cp.gps_label.setStyleSheet("color: green; padding: 5px;")
             cp.gpsFileSelected.emit(gps_path)
 
-            # Preload output CSV (project root)
+            # Preload output CSV (debug directory)
             cp.output_file = output_path
             display_name = os.path.basename(output_path)
             if display_name.endswith('.csv'):
