@@ -5,9 +5,11 @@ EntropyMax 2.0 separates compute-heavy C code from a Python GUI/frontend. Curren
 
 ```
 CSV(gps) + CSV(raw) ─▶ merge ─▶ raw Parquet ─▶ C backend (libentropymax) ─▶ processed Parquet ─▶ Python GUI (PyQt6)
+
+During the porting phase, a developer CSV runner (`run_entropymax`) is used to generate a consolidated CSV with per‑k grouped outputs for verification.
 ```
 
-- C backend (`backend/`): static library + CLI scaffold; headers under `backend/include/`. Reads a raw Parquet table and writes a processed Parquet table.
+- C backend (`backend/`): static library + CLI scaffold; headers under `backend/include/`. A developer runner writes a consolidated CSV: K,Group,Sample,<bins>, and per‑row metrics (% explained, Total/Between, SST/SSE, CH).
 - Python app shell (`src/app`): prototype entrypoint with GUI structure and bindings placeholders.
 - Standalone frontend (`frontend/`): PyQt6 application with widgets, sample data, and tests.
 - Tests (`tests/python`): pytest smoke and unit tests for Python layers.

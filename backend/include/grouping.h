@@ -6,20 +6,20 @@
 /**
  * @brief Set groups based on member assignments.
  *
- * This function organizes data into groups based on the provided membership
- * array.
+ * Organizes data into groups based on the provided membership array.
  *
- * @param data Pointer to the data array.
+ * @param data Pointer to the data array [rows * cols], row-major.
  * @param k Number of groups.
  * @param rows Number of rows in the data.
  * @param cols Number of columns in the data.
- * @param member1 Array indicating group membership for each row.
- * @param fGroupOut Output array to store group data.
+ * @param member1 Array indicating group membership for each row (0..k-1).
+ * @param fGroupOut Output matrix buffer of shape [rows][cols+1] flattened row-major.
+ *                  Caller allocates as a 2-D array of pointers or a single block; ownership remains with caller.
  *
  * @pre `data`, `member1`, and `fGroupOut` must not be NULL.
  * @pre `k`, `rows`, and `cols` must be greater than 0
  *
- * @return 0 on success, -1 on failure.
+ * @return 0 on success, negative em_status_t on failure.
  */
 
 int em_set_groups(const double *data, int32_t k, int32_t rows, int32_t cols,

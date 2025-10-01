@@ -1,10 +1,18 @@
 import os
 import sys
 import pandas as pd
+from convert_csv_to_parquet import convert_csv_to_parquet
+
+def convert(main_csv_path):
+    #Changes file type to .parquet so it only needs the path of the csv file as an input
+    parquetfilepath = os.path.splitext(main_csv_path)[0] + ".parquet"
+    #Calls the function to convert
+    convert_csv_to_parquet(main_csv_path, parquetfilepath)
+    return parquetfilepath
 
 def combine_parquet_files(main_parquet_path, gps_parquet_path, output_parquet_path):
     try:
-        # Read the main data and GPS data
+        #Read the main data and GPS data
         main_df = pd.read_parquet(main_parquet_path)
         gps_df = pd.read_parquet(gps_parquet_path)
 
@@ -30,11 +38,12 @@ def combine_parquet_files(main_parquet_path, gps_parquet_path, output_parquet_pa
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
-        print("Usage: python3 combine_parquets_by_sample.py <main_parquet_path> <gps_parquet_path> <output_parquet_path>")
+        print("Usage: python3 combine_parquets_by_sample.py <main_csv_path> <gps_parquet_path> <output_parquet_path>")
         sys.exit(1)
 
-    main_parquet_path = sys.argv[1]
+    main_csv_path = sys.argv[1]
     gps_parquet_path = sys.argv[2]
     output_parquet_path = sys.argv[3]
 
+    main_parquet_path = convert(main_csv_path)
     combine_parquet_files(main_parquet_path, gps_parquet_path, output_parquet_path)

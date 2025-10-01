@@ -3,7 +3,7 @@
 
 int main(int argc, char *argv[]) {
     if (argc != 4) {
-        printf("Usage: %s <main_parquet_file> <gps_parquet_file> <output_parquet_file>\n", argv[0]);
+        printf("Usage: %s <main_csv_file> <gps_parquet_file> <output_parquet_file>\n", argv[0]);
         return 1;
     }
 

@@ -5,7 +5,7 @@
 int em_total_inequality(const double *data, int32_t rows, int32_t cols,
                         double *out_Y, double *out_tineq) {
     if (!data || !out_Y || !out_tineq) {
-        return -1; 
+        return -1;
     }
 
     for (int j = 0; j < cols; j++) {
@@ -68,14 +68,17 @@ int em_ch_stat(const double *class_table, int32_t samples, int32_t classes, int3
     double sstt = 0.0, sset = 0.0;
     double r = 0.0;
 
-    
+
     for (j = 0; j < classes; j++) {
         for (i = 0; i < samples; i++) {
             int cluster = (int)class_table[i * (classes + 1)];
             double value = class_table[i * (classes + 1) + j + 1];
             totsum[j] += value;
             clsum[cluster][j] += value;
-            clsam[cluster] += 1.0;
+            if (j == 0) {
+                // Count each sample once per cluster
+                clsam[cluster] += 1.0;
+            }
         }
     }
 
@@ -83,8 +86,8 @@ int em_ch_stat(const double *class_table, int32_t samples, int32_t classes, int3
         totav[j] = totsum[j] / samples; // Samples, averages for total centroid
     }
 
-    
-    for (i = 0; i < k; i++) { // Averages within group and classes 
+
+    for (i = 0; i < k; i++) { // Averages within group and classes
         if (clsam[i] == 0) {
             *out_CH = 0.1;
             goto cleanup;
@@ -129,13 +132,21 @@ int em_ch_stat(const double *class_table, int32_t samples, int32_t classes, int3
         if (!perm_data) goto cleanup;
 
         memcpy(perm_data, class_table, (size_t)samples * (size_t)(classes + 1) * sizeof(double));
-        srand((unsigned int)seed);
+        // Deterministic local RNG (xorshift64) seeded by caller
+        if (seed == 0) seed = 0x9E3779B97F4A7C15ull; // avoid zero state
+        uint64_t rng_state = seed;
+        #define EM_NEXT_U64(s) ( \
+            (s ^= (s << 13)), \
+            (s ^= (s >> 7)), \
+            (s ^= (s << 17)), \
+            s )
 
         for (int p = 0; p < perms_n; p++) {
             for (j = 0; j < classes; j++) {
                 for (i = 0; i < samples; i++) {
                     int idx1 = i;
-                    int idx2 = rand() % samples;
+                    rng_state = EM_NEXT_U64(rng_state);
+                    int idx2 = (int)(rng_state % (uint64_t)samples);
                     double tmp = perm_data[idx1 * (classes + 1) + j + 1];
                     perm_data[idx1 * (classes + 1) + j + 1] = perm_data[idx2 * (classes + 1) + j + 1];
                     perm_data[idx2 * (classes + 1) + j + 1] = tmp;
@@ -153,6 +164,7 @@ int em_ch_stat(const double *class_table, int32_t samples, int32_t classes, int3
         *out_perm_mean = perm_sum / perms_n;
         *out_perm_p = (double)perm_better / perms_n;
 
+        #undef EM_NEXT_U64
         free(perm_data);
     } else {
         *out_perm_mean = 0;
@@ -171,8 +183,8 @@ cleanup:
 
 // OWNER: Noah line 810 in Form1
 // VB6 mapping: Z computation inside RITE → em_group_zstats
-int em_group_zstats(const double *group_means, const int32_t *n_k, int32_t k,                 
-                    int32_t cols, const double *TM, const double *SD, double *out_Z) {             
+int em_group_zstats(const double *group_means, const int32_t *n_k, int32_t k,
+                    int32_t cols, const double *TM, const double *SD, double *out_Z) {
     if (!group_means || !n_k || !TM || !SD || !out_Z) {
         return -1;
     }
@@ -181,7 +193,7 @@ int em_group_zstats(const double *group_means, const int32_t *n_k, int32_t k,
         int n = n_k[group];
         if (n <= 0) {
             for (int col = 0; col < cols; col++) {
-                out_Z[group * cols + col] = 0.0; 
+                out_Z[group * cols + col] = 0.0;
             }
             continue;
         }

@@ -48,21 +48,14 @@ int em_run_algo(const double *data,
   em_k_metric_t metrics[32]; // capacity for k=2..20
   if(!member1 || !group_means){ free(work); free(member1); free(group_means); return -3; }
 
-  // Compute totals and total inequality for current data (required by sweep API)
-  double *Y = (double*)calloc((size_t)cols, sizeof(double));
+  // Prepare and sweep across k=2..20 with deterministic defaults (no permutations yet).
   double tineq = 0.0;
-  if(!Y){ free(work); free(member1); free(group_means); return -3; }
-  (void)em_total_inequality(work, rows, cols, Y, &tineq);
-
-  // Run sweep across k=2..20 with deterministic defaults (no permutations yet).
-  int32_t opt_k = 0;
-  int rc = em_sweep_k(/*data*/ work, rows, cols,
-                      /*Y*/ Y, /*tineq*/ tineq,
-                      /*k_min*/ 2, /*k_max*/ 20,
-                      &opt_k,
-                      /*perms_n*/ 0, /*seed*/ 42u,
-                      metrics, (int32_t)(sizeof(metrics)/sizeof(metrics[0])),
-                      member1, group_means);
+  int rc = em_prepare_and_sweep(/*data_proc*/ work, rows, cols,
+                                /*k_min*/ 2, /*k_max*/ 20,
+                                /*perms_n*/ 0, /*seed*/ 42u,
+                                metrics, (int32_t)(sizeof(metrics)/sizeof(metrics[0])),
+                                member1, group_means, NULL,
+                                &tineq);
   if(rc!=0){ free(work); free(member1); free(group_means); return rc; }
 
   // Optional: write final data to Parquet (placeholder implementation returns -1 currently).
@@ -73,7 +66,6 @@ int em_run_algo(const double *data,
   }
 
   free(work);
-  free(Y);
   free(member1);
   free(group_means);
   return wrc; // 0 if write succeeded or was skipped; non-zero if writer failed
