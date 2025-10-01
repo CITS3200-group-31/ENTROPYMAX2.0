@@ -292,13 +292,13 @@ int main(int argc, char **argv) {
     // Require two CLI arguments: sample_data CSV and coordinate_data CSV
     if (argc < 3) {
         fprintf(stderr, "Usage: %s <sample_data_csv> <coordinate_data_csv> [--EM_K_MIN N] [--EM_K_MAX N] [--EM_FORCE_K N]\n", argv[0]);
-        fprintf(stderr, "Example: %s data/input.csv data/processed/coords_map.csv --EM_K_MAX 15\n", argv[0]);
+        fprintf(stderr, "Example: %s data/raw/inputs/sample_group_1_input.csv data/raw/gps/sample_group_1_coordinates.csv --EM_K_MAX 15\n", argv[0]);
         return 2;
     }
 
     const char *fixed_input_path = argv[1];
     const char *gps_csv_path = argv[2];
-    const char *fixed_output_path = "data/processed/sample_outputt.csv";
+    const char *fixed_output_path = "output.csv";
     /* Parquet output disabled; CSV is the sole output */
 
     double *data = NULL; // raw data as read

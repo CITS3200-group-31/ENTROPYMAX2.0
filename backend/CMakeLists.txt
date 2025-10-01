@@ -23,7 +23,6 @@ add_library(entropymax STATIC
   src/algo/metrics.c
   src/algo/grouping.c
   src/algo/sweep.c
-  src/io/run_converter_execute.c
   src/io/csv_stub.c
   src/io/parquet_stub.c
   src/util/util.c
@@ -85,33 +84,10 @@ if(BUILD_TOOLS)
     src/algo/sweep.c
     src/util/util.c)
   target_include_directories(run_entropymax PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-  if(TARGET parquet_io)
-    target_link_libraries(run_entropymax PRIVATE entropymax parquet_io)
-  else()
-    target_link_libraries(run_entropymax PRIVATE entropymax)
-  endif()
+  # CSV-only mode: do not link parquet_io
+  target_link_libraries(run_entropymax PRIVATE entropymax)
 
-  if(TARGET parquet_io)
-    add_executable(verify_parquet tests/verify_parquet.cc)
-    target_include_directories(verify_parquet PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-    # Link to the same Arrow targets if available
-    if(TARGET Arrow::arrow)
-      target_link_libraries(verify_parquet PRIVATE Arrow::arrow)
-    endif()
-    if(TARGET Arrow::parquet)
-      target_link_libraries(verify_parquet PRIVATE Arrow::parquet)
-    endif()
-    if(TARGET Arrow::csv)
-      target_link_libraries(verify_parquet PRIVATE Arrow::csv)
-    endif()
-    if(NOT (TARGET Arrow::arrow AND TARGET Arrow::parquet))
-      if(DEFINED Arrow_LIBRARIES)
-        target_link_libraries(verify_parquet PRIVATE ${Arrow_LIBRARIES})
-      endif()
-    endif()
-    enable_testing()
-    add_test(NAME verify_parquet_schema COMMAND verify_parquet)
-  endif()
+  # Parquet verification disabled in CSV-only mode
 endif()
 
 enable_testing()
