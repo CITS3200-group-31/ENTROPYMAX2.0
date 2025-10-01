@@ -51,6 +51,9 @@ data/processed/sample_outputt.csv
 backend/build-vcpkg/
 build-vcpkg/
 
+# Third-party build artifacts
+third_party/vcpkg/
+
 # GIS artifacts
 *.kml
 *.kmz
