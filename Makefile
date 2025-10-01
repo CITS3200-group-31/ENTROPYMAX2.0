@@ -59,8 +59,8 @@ endif
 # If pkg-config finds arrow/parquet or vcpkg is installed, enable C++ path
 HAVE_PKGCFG := $(shell command -v pkg-config >/dev/null 2>&1 && echo 1 || echo 0)
 
-# Enforce compiled Parquet by default
-ENABLE_ARROW ?= 1
+# CSV-only by default; set ENABLE_ARROW=1 to enable optional Arrow/Parquet path
+ENABLE_ARROW ?= 0
 
 ifeq ($(ENABLE_ARROW),1)
   HAVE_PKGCFG := $(shell command -v pkg-config >/dev/null 2>&1 && echo 1 || echo 0)
