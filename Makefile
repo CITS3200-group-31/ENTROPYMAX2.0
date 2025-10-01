@@ -5,6 +5,11 @@ CXX     ?= c++
 CFLAGS  ?= -O2 -std=c11 -Wall -Wextra -Wpedantic
 CXXFLAGS ?= -O2 -std=c++17 -Wall -Wextra -Wpedantic
 CPPFLAGS += -Ibackend/include -Ibackend/src/algo
+# Enforce minimum language standard flags even if env overrides CFLAGS/CXXFLAGS
+# Some environments predefine empty CFLAGS/CXXFLAGS, which would drop -std.
+# Appending here guarantees the required standards remain in effect.
+CFLAGS   += -std=c11
+CXXFLAGS += -std=c++17
 LDFLAGS ?=
 LIBS    ?= -lm
 
@@ -101,6 +106,15 @@ ifeq ($(ENABLE_ARROW),1)
     $(warning Apache Arrow/Parquet dev libs not found; will build with stub IO.)
   endif
 endif
+
+# -----------------------------------------------------------------------------
+# Sanitize library search paths: drop any -L<dir> that does not exist to avoid
+# linker warnings like: "ld: warning: search path '<dir>' not found"
+SANITIZED_LIBS := $(foreach tok,$(LIBS),$(if $(filter -L%,$(tok)),$(if $(wildcard $(patsubst -L%,%,$(tok))),$(tok),),$(tok)))
+LIBS := $(SANITIZED_LIBS)
+
+SANITIZED_LDFLAGS := $(foreach tok,$(LDFLAGS),$(if $(filter -L%,$(tok)),$(if $(wildcard $(patsubst -L%,%,$(tok))),$(tok),),$(tok)))
+LDFLAGS := $(SANITIZED_LDFLAGS)
 
 RUNNER_OBJ := $(OBJ_DIR)/backend/src/algo/run_entropymax.o
 CORE_OBJS_C  := $(CORE_SRCS_C:%.c=$(OBJ_DIR)/%.o)
