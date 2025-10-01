@@ -13,7 +13,7 @@ if _platform.system() == 'Linux':
     # Force software rendering paths to avoid GPU/driver issues in VMs/WSL
     if _os.environ.get('EMAX_FORCE_SOFTWARE_GL', '1') == '1':
         _os.environ.setdefault('QT_OPENGL', 'software')
-        _os.environ.setdefault('QSG_RHI_BACKEND', 'software')
+        _os.environ.setdefault('QSG_RHI_BACKEND', 'opengl')
         _os.environ.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
         _os.environ.setdefault('MESA_LOADER_DRIVER_OVERRIDE', 'llvmpipe')
 
@@ -21,8 +21,7 @@ if _platform.system() == 'Linux':
     _os.environ.setdefault('QTWEBENGINE_DISABLE_SANDBOX', '1')
     _os.environ.setdefault(
         'QTWEBENGINE_CHROMIUM_FLAGS',
-        '--no-sandbox --disable-gpu --disable-gpu-compositing '
-        '--in-process-gpu --single-process --no-zygote --disable-software-rasterizer'
+        '--no-sandbox --disable-gpu --disable-gpu-compositing'
     )
 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
@@ -394,7 +393,7 @@ class EntropyMaxFinal(QMainWindow):
                 os.environ['EM_K_MAX'] = str(int(params.get('max_groups', 20)))
             except Exception:
                 pass
-            self._run_compiled_backend()
+            self._run_compiled_backend(params)
             # 2) Load metrics from Parquet
             project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
             # Wait briefly for a fresh, non-empty Parquet (handles slow AV/disk)
@@ -437,7 +436,22 @@ class EntropyMaxFinal(QMainWindow):
                     if k_for_groups not in (k_values or []):
                         k_for_groups = None
                 if k_for_groups is None:
-                    k_for_groups = optimal_k if optimal_k is not None else (k_values[0] if k_values else None)
+                    # Prefer UI-selected upper bound if within results
+                    preferred_k = None
+                    try:
+                        preferred_k = int(params.get('max_groups')) if params and 'max_groups' in params else None
+                    except Exception:
+                        preferred_k = None
+                    if preferred_k in (k_values or []):
+                        k_for_groups = preferred_k
+                    elif k_values:
+                        # Fall back to the highest available K so users see full range (e.g., 20)
+                        try:
+                            k_for_groups = max(k_values)
+                        except Exception:
+                            k_for_groups = k_values[-1]
+                    else:
+                        k_for_groups = optimal_k if optimal_k is not None else None
                 if k_for_groups is not None:
                     sample_to_group = self._load_group_assignments(parquet_path, k_for_groups)
                     self._apply_group_assignments(sample_to_group)
@@ -448,7 +462,8 @@ class EntropyMaxFinal(QMainWindow):
             try:
                 # Pass k_for_groups so markers reflect the selected K's grouping labels
                 markers = self._parse_markers_from_parquet(parquet_path, k_value=k_for_groups)
-                if markers:
+                # On unstable WebEngine setups, allow skipping map refresh during analysis
+                if markers and os.environ.get('EMAX_DISABLE_MAP_REFRESH', '0') != '1':
                     self.map_sample_widget.load_data(markers)
             except Exception:
                 pass
@@ -646,7 +661,7 @@ class EntropyMaxFinal(QMainWindow):
                 return p
         return None
 
-    def _run_compiled_backend(self):
+    def _run_compiled_backend(self, params=None):
         """Copy selected inputs into backend expected locations and execute the runner."""
         if not self.input_file_path or not self.gps_file_path:
             raise RuntimeError("Input and GPS files must be selected before running analysis.")
@@ -687,7 +702,24 @@ class EntropyMaxFinal(QMainWindow):
             raise RuntimeError(f"Failed to stage input files: {e}")
         # Execute backend with explicit input arguments (runner requires CSV paths)
         try:
-            proc = subprocess.run([exe_path, target_raw, target_gps], cwd=project_root, capture_output=True, text=True, timeout=180)
+            cmd = [exe_path, target_raw, target_gps]
+            # Prefer explicit CLI flags so K range is consistent across OS builds
+            try:
+                if params is not None:
+                    kmin = int(params.get('min_groups', 2))
+                    kmax = int(params.get('max_groups', 20))
+                    cmd.extend(["--EM_K_MIN", str(kmin), "--EM_K_MAX", str(kmax)])
+                # Optional forced K via environment
+                kforce_env = os.environ.get('EMAX_FORCE_GROUP_K') or os.environ.get('EM_FORCE_K')
+                if kforce_env is not None:
+                    try:
+                        kforce = int(kforce_env)
+                        cmd.extend(["--EM_FORCE_K", str(kforce)])
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            proc = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True, timeout=180)
         except subprocess.TimeoutExpired:
             raise TimeoutError("Backend execution timed out.")
         if proc.returncode != 0:
@@ -834,7 +866,7 @@ if __name__ == '__main__':
         if platform.system() == 'Linux' and _os.environ.get('EMAX_FORCE_SOFTWARE_GL', '1') == '1':
             _os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
             _os.environ.setdefault('QT_OPENGL', 'software')
-            _os.environ.setdefault('QSG_RHI_BACKEND', 'software')
+            _os.environ.setdefault('QSG_RHI_BACKEND', 'opengl')
             _os.environ.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
             _os.environ.setdefault('MESA_LOADER_DRIVER_OVERRIDE', 'llvmpipe')
             _os.environ.setdefault('QTWEBENGINE_CHROMIUM_FLAGS', '--disable-gpu --disable-gpu-compositing --use-gl=swiftshader --disable-features=Vulkan')
