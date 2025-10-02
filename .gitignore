@@ -6,7 +6,6 @@ out/
 dist/
 
 # Binaries and tools
-run_entropymax
 run_entropymax_asan
 emx_cli
 *.exe
