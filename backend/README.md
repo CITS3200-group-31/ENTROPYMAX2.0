@@ -55,12 +55,14 @@ cmake --build build-vcpkg --config Release -j 4
 ## Running the runner
 CLI:
 ```bash
-run_entropymax <sample_data_csv> <coordinate_data_csv> [--EM_K_MIN N] [--EM_K_MAX N] [--EM_FORCE_K N]
+run_entropymax <sample_data_csv> <coordinate_data_csv> \
+  [--EM_K_MIN N] [--EM_K_MAX N] [--EM_FORCE_K N] \
+  [--row_proportions 0|1] [--em_proportion 0|1] [--em_gdtl_percent 0|1]
 ```
 Example:
 ```bash
 run_entropymax data/raw/inputs/sample_group_1_input.csv \
-  data/raw/gps/sample_group_1_coordinates.csv --EM_K_MAX 15
+  data/raw/gps/sample_group_1_coordinates.csv --EM_K_MAX 15 --row_proportions 1 --em_gdtl_percent 1
 ```
 
 - Output: `output.csv` in the project root
@@ -69,4 +71,5 @@ run_entropymax data/raw/inputs/sample_group_1_input.csv \
 ## Notes
 - Whitespace trimming is applied to headers and tokens during CSV ingestion.
 - The K sweep defaults to 2..20; override with environment variables or CLI flags.
+- Preprocessing defaults: `row_proportions=0`, `em_gdtl_percent=1`. You may specify either `--row_proportions` or its synonym `--em_proportion`.
 - Parquet output is intentionally disabled in this branch for simplicity. To restore Parquet, set `ENABLE_ARROW=1` and re-enable the Arrow path in `backend/CMakeLists.txt` and the conversion call in `backend/src/algo/run_entropymax.c`.
