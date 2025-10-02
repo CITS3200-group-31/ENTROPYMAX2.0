@@ -291,8 +291,8 @@ int read_csv(const char *filename, double **data, int *rows, int *cols, char ***
 int main(int argc, char **argv) {
     // Require two CLI arguments: sample_data CSV and coordinate_data CSV
     if (argc < 3) {
-        fprintf(stderr, "Usage: %s <sample_data_csv> <coordinate_data_csv> [--EM_K_MIN N] [--EM_K_MAX N] [--EM_FORCE_K N]\n", argv[0]);
-        fprintf(stderr, "Example: %s data/raw/inputs/sample_group_1_input.csv data/raw/gps/sample_group_1_coordinates.csv --EM_K_MAX 15\n", argv[0]);
+        fprintf(stderr, "Usage: %s <sample_data_csv> <coordinate_data_csv> [--EM_K_MIN N] [--EM_K_MAX N] [--EM_FORCE_K N] [--row_proportions 0|1] [--em_proportion 0|1] [--em_gdtl_percent 0|1]\n", argv[0]);
+        fprintf(stderr, "Example: %s data/raw/inputs/sample_group_1_input.csv data/raw/gps/sample_group_1_coordinates.csv --EM_K_MAX 15 --row_proportions 1 --em_gdtl_percent 1\n", argv[0]);
         return 2;
     }
 
@@ -319,8 +319,22 @@ int main(int argc, char **argv) {
     }
     memcpy(data_proc, data, (size_t)rows * (size_t)cols * sizeof(double));
 
-    // Preprocess for algorithm: grand-total percent only (match working commit behavior)
-    em_gdtl_percent(data_proc, rows, cols);
+    // Preprocess options (defaults match CSV-only flow):
+    // - row proportions: OFF (0)
+    // - grand-total percent: ON (1)
+    int opt_row_proportions = 0;
+    int opt_gdtl_percent = 1;
+
+    // First pass: capture preprocessing flags (and tolerate both --name=V and "--name V")
+    for (int ai = 3; ai < argc; ++ai) {
+        const char *a = argv[ai]; if (!a) continue;
+        if (strncmp(a, "--row_proportions=", 19) == 0) { opt_row_proportions = atoi(a + 19) ? 1 : 0; continue; }
+        if (strncmp(a, "--em_proportion=", 17) == 0) { opt_row_proportions = atoi(a + 17) ? 1 : 0; continue; }
+        if (strncmp(a, "--em_gdtl_percent=", 19) == 0) { opt_gdtl_percent = atoi(a + 19) ? 1 : 0; continue; }
+        if (strcmp(a, "--row_proportions") == 0 && ai + 1 < argc) { opt_row_proportions = atoi(argv[++ai]) ? 1 : 0; continue; }
+        if (strcmp(a, "--em_proportion") == 0 && ai + 1 < argc) { opt_row_proportions = atoi(argv[++ai]) ? 1 : 0; continue; }
+        if (strcmp(a, "--em_gdtl_percent") == 0 && ai + 1 < argc) { opt_gdtl_percent = atoi(argv[++ai]) ? 1 : 0; continue; }
+    }
 
     // Compute metrics
     double *Y = malloc((size_t)cols * sizeof(double));
@@ -341,7 +355,7 @@ int main(int argc, char **argv) {
         if (env_kmax && *env_kmax) { int v = atoi(env_kmax); if (v >= k_min) k_max = v; }
         if (k_max < k_min) k_max = k_min;
     }
-    // CLI flags take precedence over env
+    // CLI flags take precedence over env (K bounds)
     for (int ai = 3; ai < argc; ++ai) {
         const char *a = argv[ai];
         if (!a) continue;
@@ -365,6 +379,20 @@ int main(int argc, char **argv) {
         }
     }
     if (k_max < k_min) k_max = k_min;
+
+    // Apply preprocessing according to toggles
+    if (opt_row_proportions) {
+        if (em_proportion(data_proc, rows, cols) != 0) {
+            fprintf(stderr, "Row proportions failed (divide-by-zero?)\n");
+            return 2;
+        }
+    }
+    if (opt_gdtl_percent) {
+        if (em_gdtl_percent(data_proc, rows, cols) != 0) {
+            fprintf(stderr, "Grand-total percent failed (zero grand total?)\n");
+            return 2;
+        }
+    }
     // If an expected CSV is provided, prefer its unique K for sweep bounds
     const char *env_expected = getenv("EM_EXPECTED_CSV");
     expected_entry_t *exp_entries = NULL; int exp_n = 0; int exp_unique_k = 0; double exp_metrics[6] = {0};
