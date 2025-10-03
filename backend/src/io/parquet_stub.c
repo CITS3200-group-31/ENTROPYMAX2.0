@@ -9,6 +9,14 @@ int parquet_write_table(const char *path, const double *data, int32_t rows, int3
 
 int parquet_is_available(void) { return 0; }
 
+// Stub for CSV->Parquet helper when Arrow/Parquet is not available
+int em_csv_to_parquet_with_gps(const char *algo_csv_path,
+                               const char *gps_csv_path,
+                               const char *out_parquet_path) {
+  (void)algo_csv_path; (void)gps_csv_path; (void)out_parquet_path;
+  return -1;
+}
+
 int parquet_write_from_csv_buffer(const char *path, const char *csv_buffer, size_t csv_size) {
   (void)path; (void)csv_buffer; (void)csv_size;
   return -1;

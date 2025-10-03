@@ -16,6 +16,7 @@
 #define PATH_SEP '/'
 #endif
 #include "run_entropymax.h"
+#include "parquet.h"
 #include "preprocess.h"
 #include "metrics.h"
 #include "sweep.h"
@@ -570,14 +571,15 @@ int main(int argc, char **argv) {
     if (exp_rows) { for (int r = 0; r < exp_rows_n; ++r) { if (exp_rows[r].vals) { for (int b = 0; b < exp_bins_n; ++b) free(exp_rows[r].vals[b]); free(exp_rows[r].vals);} free(exp_rows[r].sample);} free(exp_rows); }
     fclose(out);
 
-    // Create an empty Parquet placeholder at the requested location
-    {
-        FILE *pout = fopen(fixed_parquet_path, "wb");
-        if (pout) {
-            fclose(pout);
-        } else {
-            fprintf(stderr, "Warning: could not create %s (directory missing?)\n", fixed_parquet_path);
+    // If Arrow/Parquet is available, write real Parquet from the generated CSV; else create a placeholder
+    if (parquet_is_available()) {
+        int prc = em_csv_to_parquet_with_gps(fixed_output_path, gps_csv_path, fixed_parquet_path);
+        if (prc != 0) {
+            fprintf(stderr, "Parquet write failed (rc=%d), creating placeholder at %s\n", prc, fixed_parquet_path);
+            FILE *pout = fopen(fixed_parquet_path, "wb"); if (pout) fclose(pout);
         }
+    } else {
+        FILE *pout = fopen(fixed_parquet_path, "wb"); if (pout) fclose(pout);
     }
 
     // Parquet output is intentionally disabled; CSV is the single source of truth for output

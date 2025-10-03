@@ -107,6 +107,20 @@ Section -Post
   WriteRegStr HKLM "${UNINST_KEY}" "DisplayName" "${APP_NAME}"
   WriteRegStr HKLM "${UNINST_KEY}" "InstallLocation" "$InstDir"
   WriteRegStr HKLM "${UNINST_KEY}" "UninstallString" "$InstDir\\Uninstall.exe"
+  ; Best-effort bundling of Arrow/Parquet DLLs and MinGW runtime.
+  ; Provide paths at build time using: makensis -DARROW_BIN_DIR="C:\\path\\to\\bin" -DMINGW_RUNTIME_DIR="C:\\path\\to\\mingw64\\bin"
+  SetOutPath "$InstDir\\bin"
+  !ifdef ARROW_BIN_DIR
+    File /nonfatal "${ARROW_BIN_DIR}\\arrow*.dll"
+    File /nonfatal "${ARROW_BIN_DIR}\\parquet*.dll"
+    File /nonfatal "${ARROW_BIN_DIR}\\libarrow*.dll"
+    File /nonfatal "${ARROW_BIN_DIR}\\libparquet*.dll"
+  !endif
+  !ifdef MINGW_RUNTIME_DIR
+    File /nonfatal "${MINGW_RUNTIME_DIR}\\libstdc++-6.dll"
+    File /nonfatal "${MINGW_RUNTIME_DIR}\\libgcc_s_seh-1.dll"
+    File /nonfatal "${MINGW_RUNTIME_DIR}\\libwinpthread-1.dll"
+  !endif
 SectionEnd
 
 Section "Uninstall"
