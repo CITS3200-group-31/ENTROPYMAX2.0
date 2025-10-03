@@ -17,6 +17,13 @@ BUILD_DIR := build
 OBJ_DIR   := $(BUILD_DIR)/obj
 BIN_DIR   := $(BUILD_DIR)/bin
 
+# On Windows, emit a .exe for the runner
+ifeq ($(OS),Windows_NT)
+  EXEEXT := .exe
+else
+  EXEEXT :=
+endif
+
 RUNNER_SRC := backend/src/algo/run_entropymax.c
 # Core C sources (always built)
 CORE_SRCS_C := \
@@ -121,7 +128,7 @@ CORE_OBJS_C  := $(CORE_SRCS_C:%.c=$(OBJ_DIR)/%.o)
 CORE_OBJS_CC := $(CORE_SRCS_CC:%.cc=$(OBJ_DIR)/%.o)
 IO_OBJ_C     := $(IO_SRC_C:%.c=$(OBJ_DIR)/%.o)
 
-RUNNER_BIN := $(BIN_DIR)/run_entropymax
+RUNNER_BIN := $(BIN_DIR)/run_entropymax$(EXEEXT)
 
 .PHONY: all runner clean distclean
 
