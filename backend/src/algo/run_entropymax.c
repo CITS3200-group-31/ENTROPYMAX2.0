@@ -8,6 +8,13 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#ifdef _WIN32
+#include <windows.h>
+#define PATH_SEP '\\'
+#else
+#include <unistd.h>
+#define PATH_SEP '/'
+#endif
 #include "run_entropymax.h"
 #include "preprocess.h"
 #include "metrics.h"
@@ -288,6 +295,26 @@ int read_csv(const char *filename, double **data, int *rows, int *cols, char ***
     return 0;
 }
 
+static int get_executable_dir(char *buffer, size_t buffer_len) {
+#ifdef _WIN32
+    DWORD len = GetModuleFileNameA(NULL, buffer, (DWORD)buffer_len);
+    if (len == 0 || len >= buffer_len) return -1;
+    // Strip filename
+    for (int i = (int)len - 1; i >= 0; --i) {
+        if (buffer[i] == '\\' || buffer[i] == '/') { buffer[i] = '\0'; break; }
+    }
+    return 0;
+#else
+    ssize_t n = readlink("/proc/self/exe", buffer, buffer_len - 1);
+    if (n <= 0 || (size_t)n >= buffer_len) return -1;
+    buffer[n] = '\0';
+    for (ssize_t i = n - 1; i >= 0; --i) {
+        if (buffer[i] == '/' ) { buffer[i] = '\0'; break; }
+    }
+    return 0;
+#endif
+}
+
 int main(int argc, char **argv) {
     // Require two CLI arguments: sample_data CSV and coordinate_data CSV
     if (argc < 3) {
@@ -298,7 +325,24 @@ int main(int argc, char **argv) {
 
     const char *fixed_input_path = argv[1];
     const char *gps_csv_path = argv[2];
-    const char *fixed_output_path = "output.csv";
+    char fixed_output_path[2048];
+    char fixed_parquet_path[2048];
+    {
+        char exe_dir[1024];
+        if (get_executable_dir(exe_dir, sizeof exe_dir) != 0) {
+            // Fallback to current directory
+            strncpy(exe_dir, ".", sizeof exe_dir);
+            exe_dir[sizeof exe_dir - 1] = '\0';
+        }
+        // Build ../data/processed/csv/output.csv relative to executable directory
+        snprintf(fixed_output_path, sizeof fixed_output_path,
+                 "%s%c..%cdata%cprocessed%ccsv%coutput.csv",
+                 exe_dir, PATH_SEP, PATH_SEP, PATH_SEP, PATH_SEP, PATH_SEP);
+        // Build ../data/processed/parquet/output.parquet relative to executable directory
+        snprintf(fixed_parquet_path, sizeof fixed_parquet_path,
+                 "%s%c..%cdata%cprocessed%cparquet%coutput.parquet",
+                 exe_dir, PATH_SEP, PATH_SEP, PATH_SEP, PATH_SEP, PATH_SEP);
+    }
     /* Parquet output disabled; CSV is the sole output */
 
     double *data = NULL; // raw data as read
@@ -526,6 +570,16 @@ int main(int argc, char **argv) {
     if (exp_rows) { for (int r = 0; r < exp_rows_n; ++r) { if (exp_rows[r].vals) { for (int b = 0; b < exp_bins_n; ++b) free(exp_rows[r].vals[b]); free(exp_rows[r].vals);} free(exp_rows[r].sample);} free(exp_rows); }
     fclose(out);
 
+    // Create an empty Parquet placeholder at the requested location
+    {
+        FILE *pout = fopen(fixed_parquet_path, "wb");
+        if (pout) {
+            fclose(pout);
+        } else {
+            fprintf(stderr, "Warning: could not create %s (directory missing?)\n", fixed_parquet_path);
+        }
+    }
+
     // Parquet output is intentionally disabled; CSV is the single source of truth for output
 
     // Free memory
@@ -537,6 +591,6 @@ int main(int argc, char **argv) {
     }
     free(rownames); free(colnames); free(data); free(Y); free(metrics); free(member1); free(group_means); free(all_member1); free(data_proc);
 
-    printf("Done. Output written to %s (csv)\n", fixed_output_path);
+    printf("Done. Output written to %s (csv) and %s (parquet placeholder)\n", fixed_output_path, fixed_parquet_path);
     return 0;
 }

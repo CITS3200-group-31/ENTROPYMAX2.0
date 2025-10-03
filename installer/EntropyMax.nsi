@@ -60,6 +60,8 @@ Section "Core files" SEC_CORE
   CreateDirectory "$InstDir\data\raw\gps"
   CreateDirectory "$InstDir\data\raw\inputs"
   CreateDirectory "$InstDir\data\processed"
+  CreateDirectory "$InstDir\data\processed\csv"
+  CreateDirectory "$InstDir\data\processed\parquet"
 
   ; Install backend executable as entropyMax.exe into bin from @bin (build\bin)
   SetOutPath "$InstDir\bin"
