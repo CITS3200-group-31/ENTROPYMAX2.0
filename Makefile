@@ -123,9 +123,28 @@ IO_OBJ_C     := $(IO_SRC_C:%.c=$(OBJ_DIR)/%.o)
 
 RUNNER_BIN := $(BIN_DIR)/run_entropymax
 
-.PHONY: all runner clean distclean
+.PHONY: all runner clean distclean windows
 
 all: runner
+
+# Cross-compile for Windows from macOS/Linux using MinGW-w64
+windows:
+	@echo "[windows] Cross-compiling for Windows using MinGW-w64"
+	$(MAKE) CC=x86_64-w64-mingw32-gcc \
+	        CXX=x86_64-w64-mingw32-g++ \
+	        AR=x86_64-w64-mingw32-ar \
+	        LIBS="-lws2_32 -lbcrypt" \
+	        ENABLE_ARROW=0 \
+	        clean
+	$(MAKE) CC=x86_64-w64-mingw32-gcc \
+	        CXX=x86_64-w64-mingw32-g++ \
+	        AR=x86_64-w64-mingw32-ar \
+	        LIBS="-lws2_32 -lbcrypt" \
+	        ENABLE_ARROW=0 \
+	        RUNNER_BIN=$(BIN_DIR)/run_entropymax.exe \
+	        runner
+	@echo "[windows] Windows binary created at: $(BIN_DIR)/run_entropymax.exe"
+	@echo "[windows] Copy this file to your frontend/ directory for Windows deployment"
 
 runner: $(CORE_OBJS_C) $(CORE_OBJS_CC) $(IO_OBJ_C) $(RUNNER_OBJ)
 	@mkdir -p $(BIN_DIR)

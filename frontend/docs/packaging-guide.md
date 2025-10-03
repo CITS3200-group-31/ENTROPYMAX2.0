@@ -1,5 +1,30 @@
 # Packaging Guide
 
+## Build Windows binary file
+
+The following methods are used to output Windows x86 EXE files on computers with different architectures.
+
+### On Windows
+
+```
+pacman -S mingw-w64-x86_64-gcc make
+make runner
+```
+
+### On macOS
+
+```
+brew install mingw-w64
+make windows
+```
+
+### On Linux
+
+```
+sudo apt install mingw-w64
+make windows
+```
+
 ## Prerequisites
 - Python 3.11 environment with project dependencies: `pip install -r requirements.txt`
 - PyInstaller: `pip install pyinstaller`: 
