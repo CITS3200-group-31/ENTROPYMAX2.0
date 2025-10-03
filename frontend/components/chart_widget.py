@@ -5,18 +5,31 @@ Handles CH and Rs analysis visualization.
 
 import numpy as np
 import pyqtgraph as pg
-from PyQt6.QtWidgets import QWidget, QVBoxLayout
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QToolTip
+from PyQt6.QtCore import pyqtSignal as Signal
 from .visualization_settings import VisualizationSettings
 
 
 class ChartWidget(QWidget):
     """Widget for displaying analysis charts (CH and Rs)."""
     
+    # Signal emitted when a K value is selected by clicking
+    kValueSelected = Signal(int)  # K value
+    
     def __init__(self, title="Chart", ylabel="Value", parent=None):
         super().__init__(parent)
         self.title = title
         self.ylabel = ylabel
         self.settings = VisualizationSettings()
+        
+        # Interactive selection state
+        self.k_values = []  # Store K values for interaction
+        self.y_values = []  # Store Y values for interaction
+        self.selected_k = None  # Currently selected K value
+        self.optimal_k = None  # Optimal K value (marked with star)
+        self.scatter_plot = None  # Reference to scatter plot item
+        self.selected_marker = None  # Reference to selected K marker
+        
         self._setup_ui()
         
         # Connect to settings changes
@@ -35,6 +48,10 @@ class ChartWidget(QWidget):
         
         # Set background color
         self.plot_widget.setBackground('w')
+        
+        # Connect mouse events for interaction
+        self.plot_widget.scene().sigMouseClicked.connect(self._on_plot_clicked)
+        self.plot_widget.scene().sigMouseMoved.connect(self._on_mouse_moved)
         
         layout.addWidget(self.plot_widget)
         
@@ -94,6 +111,11 @@ class ChartWidget(QWidget):
         """
         self.plot_widget.clear()
         
+        # Store data for interaction
+        self.k_values = np.array(k_values)
+        self.y_values = np.array(y_values)
+        self.selected_marker = None  # Reset selected marker
+        
         # Store plot data for replotting when settings change
         self._last_plot_data = (k_values, y_values, color, symbol, name)
         
@@ -103,15 +125,23 @@ class ChartWidget(QWidget):
         # Calculate symbol size based on line thickness
         symbol_size = max(6, int(self.settings.line_thickness * 3))
         
-        # Plot the data
+        # Plot the line
         self.plot_widget.plot(
             k_values, 
             y_values, 
             pen=pen, 
-            symbol=symbol, 
-            symbolSize=symbol_size,
-            symbolBrush=color, 
             name=name
+        )
+        
+        # Plot clickable scatter points on top
+        self.scatter_plot = self.plot_widget.plot(
+            k_values,
+            y_values,
+            pen=None,
+            symbol=symbol,
+            symbolSize=symbol_size,
+            symbolBrush=color,
+            symbolPen=pg.mkPen(color='w', width=1)
         )
         
     def add_optimal_marker(self, k_value, y_value):
@@ -122,6 +152,9 @@ class ChartWidget(QWidget):
             k_value: Optimal k value
             y_value: Corresponding y value
         """
+        # Store optimal K
+        self.optimal_k = k_value
+        
         # Add star marker for optimal value
         self.plot_widget.plot(
             [k_value], 
@@ -130,12 +163,114 @@ class ChartWidget(QWidget):
             symbol='star', 
             symbolSize=15, 
             symbolBrush='r', 
+            symbolPen=pg.mkPen(color='darkred', width=2),
             name=f'Optimal k={k_value}'
         )
         
+    def _on_plot_clicked(self, event):
+        """Handle mouse click on plot to select K value."""
+        from PyQt6.QtCore import Qt
+        
+        if event.button() != Qt.MouseButton.LeftButton:
+            return
+        
+        if len(self.k_values) == 0:
+            return
+        
+        # Get click position in plot coordinates
+        pos = event.scenePos()
+        mouse_point = self.plot_widget.plotItem.vb.mapSceneToView(pos)
+        x_click = mouse_point.x()
+        y_click = mouse_point.y()
+        
+        # Find nearest K value
+        # Normalize distances for better detection
+        x_range = self.plot_widget.viewRange()[0]
+        y_range = self.plot_widget.viewRange()[1]
+        x_scale = x_range[1] - x_range[0] if x_range[1] != x_range[0] else 1
+        y_scale = y_range[1] - y_range[0] if y_range[1] != y_range[0] else 1
+        
+        distances = np.sqrt(
+            ((self.k_values - x_click) / x_scale) ** 2 + 
+            ((self.y_values - y_click) / y_scale) ** 2
+        )
+        
+        min_idx = np.argmin(distances)
+        
+        # Only select if click is close enough (threshold)
+        if distances[min_idx] < 0.1:  # Normalized distance threshold
+            selected_k = int(self.k_values[min_idx])
+            selected_y = self.y_values[min_idx]
+            
+            # Update selection
+            self._update_selection(selected_k, selected_y)
+            
+            # Emit signal
+            self.kValueSelected.emit(selected_k)
+    
+    def _on_mouse_moved(self, pos):
+        """Handle mouse movement for tooltip."""
+        if len(self.k_values) == 0:
+            return
+        
+        # Get mouse position in plot coordinates
+        mouse_point = self.plot_widget.plotItem.vb.mapSceneToView(pos)
+        x_hover = mouse_point.x()
+        y_hover = mouse_point.y()
+        
+        # Find nearest K value
+        x_range = self.plot_widget.viewRange()[0]
+        y_range = self.plot_widget.viewRange()[1]
+        x_scale = x_range[1] - x_range[0] if x_range[1] != x_range[0] else 1
+        y_scale = y_range[1] - y_range[0] if y_range[1] != y_range[0] else 1
+        
+        distances = np.sqrt(
+            ((self.k_values - x_hover) / x_scale) ** 2 + 
+            ((self.y_values - y_hover) / y_scale) ** 2
+        )
+        
+        min_idx = np.argmin(distances)
+        
+        # Show tooltip if close enough
+        if distances[min_idx] < 0.08:
+            k_val = int(self.k_values[min_idx])
+            y_val = self.y_values[min_idx]
+            
+            # Convert to global position for tooltip
+            global_pos = self.plot_widget.mapToGlobal(pos.toPoint())
+            QToolTip.showText(global_pos, f"K={k_val}, {self.ylabel}={y_val:.2f}")
+        else:
+            QToolTip.hideText()
+    
+    def _update_selection(self, k_value, y_value):
+        """Update visual selection marker."""
+        # Remove previous selection marker if exists
+        if self.selected_marker is not None:
+            self.plot_widget.removeItem(self.selected_marker)
+        
+        # Update selected K
+        self.selected_k = k_value
+        
+        # Add new selection marker (green circle)
+        self.selected_marker = self.plot_widget.plot(
+            [k_value],
+            [y_value],
+            pen=None,
+            symbol='o',
+            symbolSize=18,
+            symbolBrush=None,
+            symbolPen=pg.mkPen(color='#4CAF50', width=3)
+        )
+    
     def clear(self):
         """Clear the chart."""
         self.plot_widget.clear()
+        self.k_values = []
+        self.y_values = []
+        self.selected_k = None
+        self.optimal_k = None
+        self.scatter_plot = None
+        self.selected_marker = None
 
 
 class DualChartWidget(QWidget):

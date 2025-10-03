@@ -2,13 +2,13 @@
 Enhanced interactive map widget with direct point selection and group visualization.
 """
 
-import os
 import folium
 from statistics import mean
 from PyQt6.QtCore import QUrl
 from PyQt6.QtCore import pyqtSignal as Signal
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineSettings, QWebEnginePage
+from utils.cache_paths import ensure_cache_subdir
 from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtCore import QObject, pyqtSlot
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
@@ -75,6 +75,11 @@ class InteractiveMapWidget(QWidget):
         self._setup_ui()
         self._connect_bridge_signals()
         
+    def _get_map_html_path(self):
+        """Get the path for map HTML file in entro_cache/cache directory."""
+        cache_dir = ensure_cache_subdir("cache")
+        return str(cache_dir / "interactive_map.html")
+    
     def _setup_ui(self):
         """Initialize the UI components."""
         layout = QVBoxLayout(self)
@@ -244,12 +249,12 @@ class InteractiveMapWidget(QWidget):
         # Add arrow and distance tools
         self._add_map_tools(m)
         
-        # Save and load HTML
-        html_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'interactive_map.html'))
+        # Save HTML to entro_cache directory
+        html_path = self._get_map_html_path()
         m.save(html_path)
         
         # Inject QWebChannel script
-        with open(html_path, 'r') as f:
+        with open(html_path, 'r', encoding='utf-8') as f:
             html_content = f.read()
         
         # Add QWebChannel and selection handling JavaScript
@@ -285,7 +290,7 @@ class InteractiveMapWidget(QWidget):
         # Insert before closing body tag
         html_content = html_content.replace('</body>', channel_script + '</body>')
         
-        with open(html_path, 'w') as f:
+        with open(html_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
         
         self.web_view.setUrl(QUrl.fromLocalFile(html_path))
