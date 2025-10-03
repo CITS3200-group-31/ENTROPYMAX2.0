@@ -8,6 +8,7 @@ import sys
 import uuid
 import shutil
 import atexit
+import platform
 from pathlib import Path
 from typing import Dict
 import logging
@@ -115,6 +116,9 @@ class TempFileManager:
     
     def get_binary_path(self, binary_name: str = "run_entropymax") -> Path:
         """Get path to binary in cache directory"""
+        # Add .exe extension on Windows
+        if platform.system() == "Windows" and not binary_name.endswith(".exe"):
+            binary_name = f"{binary_name}.exe"
         return self.binary_dir / binary_name
     
     def setup_binary_from_bundle(self, binary_name: str = "run_entropymax") -> Path:
@@ -123,7 +127,7 @@ class TempFileManager:
         Always copies and overwrites to ensure integrity.
         
         Args:
-            binary_name: Name of the binary file
+            binary_name: Name of the binary file (without extension)
             
         Returns:
             Path to the binary in cache directory
@@ -132,6 +136,10 @@ class TempFileManager:
             FileNotFoundError: If source binary not found
             PermissionError: If cannot set executable permissions
         """
+        # Add .exe extension on Windows
+        if platform.system() == "Windows" and not binary_name.endswith(".exe"):
+            binary_name = f"{binary_name}.exe"
+        
         # Determine source path
         if getattr(sys, 'frozen', False):
             # Running in PyInstaller bundle
@@ -151,21 +159,23 @@ class TempFileManager:
             shutil.copy2(source_path, dest_path)
             logger.info(f"Copied binary from {source_path} to {dest_path}")
             
-            # Set executable permissions
-            os.chmod(dest_path, 0o755)
-            logger.info(f"Set executable permissions on {dest_path}")
+            # Set executable permissions (not needed on Windows)
+            if platform.system() != "Windows":
+                os.chmod(dest_path, 0o755)
+                logger.info(f"Set executable permissions on {dest_path}")
             
             # On macOS, try to remove quarantine attribute (may fail, that's ok)
-            try:
-                import subprocess
-                subprocess.run(
-                    ['xattr', '-d', 'com.apple.quarantine', str(dest_path)],
-                    capture_output=True,
-                    timeout=5
-                )
-                logger.info(f"Removed quarantine attribute from {dest_path}")
-            except Exception as e:
-                logger.debug(f"Could not remove quarantine attribute: {e}")
+            if platform.system() == "Darwin":
+                try:
+                    import subprocess
+                    subprocess.run(
+                        ['xattr', '-d', 'com.apple.quarantine', str(dest_path)],
+                        capture_output=True,
+                        timeout=5
+                    )
+                    logger.info(f"Removed quarantine attribute from {dest_path}")
+                except Exception as e:
+                    logger.debug(f"Could not remove quarantine attribute: {e}")
             
             return dest_path
             
