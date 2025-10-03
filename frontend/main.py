@@ -12,6 +12,7 @@ from components.chart_widget import ChartWidget
 from components.settings_dialog import SettingsDialog
 from utils.csv_export import export_analysis_results
 from help import FormatExamplesDialog
+from utils.create_kml import create_kml
 
 # Import sample GPS CH, RS AND K mock data
 from sample_data import SAMPLE_CH_RS_DATA, get_optimal_k
@@ -63,6 +64,7 @@ class EntropyMaxFinal(QMainWindow):
         self.input_file_path = None
         self.gps_file_path = None
         self.output_file_path = None
+        self.output_file_path_kml = None
         self.selected_samples = []
         self.current_analysis_data = {}
         self.group_detail_popup = GroupDetailPopup()
@@ -251,6 +253,7 @@ class EntropyMaxFinal(QMainWindow):
         self.control_panel.runAnalysisRequested.connect(self._on_run_analysis)
         self.control_panel.showGroupDetailsRequested.connect(self._on_show_group_details)
         self.control_panel.exportResultsRequested.connect(self._on_export_results)
+        self.control_panel.outputFileSelectedKML.connect(self._on_export_results_kml)
 
         # Connect signals from map-sample widget
         self.map_sample_widget.selectionChanged.connect(self._on_selection_changed)
@@ -447,6 +450,33 @@ class EntropyMaxFinal(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Export Error", str(e))
 
+    def _on_export_results_kml(self):
+        """Export current analysis results."""
+        if not self.current_analysis_data:
+            QMessageBox.warning(self, "No Results",
+                              "Please run an analysis first.")
+            return
+
+        # Let user choose output file location
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Analysis Results",
+            "analysis_results.kml",
+            "KML Files (*.kml)"
+        )
+
+        if not file_path:  # User cancelled
+            return
+        try:
+            if self.control_panel.k_output == "None":
+                create_kml(self.current_analysis_data, 0, 0, file_path)
+            elif self.control_panel.k_output:
+                create_kml(self.current_analysis_data, self.control_panel.k_output, 0, file_path)
+            QMessageBox.information(self, "Export Successful",
+                                f"Results saved to:\n{file_path}")
+        except Exception as e:
+            QMessageBox.critical(self, "Export Error, check k-value and file-path", str(e))
+
     def _plot_analysis_results(self):
         """Plot the analysis results."""
         k_values = self.current_analysis_data['k_values']
@@ -469,6 +499,7 @@ class EntropyMaxFinal(QMainWindow):
         self.input_file_path = None
         self.gps_file_path = None
         self.output_file_path = None
+        self.output_file_path_kml = None
         self.selected_samples = []
 
         # Reset UI components
