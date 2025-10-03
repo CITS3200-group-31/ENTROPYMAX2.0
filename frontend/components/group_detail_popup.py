@@ -2,8 +2,6 @@
 Group detail popup component for displaying line charts for each group.
 """
 
-import os
-import csv
 import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout, QToolTip, QPushButton, QMainWindow, QToolBar, QFileDialog
@@ -26,88 +24,6 @@ class GroupDetailPopup(QObject):
         self.data_path = None
         self.group_data = {}
         
-    def set_data_path(self, path):
-        """Set the path to the CSV data file."""
-        self.data_path = path
-        
-    def load_and_show_popups(self, csv_path=None, k_value=None, x_unit='μm', y_unit='a.u.'):
-        """
-        Load data from CSV and create popup windows for each group.
-        
-        Args:
-            csv_path: Path to the CSV file (optional, uses default if not provided)
-            k_value: Number of groups (optional, uses mock data if not provided)
-            x_unit: Unit label for the x-axis (default 'μm')
-            y_unit: Unit label for the y-axis (default 'a.u.')
-        """
-        # Close any existing windows
-        self.close_all()
-        
-        # Use provided path or default to sample data
-        if csv_path is None:
-            csv_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
-                'test', 'data', 'Input file GP for Entropy 20240910.csv'
-            )
-        
-        if not os.path.exists(csv_path):
-            raise FileNotFoundError(f"Data file not found: {csv_path}")
-        
-        # Parse the CSV data
-        grouped_samples = self._parse_csv_data(csv_path, k_value)
-        
-        # Create popup windows for each group
-        self._create_popup_windows(grouped_samples, x_unit=x_unit, y_unit=y_unit)
-    
-    def _parse_csv_data(self, csv_path, k_value=None):
-        """
-        Parse CSV data and group samples.
-        
-        Args:
-            csv_path: Path to the CSV file
-            k_value: Number of groups (if None, uses 5 as default)
-        
-        Returns:
-            Dictionary with group_id as key and list of sample values as value
-        """
-        grouped_samples = defaultdict(list)
-        
-        with open(csv_path, 'r') as f:
-            reader = csv.reader(f)
-            header = next(reader)
-            
-            # Extract column headers (grain sizes)
-            self.x_labels = header[1:]  # Skip first column (sample name)
-            # Convert grain sizes to numeric values for log scale
-            self.x_values = self._parse_grain_sizes(self.x_labels)
-            
-            # Process each row of data
-            for i, row in enumerate(reader):
-                if not row:
-                    continue
-                
-                # Mock grouping: distribute samples across k groups
-                # In real implementation, this should come from the analysis results
-                k = k_value if k_value else 5
-                group_id = (i % k) + 1
-                
-                # Convert string values to float, skip the sample name
-                try:
-                    # Handle empty strings by converting them to 0.0
-                    y_values = []
-                    for val in row[1:]:
-                        if val.strip() == '':
-                            y_values.append(0.0)
-                        else:
-                            y_values.append(float(val))
-                    grouped_samples[group_id].append({
-                        'name': row[0],  # Sample name
-                        'values': y_values
-                    })
-                except (ValueError, IndexError):
-                    continue
-        
-        return grouped_samples
     
     def _parse_grain_sizes(self, labels):
         """
@@ -173,6 +89,34 @@ class GroupDetailPopup(QObject):
             window.show()
             self.detail_windows.append(window)
     
+    def load_and_show_popups_from_data(self, group_details, k_value, x_unit='μm', y_unit='a.u.'):
+        """
+        Load and show popups from extracted group details data.
+        
+        Args:
+            group_details: Dictionary from DataPipeline.extract_group_details()
+            k_value: Number of groups
+            x_unit: Unit label for x-axis
+            y_unit: Unit label for y-axis
+        """
+        # Close any existing windows
+        self.close_all()
+        
+        # Convert group_details to grouped_samples format
+        grouped_samples = {}
+        for group_id, details in group_details.items():
+            grouped_samples[group_id] = details['samples']
+            self.x_labels = details['x_labels']
+            self.x_values = self._parse_grain_sizes(details['x_labels'])
+            
+            # Debug: Check lengths
+            print(f"DEBUG Group {group_id}: x_labels={len(self.x_labels)}, x_values={len(self.x_values)}")
+            if details['samples']:
+                print(f"DEBUG Group {group_id}: first sample values length={len(details['samples'][0]['values'])}")
+        
+        # Create popup windows
+        self._create_popup_windows(grouped_samples, x_unit=x_unit, y_unit=y_unit)
+    
     def close_all(self):
         """Close all open detail windows."""
         for window in self.detail_windows:
@@ -196,10 +140,14 @@ class GroupDetailWindow(QMainWindow):
         self.base_color = color
         self.x_unit = x_unit
         self.y_unit = y_unit
-        self.plot_items = []  # Store plot items with sample names
-        self.hover_tooltip = None  # For showing sample name on hover
-        self.is_log_scale = True  # Default to logarithmic scale
-        self.original_x_values = None  # Store original x values for switching
+        self.plot_items = []  # plot items and meta per sample
+        self.is_log_scale = True  # default to logarithmic x
+        self.original_x_values = None  # original grain sizes
+
+        # Hover/pin overlays
+        self.point_marker = None    # transient hover point (ScatterPlotItem)
+        self.coord_label = None     # transient text label (TextItem)
+        self.pinned_markers = []    # list of {'scatter':..., 'label':...}
         
         # Get visualization settings instance
         self.settings = VisualizationSettings()
@@ -290,6 +238,12 @@ class GroupDetailWindow(QMainWindow):
         self.scale_action.setToolTip("Toggle between logarithmic and linear scale")
         self.scale_action.triggered.connect(self._toggle_scale)
         toolbar.addAction(self.scale_action)
+
+        # Clear pinned/hover points action (placed next to scale toggle)
+        self.clear_points_action = QAction("Clear Markers", self)
+        self.clear_points_action.setToolTip("Remove all pinned markers and hide hover label")
+        self.clear_points_action.triggered.connect(self._clear_all_points)
+        toolbar.addAction(self.clear_points_action)
         
         # Separator
         toolbar.addSeparator()
@@ -359,7 +313,7 @@ class GroupDetailWindow(QMainWindow):
                 print(f"Failed to export to {file_path}")
     
     def _plot_data(self):
-        """Plot the sample data on the chart."""
+        """Plot sample curves and prepare overlays."""
         # Store original x values
         if self.original_x_values is None:
             self.original_x_values = self.x_values.copy()
@@ -368,9 +322,12 @@ class GroupDetailWindow(QMainWindow):
         color = pg.mkColor(self.base_color)
         r, g, b, _ = color.getRgb()
         
-        # Clear existing plot items
+        # Clear plot and state
         self.plot_widget.clear()
         self.plot_items = []
+        self._clear_pinned_points()
+        self.point_marker = None
+        self.coord_label = None
         
         # Plot individual sample lines based on scale
         if self.is_log_scale:
@@ -382,11 +339,23 @@ class GroupDetailWindow(QMainWindow):
             valid_mask = ~np.isnan(x_plot_values)
             
             for sample in self.samples:
-                y_values = sample['values']
+                y_values = np.array(sample['values'])
+                
+                # Ensure y_values and x_plot_values have the same length
+                if len(y_values) != len(x_plot_values):
+                    # Truncate or pad to match
+                    min_len = min(len(y_values), len(x_plot_values))
+                    y_values = y_values[:min_len]
+                    x_plot_subset = x_plot_values[:min_len]
+                    valid_mask_subset = valid_mask[:min_len]
+                else:
+                    x_plot_subset = x_plot_values
+                    valid_mask_subset = valid_mask
+                
                 # Use settings for line thickness
                 pen = pg.mkPen(color=(r, g, b, 255), width=self.settings.line_thickness)
-                plot_item = self.plot_widget.plot(x_plot_values[valid_mask], 
-                                                 np.array(y_values)[valid_mask], 
+                plot_item = self.plot_widget.plot(x_plot_subset[valid_mask_subset], 
+                                                 y_values[valid_mask_subset], 
                                                  pen=pen)
                 
                 # Store plot item with sample name and original pen for click detection
@@ -423,14 +392,21 @@ class GroupDetailWindow(QMainWindow):
         # Update x-axis ticks after plotting
         self._update_x_ticks()
         
-        # Connect click and hover events to plot widget
-        self.plot_widget.scene().sigMouseClicked.connect(self._on_plot_clicked)
-        self.plot_widget.scene().sigMouseMoved.connect(self._on_mouse_hover)
+        # Connect click and hover events (avoid duplicates)
+        scene = self.plot_widget.scene()
+        try:
+            scene.sigMouseClicked.disconnect(self._on_plot_clicked)
+        except Exception:
+            pass
+        try:
+            scene.sigMouseMoved.disconnect(self._on_mouse_hover)
+        except Exception:
+            pass
+        scene.sigMouseClicked.connect(self._on_plot_clicked)
+        scene.sigMouseMoved.connect(self._on_mouse_hover)
+
+        # Ensure transient overlay items exist (created lazily on first hover)
         
-        # Connect click and hover events to plot widget
-        self.plot_widget.scene().sigMouseClicked.connect(self._on_plot_clicked)
-        self.plot_widget.scene().sigMouseMoved.connect(self._on_mouse_hover)
-    
 
     def _on_range_changed(self, *args):
         """Update x-axis ticks adaptively when view range changes."""
@@ -511,121 +487,195 @@ class GroupDetailWindow(QMainWindow):
         
         ax.setTextPen('#333')
     
+    # ===== Overlay helpers =====
+    def _format_number(self, v: float) -> str:
+        """Adaptive numeric format."""
+        if v is None:
+            return ""
+        if abs(v) >= 100:
+            return f"{v:.0f}"
+        if abs(v) >= 1:
+            return f"{v:.1f}"
+        if abs(v) >= 0.1:
+            return f"{v:.2f}"
+        return f"{v:.3f}"
+
+    def _ensure_hover_items(self):
+        """Create hover marker and label if missing."""
+        if self.point_marker is None:
+            self.point_marker = pg.ScatterPlotItem(size=8, brush=pg.mkBrush(255, 0, 0, 180), pen=pg.mkPen(None))
+            self.plot_widget.addItem(self.point_marker)
+        if self.coord_label is None:
+            self.coord_label = pg.TextItem(color=(20, 20, 20))
+            self.coord_label.setAnchor((0, 1))
+            self.plot_widget.addItem(self.coord_label)
+
+    def _clear_hover_overlays(self):
+        """Hide transient hover marker and text."""
+        if self.point_marker is not None:
+            self.point_marker.setData([], [])
+        if self.coord_label is not None:
+            self.coord_label.setText("")
+
+    def _update_hover_display(self, x_plot, y_plot, x_disp, y_disp, sample_name: str):
+        """Update transient hover point and text."""
+        self._ensure_hover_items()
+        self.point_marker.setData([x_plot], [y_plot])
+        x_txt = self._format_number(x_disp)
+        y_txt = self._format_number(y_disp)
+        self.coord_label.setText(f"{x_txt} {self.x_unit}, {y_txt} {self.y_unit} — {sample_name}")
+        self.coord_label.setPos(x_plot, y_plot)
+
+    def _pin_point(self, x_plot, y_plot, x_disp, y_disp, sample_name: str):
+        """Create persistent marker+label at a point."""
+        scatter = pg.ScatterPlotItem(size=7, brush=pg.mkBrush(0, 150, 136, 200), pen=pg.mkPen(0, 121, 107), symbol='o')
+        scatter.setData([x_plot], [y_plot])
+        label = pg.TextItem(color=(0, 100, 90))
+        label.setAnchor((0, 1))
+        x_txt = self._format_number(x_disp)
+        y_txt = self._format_number(y_disp)
+        label.setText(f"{x_txt} {self.x_unit}, {y_txt} {self.y_unit} — {sample_name}")
+        label.setPos(x_plot, y_plot)
+        self.plot_widget.addItem(scatter)
+        self.plot_widget.addItem(label)
+        self.pinned_markers.append({'scatter': scatter, 'label': label})
+
+    def _clear_pinned_points(self):
+        """Remove all pinned overlays."""
+        if not self.pinned_markers:
+            return
+        for it in self.pinned_markers:
+            try:
+                self.plot_widget.removeItem(it['scatter'])
+                self.plot_widget.removeItem(it['label'])
+            except Exception:
+                pass
+        self.pinned_markers = []
+
+    def _clear_all_points(self):
+        """Clear pinned points and hide hover overlays."""
+        self._clear_pinned_points()
+        self._clear_hover_overlays()
+    
     def _on_plot_clicked(self, event):
-        """Handle mouse click on the plot to detect which line was clicked."""
+        """Handle mouse clicks: left to pin a point, right to clear pins."""
+        if event.button() == Qt.MouseButton.RightButton:
+            # Clear all pinned overlays
+            self._clear_pinned_points()
+            return
+        
         if event.button() == Qt.MouseButton.LeftButton:
-            # Get the click position in plot coordinates
+            # Scene -> data coords
             pos = event.scenePos()
             mouse_point = self.plot_widget.plotItem.vb.mapSceneToView(pos)
             x_click = mouse_point.x()
             y_click = mouse_point.y()
             
-            # Apply scale transformation for click detection
-            if self.is_log_scale and self.original_x_values is not None:
-                x_plot_values = np.where(self.original_x_values > 0,
-                                        np.log10(self.original_x_values),
-                                        np.nan)
-            else:
-                x_plot_values = self.original_x_values if self.original_x_values is not None else self.x_values
-            
-            # Find the closest line to the click
+            # Find closest point across all curves
             min_distance = float('inf')
-            closest_sample = None
-            closest_item_data = None
+            closest = None  # tuple(item_data, min_idx)
             
             for item_data in self.plot_items:
                 plot_item = item_data['plot_item']
-                sample_name = item_data['sample_name']
-                
-                # Get the data from the plot item
                 x_data, y_data = plot_item.getData()
-                
-                # Find the closest point on this line to the click
-                if len(x_data) > 0:
-                    # Calculate normalized distances for better scale-independent detection
-                    x_range = self.plot_widget.viewRange()[0]
-                    y_range = self.plot_widget.viewRange()[1]
-                    x_scale = x_range[1] - x_range[0] if x_range[1] != x_range[0] else 1
-                    y_scale = y_range[1] - y_range[0] if y_range[1] != y_range[0] else 1
-                    
-                    distances = np.sqrt(((x_data - x_click)/x_scale)**2 + ((y_data - y_click)/y_scale)**2)
-                    min_idx = np.argmin(distances)
-                    
-                    if distances[min_idx] < min_distance:
-                        min_distance = distances[min_idx]
-                        closest_sample = sample_name
-                        closest_item_data = item_data
+                if len(x_data) == 0:
+                    continue
+                x_range = self.plot_widget.viewRange()[0]
+                y_range = self.plot_widget.viewRange()[1]
+                x_scale = x_range[1] - x_range[0] if x_range[1] != x_range[0] else 1
+                y_scale = y_range[1] - y_range[0] if y_range[1] != y_range[0] else 1
+                distances = np.sqrt(((x_data - x_click)/x_scale)**2 + ((y_data - y_click)/y_scale)**2)
+                min_idx = int(np.argmin(distances))
+                if distances[min_idx] < min_distance:
+                    min_distance = distances[min_idx]
+                    closest = (item_data, min_idx)
             
-            # If we found a line close enough to the click, provide feedback and emit signal
-            if closest_sample and min_distance < 0.05:  # Threshold for "close enough" (normalized)
-                # Visual click feedback - briefly change line color
-                if closest_item_data:
-                    plot_item = closest_item_data['plot_item']
-                    click_pen = closest_item_data['click_pen']
-                    original_pen = closest_item_data['original_pen']
-                    
-                    # Set click color and mark as in feedback state
-                    plot_item.setPen(click_pen)
-                    closest_item_data['_is_clicked_feedback'] = True
-                    
-                    # Reset to original color after a short delay
-                    def reset_color():
-                        plot_item.setPen(original_pen)
-                        closest_item_data['_is_clicked_feedback'] = False
-                    QTimer.singleShot(200, reset_color)
+            if closest and min_distance < 0.05:
+                item_data, idx = closest
+                plot_item = item_data['plot_item']
+                x_data, y_data = plot_item.getData()
+                x_plot = float(x_data[idx])
+                y_plot = float(y_data[idx])
                 
-                self.lineClicked.emit(closest_sample)
+                # Convert plotted x to real grain size
+                if self.is_log_scale:
+                    x_disp = 10 ** x_plot
+                else:
+                    # linear mode uses index positions -> map to original grain size
+                    x_index = int(round(x_plot))
+                    x_index = max(0, min(x_index, len(self.original_x_values)-1))
+                    x_disp = float(self.original_x_values[x_index])
+                y_disp = float(y_plot)
+                
+                # Visual click feedback
+                click_pen = item_data['click_pen']
+                original_pen = item_data['original_pen']
+                plot_item.setPen(click_pen)
+                def reset_color():
+                    plot_item.setPen(original_pen)
+                QTimer.singleShot(200, reset_color)
+                
+                # Pin a marker+label at this point
+                self._pin_point(x_plot, y_plot, x_disp, y_disp, item_data['sample_name'])
+                
+                # Emit which sample was clicked
+                self.lineClicked.emit(item_data['sample_name'])
     
     def _on_mouse_hover(self, pos):
-        """Handle mouse hover to show sample name tooltip and provide visual feedback."""
-        # Convert scene position to plot coordinates
+        """Hover: highlight nearest curve and show point coordinates."""
+        # Scene -> data coordinates
         mouse_point = self.plot_widget.plotItem.vb.mapSceneToView(pos)
         x_hover = mouse_point.x()
         y_hover = mouse_point.y()
         
-        # Get plot ranges for normalized distance calculation
+        # Normalized distance for scale-invariant hit testing
         x_range = self.plot_widget.viewRange()[0]
         y_range = self.plot_widget.viewRange()[1]
         x_scale = x_range[1] - x_range[0] if x_range[1] != x_range[0] else 1
         y_scale = y_range[1] - y_range[0] if y_range[1] != y_range[0] else 1
         
-        # Find the closest line to the hover position
         min_distance = float('inf')
-        closest_sample = None
-        closest_item_data = None
+        closest = None  # tuple(item_data, min_idx)
         
         for item_data in self.plot_items:
             plot_item = item_data['plot_item']
-            sample_name = item_data['sample_name']
-            
-            # Get the data from the plot item
             x_data, y_data = plot_item.getData()
-            
-            # Find the closest point on this line to the hover position
-            if len(x_data) > 0:
-                # Calculate normalized distances for scale-independent detection
-                distances = np.sqrt(((x_data - x_hover)/x_scale)**2 + ((y_data - y_hover)/y_scale)**2)
-                min_idx = np.argmin(distances)
-                
-                if distances[min_idx] < min_distance:
-                    min_distance = distances[min_idx]
-                    closest_sample = sample_name
-                    closest_item_data = item_data
+            if len(x_data) == 0:
+                continue
+            distances = np.sqrt(((x_data - x_hover)/x_scale)**2 + ((y_data - y_hover)/y_scale)**2)
+            min_idx = int(np.argmin(distances))
+            if distances[min_idx] < min_distance:
+                min_distance = distances[min_idx]
+                closest = (item_data, min_idx)
         
-        # Reset all lines to original pen (remove previous hover effects)
+        # Reset pens
         for item_data in self.plot_items:
-            if not hasattr(item_data, '_is_clicked_feedback') or not item_data['_is_clicked_feedback']:
-                item_data['plot_item'].setPen(item_data['original_pen'])
+            item_data['plot_item'].setPen(item_data['original_pen'])
         
-        # Show tooltip and hover effect if we're close enough to a line
-        if closest_sample and min_distance < 0.03:  # Threshold for hover (normalized)
-            # Convert scene position to global position for tooltip
-            global_pos = self.plot_widget.mapToGlobal(pos.toPoint())
-            QToolTip.showText(global_pos, f"Sample: {closest_sample}")
+        if closest and min_distance < 0.03:
+            item_data, idx = closest
+            plot_item = item_data['plot_item']
+            x_data, y_data = plot_item.getData()
+            x_plot = float(x_data[idx])
+            y_plot = float(y_data[idx])
             
-            # Apply hover effect - make line thicker
-            if closest_item_data and (not hasattr(closest_item_data, '_is_clicked_feedback') or not closest_item_data['_is_clicked_feedback']):
-                closest_item_data['plot_item'].setPen(closest_item_data['hover_pen'])
+            # Highlight the curve under hover
+            plot_item.setPen(item_data['hover_pen'])
+            
+            # Convert to display values (real grain size, original y)
+            if self.is_log_scale:
+                x_disp = 10 ** x_plot
+            else:
+                x_index = int(round(x_plot))
+                x_index = max(0, min(x_index, len(self.original_x_values)-1))
+                x_disp = float(self.original_x_values[x_index])
+            y_disp = float(y_plot)
+            
+            # Update transient hover marker + text
+            self._update_hover_display(x_plot, y_plot, x_disp, y_disp, item_data['sample_name'])
         else:
-            # Hide tooltip if not hovering over a line
-            QToolTip.hideText()
+            # Hide hover overlays when not near any curve
+            if self.point_marker is not None:
+                self.point_marker.setData([], [])
+            if self.coord_label is not None:
+                self.coord_label.setText("")
