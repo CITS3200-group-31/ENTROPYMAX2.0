@@ -2,8 +2,6 @@
 Group detail popup component for displaying line charts for each group.
 """
 
-import os
-import csv
 import numpy as np
 import pyqtgraph as pg
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout, QToolTip, QPushButton, QMainWindow, QToolBar, QFileDialog
@@ -26,88 +24,6 @@ class GroupDetailPopup(QObject):
         self.data_path = None
         self.group_data = {}
         
-    def set_data_path(self, path):
-        """Set the path to the CSV data file."""
-        self.data_path = path
-        
-    def load_and_show_popups(self, csv_path=None, k_value=None, x_unit='μm', y_unit='a.u.'):
-        """
-        Load data from CSV and create popup windows for each group.
-        
-        Args:
-            csv_path: Path to the CSV file (optional, uses default if not provided)
-            k_value: Number of groups (optional, uses mock data if not provided)
-            x_unit: Unit label for the x-axis (default 'μm')
-            y_unit: Unit label for the y-axis (default 'a.u.')
-        """
-        # Close any existing windows
-        self.close_all()
-        
-        # Use provided path or default to sample data
-        if csv_path is None:
-            csv_path = os.path.join(
-                os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
-                'test', 'data', 'Input file GP for Entropy 20240910.csv'
-            )
-        
-        if not os.path.exists(csv_path):
-            raise FileNotFoundError(f"Data file not found: {csv_path}")
-        
-        # Parse the CSV data
-        grouped_samples = self._parse_csv_data(csv_path, k_value)
-        
-        # Create popup windows for each group
-        self._create_popup_windows(grouped_samples, x_unit=x_unit, y_unit=y_unit)
-    
-    def _parse_csv_data(self, csv_path, k_value=None):
-        """
-        Parse CSV data and group samples.
-        
-        Args:
-            csv_path: Path to the CSV file
-            k_value: Number of groups (if None, uses 5 as default)
-        
-        Returns:
-            Dictionary with group_id as key and list of sample values as value
-        """
-        grouped_samples = defaultdict(list)
-        
-        with open(csv_path, 'r') as f:
-            reader = csv.reader(f)
-            header = next(reader)
-            
-            # Extract column headers (grain sizes)
-            self.x_labels = header[1:]  # Skip first column (sample name)
-            # Convert grain sizes to numeric values for log scale
-            self.x_values = self._parse_grain_sizes(self.x_labels)
-            
-            # Process each row of data
-            for i, row in enumerate(reader):
-                if not row:
-                    continue
-                
-                # Mock grouping: distribute samples across k groups
-                # In real implementation, this should come from the analysis results
-                k = k_value if k_value else 5
-                group_id = (i % k) + 1
-                
-                # Convert string values to float, skip the sample name
-                try:
-                    # Handle empty strings by converting them to 0.0
-                    y_values = []
-                    for val in row[1:]:
-                        if val.strip() == '':
-                            y_values.append(0.0)
-                        else:
-                            y_values.append(float(val))
-                    grouped_samples[group_id].append({
-                        'name': row[0],  # Sample name
-                        'values': y_values
-                    })
-                except (ValueError, IndexError):
-                    continue
-        
-        return grouped_samples
     
     def _parse_grain_sizes(self, labels):
         """
@@ -172,6 +88,34 @@ class GroupDetailPopup(QObject):
             
             window.show()
             self.detail_windows.append(window)
+    
+    def load_and_show_popups_from_data(self, group_details, k_value, x_unit='μm', y_unit='a.u.'):
+        """
+        Load and show popups from extracted group details data.
+        
+        Args:
+            group_details: Dictionary from DataPipeline.extract_group_details()
+            k_value: Number of groups
+            x_unit: Unit label for x-axis
+            y_unit: Unit label for y-axis
+        """
+        # Close any existing windows
+        self.close_all()
+        
+        # Convert group_details to grouped_samples format
+        grouped_samples = {}
+        for group_id, details in group_details.items():
+            grouped_samples[group_id] = details['samples']
+            self.x_labels = details['x_labels']
+            self.x_values = self._parse_grain_sizes(details['x_labels'])
+            
+            # Debug: Check lengths
+            print(f"DEBUG Group {group_id}: x_labels={len(self.x_labels)}, x_values={len(self.x_values)}")
+            if details['samples']:
+                print(f"DEBUG Group {group_id}: first sample values length={len(details['samples'][0]['values'])}")
+        
+        # Create popup windows
+        self._create_popup_windows(grouped_samples, x_unit=x_unit, y_unit=y_unit)
     
     def close_all(self):
         """Close all open detail windows."""
@@ -382,11 +326,23 @@ class GroupDetailWindow(QMainWindow):
             valid_mask = ~np.isnan(x_plot_values)
             
             for sample in self.samples:
-                y_values = sample['values']
+                y_values = np.array(sample['values'])
+                
+                # Ensure y_values and x_plot_values have the same length
+                if len(y_values) != len(x_plot_values):
+                    # Truncate or pad to match
+                    min_len = min(len(y_values), len(x_plot_values))
+                    y_values = y_values[:min_len]
+                    x_plot_subset = x_plot_values[:min_len]
+                    valid_mask_subset = valid_mask[:min_len]
+                else:
+                    x_plot_subset = x_plot_values
+                    valid_mask_subset = valid_mask
+                
                 # Use settings for line thickness
                 pen = pg.mkPen(color=(r, g, b, 255), width=self.settings.line_thickness)
-                plot_item = self.plot_widget.plot(x_plot_values[valid_mask], 
-                                                 np.array(y_values)[valid_mask], 
+                plot_item = self.plot_widget.plot(x_plot_subset[valid_mask_subset], 
+                                                 y_values[valid_mask_subset], 
                                                  pen=pen)
                 
                 # Store plot item with sample name and original pen for click detection

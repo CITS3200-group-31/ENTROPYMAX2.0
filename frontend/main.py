@@ -1,52 +1,14 @@
-import os as _os
-import platform as _platform
 import sys
-
-# Ensure Qt environment is configured BEFORE importing any PyQt modules
-if _platform.system() == 'Linux':
-    # Prefer Wayland on WSLg; fall back to XCB elsewhere
-    if 'WAYLAND_DISPLAY' in _os.environ:
-        _os.environ.setdefault('QT_QPA_PLATFORM', 'wayland')
-    else:
-        _os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
-
-    # Force software rendering paths to avoid GPU/driver issues in VMs/WSL
-    if _os.environ.get('EMAX_FORCE_SOFTWARE_GL', '1') == '1':
-        _os.environ.setdefault('QT_OPENGL', 'software')
-        _os.environ.setdefault('QSG_RHI_BACKEND', 'opengl')
-        _os.environ.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
-        _os.environ.setdefault('MESA_LOADER_DRIVER_OVERRIDE', 'llvmpipe')
-
-    # Qt WebEngine stability flags for sandbox-less environments (e.g., WSL)
-    _os.environ.setdefault('QTWEBENGINE_DISABLE_SANDBOX', '1')
-    _os.environ.setdefault(
-        'QTWEBENGINE_CHROMIUM_FLAGS',
-        '--no-sandbox --disable-gpu --disable-gpu-compositing'
-    )
-
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
-                             QHBoxLayout, QFrame, QMessageBox, QLabel, QMenuBar,
-                             QMenu, QFileDialog)
-from PyQt6.QtCore import QTimer, Qt
+                             QHBoxLayout, QFrame, QMessageBox, QMenu, QFileDialog)
 from components.control_panel import ControlPanel
 from components.group_detail_popup import GroupDetailPopup
 from components.module_preview_card import ModulePreviewCard
 from components.standalone_window import StandaloneWindow
 from components.simple_map_sample_widget import SimpleMapSampleWidget
+from components.chart_widget import ChartWidget
 from components.settings_dialog import SettingsDialog
-from utils.csv_export import export_analysis_results
 from help import FormatExamplesDialog
-from utils.create_kml import create_kml
-
-# Import sample GPS CH, RS AND K mock data
-from sample_data import SAMPLE_CH_RS_DATA, get_optimal_k
-import os
-import sys
-import shutil
-import subprocess
-import pandas as pd
-import pyarrow.parquet as pq
-import time
 
 
 class BentoBox(QFrame):
@@ -67,14 +29,14 @@ class BentoBox(QFrame):
 
 class EntropyMaxFinal(QMainWindow):
     """Main application with module preview cards."""
-
+    
     def __init__(self):
         super().__init__()
         self.setWindowTitle("EntropyMax 2.0")
         self.setGeometry(100, 100, 1200, 700)
         self.setStyleSheet("""
-            QMainWindow {
-                background-color: #f8f9fa;
+            QMainWindow { 
+                background-color: #f8f9fa; 
             }
             QStatusBar {
                 background-color: #ffffff;
@@ -83,30 +45,29 @@ class EntropyMaxFinal(QMainWindow):
                 color: #666;
             }
         """)
-
+        
         # State variables
         self.input_file_path = None
         self.gps_file_path = None
-        self.output_file_path = None
-        self.output_file_path_kml = None
         self.selected_samples = []
         self.current_analysis_data = {}
+        self.selected_k_for_details = None  # User-selected K value for group details
         self.group_detail_popup = GroupDetailPopup()
-
-        # Initialize settings dialog lazily to avoid early QObject init issues on some Linux setups
-        self.settings_dialog = None
-
+        
+        # Initialize settings dialog
+        self.settings_dialog = SettingsDialog(self)
+        
         # Window references
         self.map_window = None
         self.ch_window = None
         self.rs_window = None
-
+        
         self._setup_ui()
         self._setup_menu()
         self._init_standalone_windows()
         self._connect_signals()
         self._reset_workflow()
-
+        
     def _setup_ui(self):
         """Initialize UI with preview cards."""
         central_widget = QWidget()
@@ -114,24 +75,24 @@ class EntropyMaxFinal(QMainWindow):
         main_layout = QHBoxLayout(central_widget)
         main_layout.setContentsMargins(15, 15, 15, 15)
         main_layout.setSpacing(15)
-
+        
         # Left panel: Controls
         left_panel = BentoBox(title="Controls")
         left_layout = QVBoxLayout(left_panel)
         left_layout.setContentsMargins(5, 5, 5, 5)
-
+        
         self.control_panel = ControlPanel()
         left_layout.addWidget(self.control_panel)
         left_layout.addStretch()
         left_panel.setFixedWidth(340)
         main_layout.addWidget(left_panel)
-
+        
         # Right panel: Module preview cards
         right_container = QWidget()
         right_layout = QVBoxLayout(right_container)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(15)
-
+        
         # Map preview card
         self.map_preview_card = ModulePreviewCard(
             title="Map & Sample List",
@@ -139,7 +100,7 @@ class EntropyMaxFinal(QMainWindow):
         )
         self.map_preview_card.openRequested.connect(self._open_map_window)
         right_layout.addWidget(self.map_preview_card)
-
+        
         # CH analysis preview card
         self.ch_preview_card = ModulePreviewCard(
             title="CH Analysis",
@@ -147,18 +108,18 @@ class EntropyMaxFinal(QMainWindow):
         )
         self.ch_preview_card.openRequested.connect(self._open_ch_window)
         right_layout.addWidget(self.ch_preview_card)
-
+        
         # RS analysis preview card
         self.rs_preview_card = ModulePreviewCard(
-            title="Rs Analysis",
+            title="Rs Analysis", 
             description="Rs Percentage visualization"
         )
         self.rs_preview_card.openRequested.connect(self._open_rs_window)
         right_layout.addWidget(self.rs_preview_card)
-
+        
         right_layout.addStretch()
         main_layout.addWidget(right_container)
-
+    
     def _init_standalone_windows(self):
         """Initialize standalone window components"""
         # Map window
@@ -167,59 +128,44 @@ class EntropyMaxFinal(QMainWindow):
         self.map_window.exportRequested.connect(lambda: self._export_window_content(self.map_sample_widget, "map"))
         self.map_widget = self.map_sample_widget.map_widget
         self.sample_list = self.map_sample_widget.sample_list
-
+        
         # CH chart window
-        self.ch_chart = self._create_chart_widget(title="CH Index", ylabel="CH Index")
+        self.ch_chart = ChartWidget(
+            title="CH Index",
+            ylabel="CH Index"
+        )
         self.ch_window = StandaloneWindow("CH Analysis", self.ch_chart)
         self.ch_window.exportRequested.connect(lambda: self._export_window_content(self.ch_chart, "ch"))
-
+        
         # RS chart window
-        self.rs_chart = self._create_chart_widget(title="Rs %", ylabel="Rs %")
+        self.rs_chart = ChartWidget(
+            title="Rs %",
+            ylabel="Rs %"
+        )
         self.rs_window = StandaloneWindow("Rs Analysis", self.rs_chart)
         self.rs_window.exportRequested.connect(lambda: self._export_window_content(self.rs_chart, "rs"))
-
-    def _create_chart_widget(self, title: str, ylabel: str):
-        """Create chart widget; on Linux allow disabling charts if env set or import fails."""
-        try:
-            if _platform.system() == 'Linux' and os.environ.get('EMAX_DISABLE_CHARTS', '0') == '1':
-                raise RuntimeError('Charts disabled via EMAX_DISABLE_CHARTS=1')
-            from components.chart_widget import ChartWidget  # local import to avoid early QObject init
-            return ChartWidget(title=title, ylabel=ylabel)
-        except Exception:
-            # Fallback: simple placeholder widget so app can run
-            class ChartPlaceholder(QWidget):
-                def __init__(self):
-                    super().__init__()
-                    self.setMinimumSize(400, 250)
-                def clear(self):
-                    pass
-                def plot_data(self, *args, **kwargs):
-                    pass
-                def add_optimal_marker(self, *args, **kwargs):
-                    pass
-            return ChartPlaceholder()
-
+    
     def _open_map_window(self):
         """Open map window"""
         if self.map_window:
             self.map_window.show()
             self.map_window.raise_()
             self.map_window.activateWindow()
-
+    
     def _open_ch_window(self):
         """Open CH analysis window"""
         if self.ch_window:
             self.ch_window.show()
             self.ch_window.raise_()
             self.ch_window.activateWindow()
-
+    
     def _open_rs_window(self):
         """Open RS analysis window"""
         if self.rs_window:
             self.rs_window.show()
             self.rs_window.raise_()
             self.rs_window.activateWindow()
-
+    
     def _export_window_content(self, widget, window_type):
         """Export window content as PNG"""
         file_path, _ = QFileDialog.getSaveFileName(
@@ -228,12 +174,12 @@ class EntropyMaxFinal(QMainWindow):
             f"{window_type}_export.png",
             "PNG Files (*.png)"
         )
-
+        
         if file_path:
             pixmap = widget.grab()
             pixmap.save(file_path)
             self.statusBar().showMessage(f"Exported to {file_path}", 3000)
-
+    
     def _setup_menu(self):
         """Setup the menu bar with Help menu."""
         menubar = self.menuBar()
@@ -255,7 +201,7 @@ class EntropyMaxFinal(QMainWindow):
                 background-color: #b2dfdb;
             }
         """)
-
+        
         # Help menu
         help_menu = QMenu('Help', self)
         help_menu.setStyleSheet("""
@@ -272,704 +218,414 @@ class EntropyMaxFinal(QMainWindow):
                 background-color: #e0f2f1;
             }
         """)
-
+        
         # Add Format Examples action
         format_action = help_menu.addAction('Format Examples')
         format_action.triggered.connect(self._show_format_examples)
-
+        
         menubar.addMenu(help_menu)
-
+    
     def _show_format_examples(self):
         """Show dialog with format examples for CSV files."""
         dialog = FormatExamplesDialog(self)
         dialog.exec()
-
+        
     def _connect_signals(self):
         """Connect all signals to their handlers."""
         self.control_panel.inputFileSelected.connect(self._on_input_file_selected)
         self.control_panel.gpsFileSelected.connect(self._on_gps_file_selected)
-        self.control_panel.generateMapRequested.connect(self._on_generate_map)
         self.control_panel.runAnalysisRequested.connect(self._on_run_analysis)
-        self.control_panel.showGroupDetailsRequested.connect(self._on_show_group_details)
+        self.control_panel.showMapRequested.connect(self._on_show_map)
         self.control_panel.exportResultsRequested.connect(self._on_export_results)
-        self.control_panel.outputFileSelectedKML.connect(self._on_export_results_kml)
-
+        
         # Connect signals from map-sample widget
         self.map_sample_widget.selectionChanged.connect(self._on_selection_changed)
         self.map_sample_widget.sampleLocateRequested.connect(self._on_locate_sample)
-
+        
         # Connect signal from group detail popup to sample list
         self.group_detail_popup.sampleLineClicked.connect(self._on_sample_line_clicked)
-
+        
+        # Connect K value selection signals from charts - auto show group details
+        self.rs_chart.kValueSelected.connect(self._on_k_value_selected_and_show_details)
+        self.ch_chart.kValueSelected.connect(self._on_k_value_selected_and_show_details)
+        
     def _on_input_file_selected(self, file_path):
         self.input_file_path = file_path
-        # Lightweight validation: ensure file is readable and first column is a sample identifier
-        try:
-            df_head = pd.read_csv(file_path, nrows=1)
-            if df_head.shape[1] < 2:
-                raise ValueError("Expected at least 2 columns (Sample + data bins).")
-            first_col = str(df_head.columns[0]).strip().lower()
-            if "sample" not in first_col:
-                raise ValueError("First column header should contain 'Sample'.")
+        # Validate raw data CSV format
+        from utils.csv_validator import validate_raw_data_csv
+        
+        valid, error_msg = validate_raw_data_csv(file_path)
+        if valid:
             self.statusBar().showMessage("Raw data file loaded successfully.", 3000)
-        except Exception as e:
-            QMessageBox.warning(self, "Raw Data File Validation", str(e))
+        else:
+            QMessageBox.warning(self, "Invalid Raw Data File", 
+                              f"File validation failed:\n{error_msg}")
             self.input_file_path = None
             self.control_panel.input_file = None
             self.control_panel.input_label.setText("No file selected")
             self.control_panel.input_label.setStyleSheet("color: gray; padding: 5px;")
             self.control_panel._update_button_states()
-
+    
     def _on_gps_file_selected(self, file_path):
         self.gps_file_path = file_path
-        # Lightweight validation: ensure required columns are present
-        try:
-            df_head = pd.read_csv(file_path, nrows=1)
-            cols = [str(c).strip().lower() for c in df_head.columns]
-            has_sample = any("sample" in c for c in cols)
-            has_lat = any("lat" in c for c in cols)
-            has_lon = any(("lon" in c) or ("long" in c) for c in cols)
-            if not (has_sample and has_lat and has_lon):
-                raise ValueError("GPS CSV must include Sample, Latitude and Longitude columns.")
+        # Validate GPS CSV format
+        from utils.csv_validator import validate_gps_csv
+        
+        valid, error_msg = validate_gps_csv(file_path)
+        if valid:
             self.statusBar().showMessage("GPS file loaded successfully.", 3000)
-        except Exception as e:
-            QMessageBox.warning(self, "GPS File Validation", str(e))
+        else:
+            QMessageBox.warning(self, "Invalid GPS File", 
+                              f"File validation failed:\n{error_msg}")
             self.gps_file_path = None
             self.control_panel.gps_file = None
             self.control_panel.gps_label.setText("No GPS file selected")
             self.control_panel.gps_label.setStyleSheet("color: gray; padding: 5px;")
             self.control_panel._update_button_states()
-
-    def _on_generate_map(self):
-        """Load data from CSV and render map."""
+        
+    def _on_show_map(self):
+        """Load map data from Parquet and display."""
         try:
-            # Check both files are selected
-            if not self.input_file_path or not self.gps_file_path:
-                QMessageBox.warning(self, "Missing Files",
-                                  "Please select both grain size and GPS files.")
+            if not hasattr(self, 'current_analysis_data') or not self.current_analysis_data:
+                QMessageBox.warning(self, "No Analysis Data", 
+                                  "Please run analysis first.")
                 return
-            # Initial map load should NOT reflect analysis groupings. Always use GPS CSV
-            # and set default group to 1 for all samples.
-            markers = self._parse_gps_csv(self.gps_file_path)
-            for m in markers:
-                m['group'] = 1
-            self.statusBar().showMessage("Map and sample list loaded from GPS data.", 3000)
+            
+            # Get optimal K GPS data from analysis
+            optimal_k = self.current_analysis_data.get('optimal_k')
+            if not optimal_k:
+                raise Exception("No optimal K found in analysis data")
+            
+            gps_data = self.current_analysis_data['gps_data'][optimal_k]
+            
+            # Convert to markers format
+            markers = []
+            for sample_id, info in gps_data.items():
+                markers.append({
+                    'name': sample_id,
+                    'lat': info['lat'],
+                    'lon': info['lon'],
+                    'group': info['group'],
+                    'selected': False
+                })
+            
+            # Load map with grouped data
             self.map_sample_widget.load_data(markers)
+            
+            # Update preview card - show sample count only
+            self.map_preview_card.update_status(f"Loaded {len(markers)} samples")
+            
+            self.statusBar().showMessage(f"Map loaded with {len(markers)} samples (K={optimal_k})", 3000)
+            
         except Exception as e:
-            QMessageBox.critical(self, "Error Loading File", str(e))
-            self._reset_workflow()
-
+            QMessageBox.critical(self, "Error Loading Map", str(e))
+            
     def _on_selection_changed(self, selected_samples):
         self.selected_samples = selected_samples
-
+        
     def _on_locate_sample(self, name, lat, lon):
         self.map_widget.zoom_to_location(lat, lon)
+    
 
-
-
+        
     def _on_sample_line_clicked(self, sample_name):
         """Handle sample line click from group detail popup."""
         # Just highlight the sample normally in the sample list
         self.sample_list.highlight_sample(sample_name)
         self.statusBar().showMessage(f"Highlighted sample: {sample_name}", 3000)
-
+    
+    def _on_k_value_selected_and_show_details(self, k_value):
+        """Handle K value selection from charts and automatically show group details."""
+        self.selected_k_for_details = k_value
+        optimal_k = self.current_analysis_data.get('optimal_k', None)
+        
+        # Update status bar
+        if k_value == optimal_k:
+            self.statusBar().showMessage(
+                f"Selected K={k_value} (Optimal). Loading group details...", 
+                3000
+            )
+        else:
+            self.statusBar().showMessage(
+                f"Selected K={k_value}. Loading group details...", 
+                3000
+            )
+        
+        # Automatically show group details for selected K
+        self._on_show_group_details()
+        
+    def _update_map_groups(self, gps_data):
+        """Update map markers with group assignments from analysis"""
+        # Get current markers
+        current_markers = self.map_sample_widget.get_all_samples_data()
+        
+        # Update group assignments based on analysis results
+        updated_markers = []
+        for marker in current_markers:
+            sample_name = marker['name']
+            if sample_name in gps_data:
+                marker['group'] = gps_data[sample_name]['group']
+            updated_markers.append(marker)
+        
+        # Reload map with updated groups
+        self.map_sample_widget.load_data(updated_markers)
+        
     def _on_run_analysis(self, params):
-        """Run analysis on all loaded data."""
-        # Get all samples data
-        all_data = self.map_sample_widget.get_all_samples_data()
-        if not all_data:
-            QMessageBox.warning(self, "No Sample Data",
-                              "Please load data first by generating the map.")
-            return
+        """Run analysis using real CLI"""
+        from PyQt6.QtWidgets import QProgressDialog
+        from PyQt6.QtCore import Qt
+        from utils.temp_manager import TempFileManager
+        from utils.cli_integration import CLIIntegration
+        from utils.data_pipeline import DataPipeline
+        
+        # Initialize managers
+        self.temp_manager = TempFileManager()
+        
         try:
-            # Determine which samples to analyze: selected subset or all
-            if self.selected_samples:
-                selected_set = set(self.selected_samples)
-                selected_data = [s for s in all_data if str(s.get('name', '')).strip() in selected_set]
-            else:
-                selected_data = list(all_data)
-            # 1) Run compiled backend to generate Parquet
-            start_ts = time.time()
-            # Honor UI K range as environment for backend
+            # Setup binary from bundle (always copy to ensure integrity)
             try:
-                os.environ['EM_K_MIN'] = str(int(params.get('min_groups', 2)))
-                os.environ['EM_K_MAX'] = str(int(params.get('max_groups', 20)))
-            except Exception:
-                pass
-            self._run_compiled_backend(params)
-            # 2) Load metrics from Parquet
-            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            # Wait briefly for a fresh, non-empty Parquet (handles slow AV/disk)
-            parquet_path = None
-            for _ in range(40):  # ~6s max
-                latest = self._find_latest_parquet(project_root, min_mtime=start_ts)
-                if latest and os.path.exists(latest):
-                    try:
-                        st = os.stat(latest)
-                        # Require file modified at or after start time and non-empty
-                        if st.st_mtime >= start_ts and st.st_size > 0:
-                            parquet_path = latest
-                            break
-                    except Exception:
-                        pass
-                time.sleep(0.15)
-            if not parquet_path:
-                raise RuntimeError("Parquet not refreshed after backend run.")
-            k_values, ch_values, rs_values, optimal_k = self._load_metrics_from_parquet(parquet_path)
+                binary_path = self.temp_manager.setup_binary_from_bundle()
+            except Exception as e:
+                raise Exception(f"Failed to setup CLI binary: {e}")
+            
+            cli = CLIIntegration(cli_path=binary_path)
+            pipeline = DataPipeline()
+            
+            # Show progress dialog
+            progress = QProgressDialog("Running analysis...", None, 0, 5, self)
+            progress.setWindowModality(Qt.WindowModality.WindowModal)
+            progress.show()
+            
+            # Step 1: Setup binary
+            progress.setLabelText("Preparing analysis environment...")
+            progress.setValue(1)
+            QApplication.processEvents()
+            
+            # Step 2: Run CLI
+            progress.setLabelText("Running EntropyMax analysis...")
+            progress.setValue(2)
+            QApplication.processEvents()
+            
+            output_csv = str(self.temp_manager.get_path('cli_output'))
+            success, message = cli.run_analysis(
+                params['input_file'],
+                params['gps_file'], 
+                output_csv,
+                params,
+                working_dir=str(self.temp_manager.session_dir)
+            )
+            
+            if not success:
+                raise Exception(f"CLI failed: {message}")
+                
+            # Step 3: Convert to Parquet
+            progress.setLabelText("Converting to Parquet format...")
+            progress.setValue(3)
+            QApplication.processEvents()
+            
+            parquet_path = str(self.temp_manager.get_path('parquet'))
+            if not pipeline.csv_to_parquet(output_csv, parquet_path):
+                raise Exception("Failed to convert CSV to Parquet")
+                
+            # Step 4: Extract data
+            progress.setLabelText("Extracting analysis results...")
+            progress.setValue(4)
+            QApplication.processEvents()
+            
+            analysis_data = pipeline.extract_analysis_data(parquet_path)
+            if not analysis_data:
+                raise Exception("Failed to extract data from Parquet")
+                
+            # Step 5: Update UI
+            progress.setLabelText("Updating visualizations...")
+            progress.setValue(5)
+            QApplication.processEvents()
+            
+            # Save analysis data
+            optimal_k = analysis_data.get('optimal_k')
             self.current_analysis_data = {
                 **params,
-                'num_samples': len(selected_data),
-                'selected_samples': selected_data,
-                'k_values': k_values,
-                'ch_values': ch_values,
-                'rs_values': rs_values,
-                'optimal_k': optimal_k
+                **analysis_data,
+                'parquet_path': parquet_path
             }
-            # 3) Determine K for grouping (env override supported) and update map/list
-            k_for_groups = None
-            try:
-                # Optional override via environment for display K
-                k_override_env = os.environ.get('EMAX_FORCE_GROUP_K') or os.environ.get('EM_FORCE_K')
-                if k_override_env is not None:
-                    try:
-                        k_for_groups = int(k_override_env)
-                    except Exception:
-                        k_for_groups = None
-                    # Clamp to available Ks
-                    if k_for_groups not in (k_values or []):
-                        k_for_groups = None
-                if k_for_groups is None:
-                    # Prefer UI-selected upper bound if within results
-                    preferred_k = None
-                    try:
-                        preferred_k = int(params.get('max_groups')) if params and 'max_groups' in params else None
-                    except Exception:
-                        preferred_k = None
-                    if preferred_k in (k_values or []):
-                        k_for_groups = preferred_k
-                    elif k_values:
-                        # Fall back to the highest available K so users see full range (e.g., 20)
-                        try:
-                            k_for_groups = max(k_values)
-                        except Exception:
-                            k_for_groups = k_values[-1]
-                    else:
-                        k_for_groups = optimal_k if optimal_k is not None else None
-                if k_for_groups is not None:
-                    sample_to_group = self._load_group_assignments(parquet_path, k_for_groups)
-                    self._apply_group_assignments(sample_to_group)
-            except Exception as ge:
-                # Surface but do not block charts if grouping fails
-                QMessageBox.warning(self, "Grouping Update Warning", str(ge))
-            # 4) Refresh markers from freshly generated Parquet for the SAME K to avoid stale K=2 groups
-            try:
-                # Pass k_for_groups so markers reflect the selected K's grouping labels
-                markers = self._parse_markers_from_parquet(parquet_path, k_value=k_for_groups)
-                # On unstable WebEngine setups, allow skipping map refresh during analysis
-                if markers and os.environ.get('EMAX_DISABLE_MAP_REFRESH', '0') != '1':
-                    self.map_sample_widget.load_data(markers)
-            except Exception:
-                pass
+            
+            # Plot results
             self._plot_analysis_results()
-            self.control_panel.enable_analysis_buttons(True)
-            self.statusBar().showMessage("Analysis complete.", 3000)
+            
+            # Update status (don't update map yet, wait for Step 4)
+            self.ch_preview_card.update_status("Analysis complete")
+            self.rs_preview_card.update_status("Analysis complete")
+            self.map_preview_card.update_status("Ready - Click 'Show Map View' to display results")
+            
+            # Enable next step buttons
+            self.control_panel.show_map_btn.setEnabled(True)
+            self.control_panel.export_btn.setEnabled(True)
+            
+            progress.close()
+            self.statusBar().showMessage(f"Analysis complete. Optimal K={optimal_k}. Click 'Show Map View' to see results.", 5000)
+            
         except Exception as e:
+            if 'progress' in locals():
+                progress.close()
             QMessageBox.critical(self, "Analysis Error", str(e))
-
+            self.statusBar().showMessage("Analysis failed.", 3000)
+            # Cleanup on error
+            if hasattr(self, 'temp_manager'):
+                self.temp_manager.cleanup()
+        
     def _on_show_group_details(self):
         """Show group detail popups with line charts for each group."""
-        if not self.input_file_path:
-            QMessageBox.warning(self, "No Input File",
-                              "Please select an input file first.")
+        if not hasattr(self, 'current_analysis_data') or not self.current_analysis_data:
+            QMessageBox.warning(self, "No Analysis Data", 
+                              "Please run analysis first.")
             return
-
+        
         try:
-            # Use a default k value or get it from analysis if available
-            k_value = 4  # Default value
-
-            # Load and show the popup windows with real data from CSV
-            self.group_detail_popup.load_and_show_popups(self.input_file_path, k_value, x_unit='μm', y_unit='%')
-            self.statusBar().showMessage(f"Showing details for {k_value} groups using real data.", 3000)
-
-        except FileNotFoundError as e:
-            QMessageBox.critical(self, "Error Loading Data", f"Input file not found: {str(e)}")
+            from utils.data_pipeline import DataPipeline
+            
+            # Use user-selected K if available, otherwise use optimal K
+            if self.selected_k_for_details is not None:
+                k_value = self.selected_k_for_details
+            else:
+                k_value = self.current_analysis_data.get('optimal_k', 4)
+            
+            parquet_path = self.current_analysis_data.get('parquet_path')
+            
+            if not parquet_path:
+                raise Exception("Parquet file path not found in analysis data")
+            
+            # Extract group details from Parquet
+            pipeline = DataPipeline()
+            group_details = pipeline.extract_group_details(parquet_path, k_value)
+            
+            if not group_details:
+                raise Exception(f"No group data found for K={k_value}")
+            
+            # Show group detail popups with extracted data
+            self.group_detail_popup.load_and_show_popups_from_data(
+                group_details, k_value, x_unit='μm', y_unit='%'
+            )
+            
+            optimal_k = self.current_analysis_data.get('optimal_k', None)
+            if k_value == optimal_k:
+                self.statusBar().showMessage(f"Showing details for K={k_value} groups (Optimal).", 3000)
+            else:
+                self.statusBar().showMessage(f"Showing details for K={k_value} groups.", 3000)
+            
         except Exception as e:
             QMessageBox.critical(self, "Error Showing Group Details", str(e))
-
+    
     def _on_export_results(self):
-        """Export current analysis results."""
+        """Export analysis results CSV and cleanup temp files."""
         if not self.current_analysis_data:
-            QMessageBox.warning(self, "No Results",
+            QMessageBox.warning(self, "No Results", 
                               "Please run an analysis first.")
             return
-
+        
+        if not hasattr(self, 'temp_manager'):
+            QMessageBox.warning(self, "No Temp Files", 
+                              "No temporary files found to export.")
+            return
+        
         # Let user choose output file location
         file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Export Analysis Results",
-            "analysis_results.csv",
+            self, 
+            "Export Analysis Results", 
+            "analysis_results.csv", 
             "CSV Files (*.csv)"
         )
-
+        
         if not file_path:  # User cancelled
             return
-
+        
         try:
-            saved_path = export_analysis_results(
-                file_path,
-                self.current_analysis_data
-            )
-            QMessageBox.information(self, "Export Successful",
-                                f"Results saved to:\n{saved_path}")
+            from pathlib import Path
+            
+            # Ensure .csv extension
+            if not file_path.endswith('.csv'):
+                file_path += '.csv'
+            
+            # Export the processed CSV from temp directory
+            self.temp_manager.export_to('cli_output', Path(file_path))
+            
+            # Clean up temporary files after successful export
+            self.temp_manager.cleanup()
+            
+            QMessageBox.information(self, "Export Successful", 
+                                f"Results saved to:\n{file_path}\n\nTemporary files have been cleaned up.")
+            
+            self.statusBar().showMessage(f"Results exported to {Path(file_path).name}", 3000)
+            
         except Exception as e:
-            QMessageBox.critical(self, "Export Error", str(e))
-
-    def _on_export_results_kml(self):
-        """Export current analysis results."""
-        if not self.current_analysis_data:
-            QMessageBox.warning(self, "No Results",
-                              "Please run an analysis first.")
-            return
-
-        # Let user choose output file location
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Export Analysis Results",
-            "analysis_results.kml",
-            "KML Files (*.kml)"
-        )
-
-        if not file_path:  # User cancelled
-            return
-        try:
-            if self.control_panel.k_output == "None":
-                create_kml(self.current_analysis_data, 0, 0, file_path)
-            elif self.control_panel.k_output:
-                create_kml(self.current_analysis_data, self.control_panel.k_output, 0, file_path)
-            QMessageBox.information(self, "Export Successful",
-                                f"Results saved to:\n{file_path}")
-        except Exception as e:
-            QMessageBox.critical(self, "Export Error, check k-value and file-path", str(e))
-
+            QMessageBox.critical(self, "Export Error", 
+                              f"Failed to export results:\n{str(e)}")
+            
     def _plot_analysis_results(self):
         """Plot the analysis results."""
         k_values = self.current_analysis_data['k_values']
         ch_values = self.current_analysis_data['ch_values']
         rs_values = self.current_analysis_data['rs_values']
         optimal_k = self.current_analysis_data['optimal_k']
-
-        if hasattr(self.ch_chart, 'plot_data'):
-            self.ch_chart.plot_data(k_values, ch_values, '#2196F3', 'o', 'CH Index')
-        if hasattr(self.rs_chart, 'plot_data'):
-            self.rs_chart.plot_data(k_values, rs_values, '#4CAF50', 's', 'Rs %')
-
-        if optimal_k is not None and hasattr(self.ch_chart, 'add_optimal_marker'):
+        
+        self.ch_chart.plot_data(k_values, ch_values, '#2196F3', 'o', 'CH Index')  # Blue
+        self.rs_chart.plot_data(k_values, rs_values, '#4CAF50', 's', 'Rs %')  # Green
+        # self.group_graph_widget.plot_analysis_results(x_values, group_values, peak_k)
+        # self.group_graph_widget.plot_analysis_results(x_values, group_values)
+        
+        if optimal_k is not None:
             idx = list(k_values).index(optimal_k)
             self.ch_chart.add_optimal_marker(optimal_k, ch_values[idx])
-
+            
     def _reset_workflow(self):
         """Reset the UI to its initial state."""
+        # Clean up temp files if they exist
+        if hasattr(self, 'temp_manager'):
+            try:
+                self.temp_manager.cleanup()
+            except Exception as e:
+                print(f"Warning: Failed to cleanup temp files: {e}")
+        
         # Reset file paths
         self.input_file_path = None
         self.gps_file_path = None
-        self.output_file_path = None
-        self.output_file_path_kml = None
         self.selected_samples = []
-
+        self.selected_k_for_details = None
+        
         # Reset UI components
         self.control_panel.reset_workflow()
         self.map_sample_widget.load_data([])
-        if hasattr(self.ch_chart, 'clear'):
-            self.ch_chart.clear()
-        if hasattr(self.rs_chart, 'clear'):
-            self.rs_chart.clear()
+        self.ch_chart.clear()
+        self.rs_chart.clear()
         self.group_detail_popup.close_all()
         self.current_analysis_data = {}
-
+        
         # Reset preview cards
         self.map_preview_card.update_status("Not loaded")
         self.ch_preview_card.update_status("Not loaded")
         self.rs_preview_card.update_status("Not loaded")
-
+        
         self.statusBar().showMessage("Workflow reset. Select input files to begin.", 5000)
-
-    def _parse_gps_csv(self, file_path):
-        """Parse GPS CSV file to get marker data."""
-        # For now, use the sample GPS data as fallback
-        # In production, this should read from the parquet file
-        import pandas as pd
+    
+    def closeEvent(self, event):
+        """Handle window close event and cleanup entire cache directory."""
+        from utils.temp_manager import TempFileManager
+        
+        # Close all group detail popups before closing the main window
+        self.group_detail_popup.close_all()
+        
+        # Clean up cache directory contents on app exit
         try:
-            df = pd.read_csv(file_path)
-            # Handle various column name formats
-            col_mapping = {}
-            for col in df.columns:
-                col_lower = col.lower().strip()
-                if 'sample' in col_lower or 'name' in col_lower:
-                    col_mapping['name'] = col
-                elif 'lat' in col_lower:
-                    col_mapping['lat'] = col
-                elif 'lon' in col_lower or 'long' in col_lower:
-                    col_mapping['lon'] = col
-
-            if 'name' in col_mapping and 'lat' in col_mapping and 'lon' in col_mapping:
-                markers = []
-                for _, row in df.iterrows():
-                    markers.append({
-                        'name': str(row[col_mapping['name']]),
-                        'lat': float(row[col_mapping['lat']]),
-                        'lon': float(row[col_mapping['lon']]),
-                        'group': 1,  # Default group, will be updated after analysis
-                        'selected': False
-                    })
-                return markers
-            else:
-                raise ValueError("GPS file missing required columns")
+            TempFileManager.cleanup_entire_cache()
+            print("Cache directory contents cleaned up on exit")
         except Exception as e:
-            print(f"Error parsing GPS file: {e}")
-
-    def _parse_markers_from_parquet(self, parquet_path, k_value=None):
-        """Parse markers (name, lat, lon, optional group) from Parquet output.
-        If k_value is provided, filter rows by K==k_value so group labels reflect the selected K.
-        """
-        table = pq.read_table(parquet_path)
-        cols = [f.name for f in table.schema]
-        def find_col(sub):
-            for c in cols:
-                if sub.lower() in c.lower():
-                    return c
-            return None
-        name_col = 'Sample' if 'Sample' in cols else find_col('sample')
-        lat_col = 'latitude' if 'latitude' in cols else find_col('latitude')
-        lon_col = 'longitude' if 'longitude' in cols else find_col('longitude')
-        grp_col = 'Group' if 'Group' in cols else find_col('group')
-        k_col = 'K' if 'K' in cols else find_col('k')
-        if not name_col or not lat_col or not lon_col:
-            return []
-        select_cols = [c for c in [name_col, lat_col, lon_col, grp_col, k_col] if c]
-        df = table.select(select_cols).to_pandas()
-        # If a specific K is requested, filter first so dedup picks the intended grouping
-        if k_value is not None and k_col in df.columns:
-            df = df[df[k_col] == k_value]
-        df = df.dropna(subset=[name_col, lat_col, lon_col])
-        # Deduplicate on name (first occurrence)
-        df = df.drop_duplicates(subset=[name_col], keep='first')
-        markers = []
-        for _, row in df.iterrows():
-            try:
-                markers.append({
-                    'name': str(row[name_col]).strip(),
-                    'lat': float(row[lat_col]),
-                    'lon': float(row[lon_col]),
-                    'group': int(row[grp_col]) if grp_col and pd.notna(row[grp_col]) else 1,
-                    'selected': False
-                })
-            except Exception:
-                continue
-        return markers
-
-    def _find_backend_executable(self):
-        """Locate the compiled backend runner executable across common build layouts."""
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        # Allow explicit override via environment variable
-        override = os.environ.get('EMAX_RUNNER') or os.environ.get('EM_RUNNER')
-        if override and os.path.exists(override) and os.access(override, os.X_OK):
-            return override
-        candidates = [
-            os.path.join(project_root, 'build', 'bin', 'run_entropymax'),
-            os.path.join(project_root, 'dist', 'linux', 'run_entropymax'),
-            os.path.join(project_root, 'backend', 'build-vcpkg', 'Release', 'run_entropymax.exe'),
-            os.path.join(project_root, 'backend', 'build-vcpkg', 'Debug', 'run_entropymax.exe'),
-            os.path.join(project_root, 'backend', 'build-vcpkg', 'run_entropymax.exe'),
-            os.path.join(project_root, 'backend', 'build', 'run_entropymax.exe'),
-            os.path.join(project_root, 'backend', 'build', 'Release', 'run_entropymax.exe'),
-            os.path.join(project_root, 'backend', 'build', 'Debug', 'run_entropymax.exe'),
-            os.path.join(project_root, 'backend', 'run_entropymax.exe'),
-            os.path.join(project_root, 'run_entropymax.exe'),
-            os.path.join(project_root, 'backend', 'build', 'run_entropymax'),
-        ]
-        for p in candidates:
-            if os.path.exists(p):
-                return p
-        return None
-
-    def _run_compiled_backend(self, params=None):
-        """Copy selected inputs into backend expected locations and execute the runner."""
-        if not self.input_file_path or not self.gps_file_path:
-            raise RuntimeError("Input and GPS files must be selected before running analysis.")
-        exe_path = self._find_backend_executable()
-        if not exe_path:
-            raise FileNotFoundError("Could not locate run_entropymax executable. Please build the backend.")
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        data_raw = os.path.join(project_root, 'data', 'raw')
-        os.makedirs(data_raw, exist_ok=True)
-        # Remove stale Parquet before running
-        try:
-            out_dir = os.path.join(project_root, 'data', 'parquet')
-            os.makedirs(out_dir, exist_ok=True)
-            stale = os.path.join(out_dir, 'output.parquet')
-            if os.path.exists(stale):
-                os.remove(stale)
-        except Exception:
-            pass
-        target_raw = os.path.join(data_raw, 'sample_input.csv')
-        target_gps = os.path.join(data_raw, 'sample_coordinates.csv')
-        # Always overwrite the staged inputs to avoid stale runs
-        try:
-            shutil.copyfile(self.input_file_path, target_raw)
-            shutil.copyfile(self.gps_file_path, target_gps)
-            try:
-                rel_in = os.path.relpath(self.input_file_path, project_root)
-            except Exception:
-                rel_in = self.input_file_path
-            try:
-                rel_gps = os.path.relpath(self.gps_file_path, project_root)
-            except Exception:
-                rel_gps = self.gps_file_path
-            self.statusBar().showMessage(
-                f"Staged inputs: {rel_in} -> data/raw/sample_input.csv; {rel_gps} -> data/raw/sample_coordinates.csv",
-                5000
-            )
-        except Exception as e:
-            raise RuntimeError(f"Failed to stage input files: {e}")
-        # Execute backend with explicit input arguments (runner requires CSV paths)
-        try:
-            cmd = [exe_path, target_raw, target_gps]
-            # Prefer explicit CLI flags so K range is consistent across OS builds
-            try:
-                if params is not None:
-                    kmin = int(params.get('min_groups', 2))
-                    kmax = int(params.get('max_groups', 20))
-                    cmd.extend(["--EM_K_MIN", str(kmin), "--EM_K_MAX", str(kmax)])
-                # Optional forced K via environment
-                kforce_env = os.environ.get('EMAX_FORCE_GROUP_K') or os.environ.get('EM_FORCE_K')
-                if kforce_env is not None:
-                    try:
-                        kforce = int(kforce_env)
-                        cmd.extend(["--EM_FORCE_K", str(kforce)])
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-            proc = subprocess.run(cmd, cwd=project_root, capture_output=True, text=True, timeout=180)
-        except subprocess.TimeoutExpired:
-            raise TimeoutError("Backend execution timed out.")
-        if proc.returncode != 0:
-            stderr = proc.stderr.strip()
-            stdout = proc.stdout.strip()
-            raise RuntimeError(f"Backend failed (exit {proc.returncode}).\nSTDOUT:\n{stdout}\nSTDERR:\n{stderr}")
-        # Wait for Parquet to be generated
-        parquet_path = os.path.join(project_root, 'data', 'parquet', 'output.parquet')
-        if not os.path.exists(parquet_path):
-            raise FileNotFoundError(f"Expected Parquet not found after backend run: {parquet_path}")
-        # Wait for Parquet to be generated
-        max_wait_time = 30 # seconds
-        start_time = time.time()
-        while time.time() - start_time < max_wait_time:
-            if os.path.exists(parquet_path):
-                break
-            time.sleep(1)
-        if not os.path.exists(parquet_path):
-            raise FileNotFoundError(f"Parquet file did not appear after backend run: {parquet_path}")
-
-    def _load_metrics_from_parquet(self, parquet_path):
-        """Extract k, CH and Rs series and optimal K from the processed Parquet."""
-        table = pq.read_table(parquet_path)
-        cols = [f.name for f in table.schema]
-        # Find column names robustly
-        def find_col(sub):
-            for c in cols:
-                if sub.lower() in c.lower():
-                    return c
-            return None
-        k_col = 'K' if 'K' in cols else find_col('k')
-        ch_col = find_col('Calinski-Harabasz')
-        rs_col = find_col('% explained')
-        if not k_col or not ch_col or not rs_col:
-            raise ValueError(f"Required columns not found in Parquet. Have: {cols}")
-        df = table.select([k_col, ch_col, rs_col]).to_pandas()
-        # Aggregate by K (values repeated per row within K)
-        agg = df.groupby(k_col, as_index=False).first().sort_values(k_col)
-        k_values = agg[k_col].to_list()
-        ch_values = agg[ch_col].astype(float).to_list()
-        rs_values = agg[rs_col].astype(float).to_list()
-        # Optimal K by max CH
-        if len(ch_values) == 0:
-            raise ValueError("No CH values found in Parquet.")
-        optimal_idx = int(pd.Series(ch_values).idxmax())
-        optimal_k = int(k_values[optimal_idx])
-        return k_values, ch_values, rs_values, optimal_k
-
-    def _load_group_assignments(self, parquet_path, k_value):
-        """Return mapping of sample name -> group id for a given K from Parquet."""
-        table = pq.read_table(parquet_path)
-        cols = [f.name for f in table.schema]
-        def find_col(sub):
-            for c in cols:
-                if sub.lower() in c.lower():
-                    return c
-            return None
-        k_col = 'K' if 'K' in cols else find_col('k')
-        group_col = 'Group' if 'Group' in cols else find_col('group')
-        sample_col = 'Sample' if 'Sample' in cols else find_col('sample')
-        if not k_col or not group_col or not sample_col:
-            raise ValueError(f"Required columns not found for grouping. Have: {cols}")
-        # Filter rows by K == k_value
-        # Use Pandas for robust filtering by K
-        df_all = table.select([sample_col, group_col, k_col]).to_pandas()
-        df = df_all[df_all[k_col] == k_value]
-        if df.empty:
-            raise ValueError(f"No rows found for K={k_value} in Parquet.")
-        mapping = {}
-        for _, row in df.iterrows():
-            name = str(row[sample_col]).strip()
-            try:
-                grp = int(row[group_col])
-            except Exception:
-                continue
-            if name and name not in mapping:
-                mapping[name] = grp
-        if not mapping:
-            raise ValueError("Grouping mapping is empty after filtering.")
-        return mapping
-
-    def _apply_group_assignments(self, sample_to_group):
-        """Apply group ids to current markers and refresh view while preserving selection."""
-        markers = list(self.map_sample_widget.markers_data) if hasattr(self.map_sample_widget, 'markers_data') else []
-        if not markers:
-            return
-        selected_before = list(self.map_sample_widget.selected_samples)
-        for m in markers:
-            name = str(m.get('name','')).strip()
-            if name in sample_to_group:
-                m['group'] = int(sample_to_group[name])
-        self.map_sample_widget.load_data(markers)
-        # Restore selection
-        if selected_before:
-            self.map_sample_widget.sample_list.set_selection(selected_before)
-
-    def _find_latest_parquet(self, project_root, min_mtime=None):
-        """Return the path to the newest .parquet in data/parquet (optionally newer than min_mtime)."""
-        try:
-            pdir = os.path.join(project_root, 'data', 'parquet')
-            if not os.path.isdir(pdir):
-                return None
-            candidates = []
-            for name in os.listdir(pdir):
-                if name.lower().endswith('.parquet'):
-                    full = os.path.join(pdir, name)
-                    try:
-                        st = os.stat(full)
-                        if min_mtime is None or st.st_mtime >= float(min_mtime):
-                            candidates.append((st.st_mtime, full))
-                    except Exception:
-                        continue
-            if not candidates:
-                return None
-            candidates.sort(reverse=True)
-            return candidates[0][1]
-        except Exception:
-            return None
+            print(f"Warning: Failed to cleanup cache directory on exit: {e}")
+        
+        super().closeEvent(event)
 
 
 if __name__ == '__main__':
-    # Graceful Ctrl+C/SIGTERM handling
-    import signal
-    import platform
-    import os as _os
-    def _handle_sig(signum, frame):
-        try:
-            _app = QApplication.instance()
-            if _app is not None:
-                _app.quit()
-        except Exception:
-            pass
-    try:
-        signal.signal(signal.SIGINT, _handle_sig)
-    except Exception:
-        pass
-    try:
-        signal.signal(signal.SIGTERM, _handle_sig)
-    except Exception:
-        pass
-
-    # Linux: default to software rendering and X11 unless user overrides
-    try:
-        if platform.system() == 'Linux' and _os.environ.get('EMAX_FORCE_SOFTWARE_GL', '1') == '1':
-            _os.environ.setdefault('QT_QPA_PLATFORM', 'xcb')
-            _os.environ.setdefault('QT_OPENGL', 'software')
-            _os.environ.setdefault('QSG_RHI_BACKEND', 'opengl')
-            _os.environ.setdefault('LIBGL_ALWAYS_SOFTWARE', '1')
-            _os.environ.setdefault('MESA_LOADER_DRIVER_OVERRIDE', 'llvmpipe')
-            _os.environ.setdefault('QTWEBENGINE_CHROMIUM_FLAGS', '--disable-gpu --disable-gpu-compositing --use-gl=swiftshader --disable-features=Vulkan')
-            # Must be set before creating QApplication
-            QApplication.setAttribute(Qt.ApplicationAttribute.AA_UseSoftwareOpenGL, on=True)
-    except Exception:
-        pass
-
     app = QApplication(sys.argv)
     app.setStyle('Fusion')
-
-    # Timer tick ensures Python signal handlers are processed during Qt event loop
-    _sig_timer = QTimer()
-    _sig_timer.timeout.connect(lambda: None)
-    _sig_timer.start(250)
-
     window = EntropyMaxFinal()
     window.show()
-
-    # Debug mode: preload sample files and default output
-    try:
-        if '--debug' in sys.argv:
-            project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            debug_dir = os.path.join(project_root, 'data', 'debug')
-            os.makedirs(debug_dir, exist_ok=True)
-
-            # Source files (sample group 1)
-            src_input = os.path.join(project_root, 'data', 'raw', 'inputs', 'sample_group_1_input.csv')
-            src_gps = os.path.join(project_root, 'data', 'raw', 'gps', 'sample_group_1_coordinates.csv')
-
-            # Destination debug files
-            input_path = os.path.join(debug_dir, 'debug_input.csv')
-            gps_path = os.path.join(debug_dir, 'debug_coordinates.csv')
-            output_path = os.path.join(debug_dir, 'debug_output.csv')
-
-            # Copy sources into debug directory for a stable debug dataset
-            try:
-                if os.path.exists(src_input):
-                    if not (os.path.exists(input_path) and os.path.samefile(src_input, input_path)):
-                        shutil.copyfile(src_input, input_path)
-                if os.path.exists(src_gps):
-                    if not (os.path.exists(gps_path) and os.path.samefile(src_gps, gps_path)):
-                        shutil.copyfile(src_gps, gps_path)
-            except Exception:
-                pass
-
-            cp = window.control_panel
-
-            # Preload input CSV
-            cp.input_file = input_path
-            cp.input_label.setText(f"✓ {os.path.basename(input_path)}")
-            cp.input_label.setStyleSheet("color: green; padding: 5px;")
-            cp.inputFileSelected.emit(input_path)
-
-            # Preload GPS CSV
-            cp.gps_file = gps_path
-            cp.gps_label.setText(f"✓ {os.path.basename(gps_path)}")
-            cp.gps_label.setStyleSheet("color: green; padding: 5px;")
-            cp.gpsFileSelected.emit(gps_path)
-
-            # Preload output CSV (debug directory)
-            cp.output_file = output_path
-            display_name = os.path.basename(output_path)
-            if display_name.endswith('.csv'):
-                display_name = display_name[:-4]
-            cp.output_label.setText(f"✓ {display_name}")
-            cp.output_label.setStyleSheet("color: green; padding: 5px;")
-            cp.outputFileSelected.emit(output_path)
-
-            cp._update_button_states()
-            window.statusBar().showMessage("Debug mode: preloaded sample files.", 3000)
-    except Exception as e:
-        # Surface debug preload issues in the console without interrupting the app
-        print(f"DEBUG preload failed: {e}", file=sys.stderr)
     sys.exit(app.exec())

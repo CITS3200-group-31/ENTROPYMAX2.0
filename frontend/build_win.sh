@@ -1,0 +1,1 @@
+sudo pyinstaller --clean -y win.spec
