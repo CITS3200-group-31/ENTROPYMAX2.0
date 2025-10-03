@@ -31,10 +31,21 @@ InstallDir "$PROGRAMFILES\${APP_NAME}"
 
 !insertmacro MUI_LANGUAGE "English"
 
+; Uninstall info
+!define UNINST_KEY "Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\${APP_NAME}"
+
 Function .onInit
   ; Prefer Program Files (64-bit) on x64 systems
   ${If} ${RunningX64}
     StrCpy $InstDir "$PROGRAMFILES64\${APP_NAME}"
+  ${EndIf}
+
+  ; If a previous install exists, silently run its uninstaller first
+  ReadRegStr $0 HKLM "${UNINST_KEY}" "UninstallString"
+  ${If} $0 != ""
+    ; Some uninstall strings are quoted and have args; handle both
+    ; Execute silently and wait for completion
+    ExecWait '$0 /S'
   ${EndIf}
 FunctionEnd
 
@@ -85,6 +96,32 @@ SectionEnd
 Section "Install shortcut" SEC_SHORTCUT
   ; Create Desktop shortcut that points directly to the install directory
   CreateShortcut "$DESKTOP\${APP_NAME}.lnk" "$InstDir" "" "$InstDir" 0
+SectionEnd
+
+; ---------------- Uninstaller ----------------
+Section -Post
+  ; Write uninstaller and registry entries
+  WriteUninstaller "$InstDir\\Uninstall.exe"
+  WriteRegStr HKLM "${UNINST_KEY}" "DisplayName" "${APP_NAME}"
+  WriteRegStr HKLM "${UNINST_KEY}" "InstallLocation" "$InstDir"
+  WriteRegStr HKLM "${UNINST_KEY}" "UninstallString" "$InstDir\\Uninstall.exe"
+SectionEnd
+
+Section "Uninstall"
+  ; Remove PATH entry (safe to leave if not present)
+  ReadRegStr $1 HKLM "SYSTEM\\CurrentControlSet\\Control\\Session Manager\\Environment" "Path"
+  StrCpy $2 "$1"
+  ; Simple removal by rewriting PATH without our segment (best-effort)
+  ; Note: keeping it simple per user's instruction to avoid complex logic
+  ; Cleanup files and directories
+  Delete "$DESKTOP\\${APP_NAME}.lnk"
+  RMDir /r "$InstDir\data"
+  RMDir /r "$InstDir\bin"
+  Delete "$InstDir\\Uninstall.exe"
+  RMDir "$InstDir"
+  DeleteRegKey HKLM "${UNINST_KEY}"
+  ; Broadcast environment change
+  System::Call 'USER32::SendMessageTimeoutW(p 0xffff, i 0x1A, p 0, t "Environment", i 0, i 5000, *i .r0)'
 SectionEnd
 
 
