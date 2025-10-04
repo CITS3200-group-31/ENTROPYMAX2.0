@@ -15,6 +15,7 @@ class ControlPanel(QWidget):
     inputFileSelected = Signal(str)
     gpsFileSelected = Signal(str)
     outputFileSelected = Signal(str)
+    outputFileSelectedKML = Signal(str)
     generateMapRequested = Signal()
     runAnalysisRequested = Signal(dict)
     exportResultsRequested = Signal()
@@ -25,6 +26,7 @@ class ControlPanel(QWidget):
         self.input_file = None
         self.gps_file = None
         self.output_file = None
+        self.output_file_kml = None
         self._setup_ui()
         self._update_button_states()
         
@@ -400,18 +402,53 @@ class ControlPanel(QWidget):
         layout.addWidget(self.show_details_btn)
         
         # Step 7: Export Results (enabled after analysis)
-        self.export_btn = QPushButton("Export Results")
-        self.export_btn.setEnabled(False)
-        self.export_btn.clicked.connect(self._on_export)
-        self.export_btn.setStyleSheet("""
+        self.k_output = QLineEdit()
+        self.k_output.setPlaceholderText("k-value")
+        self.k_output.setMaximumWidth(80)
+        self.k_output.setStyleSheet("""
+            QLineEdit {
+                background-color: #e0f2f1;
+                border: 1px solid #009688;
+                border-radius: 4px;
+                padding: 6px;
+                font-size: 13px;
+                color: #004d40;
+            }
+            QLineEdit:focus {
+                border-color: #00796b;
+                background-color: #ffffff;
+            }
+        """)
+        output_group_kml = QGroupBox("Step 7: Export Options")
+        output_group_kml.setStyleSheet("""
+            QGroupBox {
+                font-size: 14px;
+                font-weight: 600;
+                color: #333;
+                border: 1px solid #e0e0e0;
+                border-radius: 6px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 10px 0 10px;
+                background-color: white;
+            }
+        """)
+        output_layout = QVBoxLayout()
+        output_layout.setContentsMargins(10, 15, 10, 10)
+        self.define_export_btn = QPushButton("Define Output Filename")
+        self.define_export_btn.setStyleSheet("""
             QPushButton:enabled {
                 background-color: #009688;
                 color: white;
                 border: none;
                 border-radius: 4px;
-                padding: 10px 16px;
+                padding: 8px 16px;
                 font-size: 13px;
-                font-weight: 600;
+                font-weight: 500;
             }
             QPushButton:enabled:hover {
                 background-color: #00796b;
@@ -424,12 +461,21 @@ class ControlPanel(QWidget):
                 color: #666666;
                 border: none;
                 border-radius: 4px;
-                padding: 10px 16px;
+                padding: 8px 16px;
                 font-size: 13px;
-                font-weight: 600;
+                font-weight: 500;
             }
         """)
-        layout.addWidget(self.export_btn)
+        self.define_export_btn.clicked.connect(self._on_select_output_kml)
+        self.define_export_btn.setEnabled(False)
+        
+        self.output_label_kml = QLabel("No output file defined")
+        self.output_label_kml.setStyleSheet("color: gray; padding: 5px;")
+        output_layout.addWidget(self.k_output)
+        output_layout.addWidget(self.define_export_btn)
+        output_layout.addWidget(self.output_label_kml)
+        output_group_kml.setLayout(output_layout)
+        layout.addWidget(output_group_kml)
         
         layout.addStretch()
         
@@ -484,6 +530,28 @@ class ControlPanel(QWidget):
             self.output_label.setStyleSheet("color: green; padding: 5px;")
             self.outputFileSelected.emit(file_path)
             self._update_button_states()
+
+    def _on_select_output_kml(self):
+        """Handle output kml file selection."""
+        file_path, _ = QFileDialog.getSaveFileName(
+            self, 
+            "Define Output Filename", 
+            "", 
+            "KML Files (*.kml)"
+        )
+        if file_path:
+            # Ensure .kml extension
+            if not file_path.endswith('.kml'):
+                file_path += '.kml'
+            self.output_file_kml = file_path
+            # Display without extension for cleaner UI
+            display_name = file_path.split('/')[-1]
+            if display_name.endswith('.kml'):
+                display_name = display_name[:-4]
+            self.output_label_kml.setText(f"✓ {display_name}")
+            self.output_label_kml.setStyleSheet("color: green; padding: 5px;")
+            self.outputFileSelectedKML.emit(file_path)
+            self._update_button_states()
             
     def _on_generate_map(self):
         """Handle generate map request."""
@@ -496,7 +564,7 @@ class ControlPanel(QWidget):
         params = self.get_analysis_parameters()
         self.runAnalysisRequested.emit(params)
         self.show_details_btn.setEnabled(True)
-        self.export_btn.setEnabled(True)
+        self.define_export_btn.setEnabled(True)
         
     def _on_show_details(self):
         """Handle show group details request."""
@@ -527,6 +595,9 @@ class ControlPanel(QWidget):
         # Enable generate map if all files are defined
         if self.input_file and self.gps_file and self.output_file:
             self.generate_map_btn.setEnabled(True)
+
+        if self.input_file and self.gps_file:
+            self.define_export_btn.setEnabled(True)
             
     def get_analysis_parameters(self):
         """Get current analysis parameters."""
@@ -540,7 +611,8 @@ class ControlPanel(QWidget):
             'take_proportions': self.prop_check.isChecked(),
             'input_file': self.input_file,
             'gps_file': self.gps_file,
-            'output_file': self.output_file
+            'output_file': self.output_file,
+            'output_file_kml': self.output_file_kml
         }
         
     def enable_analysis(self):
@@ -550,23 +622,28 @@ class ControlPanel(QWidget):
     def enable_analysis_buttons(self, enabled=True):
         """Enable/disable analysis-related buttons."""
         self.show_details_btn.setEnabled(enabled)
-        self.export_btn.setEnabled(enabled)
+        self.define_output_btn.setEnabled(enabled)
+        self.define_export_btn.setEnabled(enabled)
         
     def reset_workflow(self):
         """Reset the entire workflow."""
         self.input_file = None
         self.gps_file = None
         self.output_file = None
+        self.output_file_kml = None
         self.input_label.setText("No file selected")
         self.input_label.setStyleSheet("color: gray; padding: 5px;")
         self.gps_label.setText("No GPS file selected")
         self.gps_label.setStyleSheet("color: gray; padding: 5px;")
         self.output_label.setText("No output file defined")
         self.output_label.setStyleSheet("color: gray; padding: 5px;")
+        self.output_label_kml.setText("No output file defined")
+        self.output_label_kml.setStyleSheet("color: gray; padding: 5px;")
         self.min_groups_input.clear()
         self.max_groups_input.clear()
+        self.k_output.clear()
         self.define_output_btn.setEnabled(False)
+        self.define_export_btn.setEnabled(False)
         self.generate_map_btn.setEnabled(False)
         self.run_analysis_btn.setEnabled(False)
         self.show_details_btn.setEnabled(False)
-        self.export_btn.setEnabled(False)
