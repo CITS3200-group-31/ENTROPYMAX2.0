@@ -7,7 +7,7 @@
 !include "x64.nsh"
 
 !define APP_NAME "EntropyMax"
-  !define PROJ_ROOT "${__FILEDIR__}\..\.."
+!define PROJ_ROOT "${__FILEDIR__}\..\.."
 !define EMX_DLLS_DIR "${PROJ_ROOT}\build\dlls"
 
 Name "${APP_NAME} Backend"
@@ -108,46 +108,6 @@ Section -Post
   WriteRegStr HKLM "${UNINST_KEY}" "UninstallString" "$InstDir\\Uninstall.exe"
   ; Bundle required runtime DLLs from centralized build/dlls
   SetOutPath "$InstDir\\bin"
-  ; Fail fast if any are missing
-  IfFileExists "${EMX_DLLS_DIR}\\arrow.dll" +2 0
-    Abort "Missing DLL: arrow.dll in ${EMX_DLLS_DIR}"
-  IfFileExists "${EMX_DLLS_DIR}\\parquet.dll" +2 0
-    Abort "Missing DLL: parquet.dll in ${EMX_DLLS_DIR}"
-  IfFileExists "${EMX_DLLS_DIR}\\brotlicommon.dll" +2 0
-    Abort "Missing DLL: brotlicommon.dll in ${EMX_DLLS_DIR}"
-  IfFileExists "${EMX_DLLS_DIR}\\brotlidec.dll" +2 0
-    Abort "Missing DLL: brotlidec.dll in ${EMX_DLLS_DIR}"
-  IfFileExists "${EMX_DLLS_DIR}\\brotlienc.dll" +2 0
-    Abort "Missing DLL: brotlienc.dll in ${EMX_DLLS_DIR}"
-  IfFileExists "${EMX_DLLS_DIR}\\bz2.dll" +2 0
-    Abort "Missing DLL: bz2.dll in ${EMX_DLLS_DIR}"
-  IfFileExists "${EMX_DLLS_DIR}\\lz4.dll" +2 0
-    Abort "Missing DLL: lz4.dll in ${EMX_DLLS_DIR}"
-  IfFileExists "${EMX_DLLS_DIR}\\snappy.dll" +2 0
-    Abort "Missing DLL: snappy.dll in ${EMX_DLLS_DIR}"
-  IfFileExists "${EMX_DLLS_DIR}\\zlib1.dll" +2 0
-    Abort "Missing DLL: zlib1.dll in ${EMX_DLLS_DIR}"
-  IfFileExists "${EMX_DLLS_DIR}\\zstd.dll" +2 0
-    Abort "Missing DLL: zstd.dll in ${EMX_DLLS_DIR}"
-  IfFileExists "${EMX_DLLS_DIR}\\libcrypto-3-x64.dll" +2 0
-    Abort "Missing DLL: libcrypto-3-x64.dll in ${EMX_DLLS_DIR}"
-  IfFileExists "${EMX_DLLS_DIR}\\utf8proc.dll" +2 0
-    Abort "Missing DLL: utf8proc.dll in ${EMX_DLLS_DIR}"
-  IfFileExists "${EMX_DLLS_DIR}\\re2.dll" +2 0
-    Abort "Missing DLL: re2.dll in ${EMX_DLLS_DIR}"
-  IfFileExists "${EMX_DLLS_DIR}\\abseil_dll.dll" +2 0
-    Abort "Missing DLL: abseil_dll.dll in ${EMX_DLLS_DIR}"
-  IfFileExists "${EMX_DLLS_DIR}\\gflags.dll" +2 0
-    Abort "Missing DLL: gflags.dll in ${EMX_DLLS_DIR}"
-  IfFileExists "${EMX_DLLS_DIR}\\libssl-3-x64.dll" +2 0
-    Abort "Missing DLL: libssl-3-x64.dll in ${EMX_DLLS_DIR}"
-  IfFileExists "${EMX_DLLS_DIR}\\event.dll" +2 0
-    Abort "Missing DLL: event.dll in ${EMX_DLLS_DIR}"
-  IfFileExists "${EMX_DLLS_DIR}\\event_core.dll" +2 0
-    Abort "Missing DLL: event_core.dll in ${EMX_DLLS_DIR}"
-  IfFileExists "${EMX_DLLS_DIR}\\event_extra.dll" +2 0
-    Abort "Missing DLL: event_extra.dll in ${EMX_DLLS_DIR}"
-
   File "${EMX_DLLS_DIR}\\arrow.dll"
   File "${EMX_DLLS_DIR}\\parquet.dll"
   File "${EMX_DLLS_DIR}\\brotlicommon.dll"
@@ -167,6 +127,33 @@ Section -Post
   File "${EMX_DLLS_DIR}\\event.dll"
   File "${EMX_DLLS_DIR}\\event_core.dll"
   File "${EMX_DLLS_DIR}\\event_extra.dll"
+
+  ; Post-install: verify every DLL landed in $InstDir\bin
+  !macro VerifyDll _name
+    IfFileExists "$InstDir\\bin\\${_name}" +2 0
+      Abort "Missing runtime DLL after install: $InstDir\\bin\\${_name}"
+  !macroend
+  !define NEED_DLLS "arrow.dll|parquet.dll|brotlicommon.dll|brotlidec.dll|brotlienc.dll|bz2.dll|lz4.dll|snappy.dll|zlib1.dll|zstd.dll|libcrypto-3-x64.dll|libssl-3-x64.dll|utf8proc.dll|re2.dll|abseil_dll.dll|gflags.dll|event.dll|event_core.dll|event_extra.dll"
+  StrCpy $4 "${NEED_DLLS}"
+  loop_dlls:
+    StrCpy $5 $4 0 "|"
+    StrCmp $5 "" done_dlls
+    ; Extract token up to '|'
+    StrLen $6 $4
+    StrCpy $7 0
+    find_bar:
+      StrCpy $8 $4 1 $7
+      StrCmp $8 "|" found_bar
+      IntOp $7 $7 + 1
+      StrCmp $7 $6 found_bar
+      Goto find_bar
+    found_bar:
+    StrCpy $9 $4 $7
+    IntOp $7 $7 + 1
+    StrCpy $4 $4 -$7 $7
+    !insertmacro VerifyDll "$9"
+    Goto loop_dlls
+  done_dlls:
 
   ; Run the backend once and verify Parquet is generated and non-zero
   ; Execute backend with installed sample CSVs

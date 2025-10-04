@@ -8,15 +8,7 @@ all:
 
 installer: all
 	@echo "Building NSIS installer..."
-	@if [ -x "/c/Program Files (x86)/NSIS/Bin/makensis.exe" ]; then \
-		"/c/Program Files (x86)/NSIS/Bin/makensis.exe" installer/EntropyMax.nsi; \
-	elif [ -x "/c/Program Files/NSIS/makensis.exe" ]; then \
-		"/c/Program Files/NSIS/makensis.exe" installer/EntropyMax.nsi; \
-	elif command -v makensis >/dev/null 2>&1; then \
-		makensis installer/EntropyMax.nsi; \
-	else \
-		echo "makensis not found. Install NSIS or add makensis to PATH."; exit 1; \
-	fi
+	@"C:\\Progra~2\\NSIS\\Bin\\makensis.exe" installer\\EntropyMax.nsi || makensis installer\\EntropyMax.nsi
 
 clean:
 	rm -rf backend/build-msvc build/bin build/dlls
