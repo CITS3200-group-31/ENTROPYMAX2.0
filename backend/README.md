@@ -1,4 +1,4 @@
-# EntropyMax Backend (CSV-only)
+# EntropyMax Backend
 
 This backend builds the EntropyMax runner and emits a processed CSV (`output.csv`) from two CSV inputs: a sample feature matrix and a GPS coordinates file.
 
@@ -11,45 +11,38 @@ This backend builds the EntropyMax runner and emits a processed CSV (`output.csv
 - Optional: vcpkg + Apache Arrow/Parquet if you want Parquet support (disabled by default)
 
 ## Quick start (recommended)
-Use the repository `Makefile` at the project root. By default it builds CSV-only.
+Use the repository `Makefile` at the project root. It invokes CMake and writes outputs to `build/bin`.
 
 ```bash
-# Build runner (CSV-only)
-make runner
+# Build runner
+make
 
-# Run with provided samples
-./build/bin/run_entropymax data/raw/inputs/sample_group_1_input.csv \
-  data/raw/gps/sample_group_1_coordinates.csv
-# Output is written to ./output.csv
+# Run with provided samples (Windows example)
+build\bin\run_entropymax.exe data\raw\inputs\sample_group_1_input.csv \
+  data\raw\gps\sample_group_1_coordinates.csv
+# Outputs are written under build context:
+#  - CSV: backend/build-msvc/data/processed/csv/output.csv (dev run)
+#  - Parquet: backend/build-msvc/data/processed/parquet/output.parquet (if Arrow deps present)
 ```
 
-To enable optional Arrow/Parquet build path, set `ENABLE_ARROW=1` (requires dev libs):
-```bash
-make ENABLE_ARROW=1 runner
-```
+With Arrow/Parquet available (Windows via vcpkg auto-detection in CMake), the runner also writes Parquet.
 
 ## Makefile targets
-- `runner`: builds the backend runner at `build/bin/run_entropymax`
-- `clean`: removes the local build directory
-- `distclean`: alias for `clean`
-- `setup`: installs Arrow/Parquet deps if possible and builds runner (Linux/macOS best effort)
-- `deps`: runs `arrow-auto` and `pydeps`
-- `arrow-auto`: attempts Arrow/Parquet installation via pkg manager or vcpkg
-- `bootstrap-vcpkg`: clones and bootstraps `third_party/vcpkg`
-- `frontend-deps`, `frontend-run`, `frontend-linux-setup`, `frontend-launch-linux`: convenience helpers for the Python UI
+- `make`: configure+build backend via CMake, stage exe to `build/bin`
+- `make clean`: remove `backend/build-msvc`, `build/bin`, and `build/dlls`
 
 CSV-only is the default: the Makefile sets `ENABLE_ARROW ?= 0`. Override per-invocation:
 ```bash
 make ENABLE_ARROW=1 runner
 ```
 
-## Building with CMake (backend directory)
+## Building with CMake directly
 You can also use the CMake project in `backend/` (used on Windows/MSVC):
 ```bash
 cd backend
 cmake -S . -B build-vcpkg -DCMAKE_BUILD_TYPE=Release
 cmake --build build-vcpkg --config Release -j 4
-# Runner: backend/build-vcpkg/Release/run_entropymax.exe (on Windows)
+# Runner: build/bin/run_entropymax.exe (Windows) or build/bin/run_entropymax
 ```
 
 ## Running the runner
@@ -65,11 +58,11 @@ run_entropymax data/raw/inputs/sample_group_1_input.csv \
   data/raw/gps/sample_group_1_coordinates.csv --EM_K_MAX 15 --row_proportions 1 --em_gdtl_percent 1
 ```
 
-- Output: `output.csv` in the project root
+- Output: `output.csv` under the build context; see console message for exact path
 - Columns: `K,Group,Sample,<bins...>,% explained,Total inequality,Between region inequality,Total sum of squares,Within group sum of squares,Calinski-Harabasz pseudo-F statistic,latitude,longitude`
 
 ## Notes
 - Whitespace trimming is applied to headers and tokens during CSV ingestion.
 - The K sweep defaults to 2..20; override with environment variables or CLI flags.
 - Preprocessing defaults: `row_proportions=0` (alias `em_proportion=0`), `em_gdtl_percent=1`.
-- Parquet output is intentionally disabled in this branch for simplicity. To restore Parquet, set `ENABLE_ARROW=1` and re-enable the Arrow path in `backend/CMakeLists.txt` and the conversion call in `backend/src/algo/run_entropymax.c`.
+- On Windows, if Parquet dependencies are missing, the runner prints each missing DLL and skips Parquet (no placeholder file).

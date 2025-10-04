@@ -89,16 +89,16 @@ ENTROPYMAX2/
 ## Quick start (dev)
 
 ### 1) Backend (C)
-Requirements: CMake ≥ 3.16; a C11 compiler (clang/gcc).
+Requirements: CMake ≥ 3.16; MSVC on Windows, clang/gcc on macOS/Linux.
 
+Build with Make (delegates to CMake):
 ```bash
-chmod +x scripts/build_backend.sh
-./scripts/build_backend.sh
+make
 ```
 
-Outputs:
-- Static library: `backend/build/libentropymax.*`
-- CLI executable: `backend/build/emx_cli`
+Outputs (top-level build/bin):
+- Executable: `build/bin/run_entropymax.exe` (Windows) or `build/bin/run_entropymax`
+- Libraries and runtime DLLs (Windows): `build/bin/*.lib`, `build/dlls/*.dll`
 
 ### 2) Frontend (PyQt6)
 You can run either the standalone frontend app, or the prototype under `src/app`.
@@ -130,8 +130,8 @@ Notes
 
 ### C tests (CTest)
 ```bash
-cd backend/build
-ctest --output-on-failure
+cmake -S backend -B backend/build-msvc
+ctest --test-dir backend/build-msvc --output-on-failure
 ```
 
 ### Python tests (pytest)
