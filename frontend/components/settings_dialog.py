@@ -5,7 +5,7 @@ Settings dialog for adjusting visualization parameters for publication standards
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGroupBox, 
     QLabel, QSlider, QSpinBox, QPushButton, QComboBox,
-    QDialogButtonBox, QWidget, QGridLayout
+    QDialogButtonBox, QWidget, QGridLayout, QDoubleSpinBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal as Signal
 from PyQt6.QtGui import QFont
@@ -122,6 +122,27 @@ class SettingsDialog(QDialog):
         line_group.setLayout(line_layout)
         layout.addWidget(line_group)
         
+        # Bar Properties Settings
+        bar_group = QGroupBox("Bar Properties")
+        bar_layout = QGridLayout()
+        
+        # Bar width scale (0.30x - 1.20x of neighbor gap)
+        bar_layout.addWidget(QLabel("Bar Width Scale:"), 0, 0)
+        self.bar_width_scale_spin = QDoubleSpinBox()
+        self.bar_width_scale_spin.setDecimals(2)
+        self.bar_width_scale_spin.setRange(self.settings.MIN_BAR_WIDTH_SCALE, self.settings.MAX_BAR_WIDTH_SCALE)
+        self.bar_width_scale_spin.setSingleStep(0.05)
+        self.bar_width_scale_spin.setSuffix(" ×")
+        
+        self.bar_width_scale_slider = QSlider(Qt.Orientation.Horizontal)
+        self.bar_width_scale_slider.setRange(int(self.settings.MIN_BAR_WIDTH_SCALE * 100), int(self.settings.MAX_BAR_WIDTH_SCALE * 100))
+        self.bar_width_scale_slider.setSingleStep(5)
+        
+        bar_layout.addWidget(self.bar_width_scale_spin, 0, 1)
+        bar_layout.addWidget(self.bar_width_scale_slider, 0, 2)
+        bar_group.setLayout(bar_layout)
+        layout.addWidget(bar_group)
+        
         # Preview text
         preview_group = QGroupBox("Font Preview")
         preview_layout = QVBoxLayout()
@@ -171,6 +192,11 @@ class SettingsDialog(QDialog):
         self.line_thickness_slider.valueChanged.connect(self.line_thickness_spin.setValue)
         self.line_thickness_spin.valueChanged.connect(self._on_line_thickness_changed)
         
+        # Bar width scale connections
+        self.bar_width_scale_spin.valueChanged.connect(lambda v: self.bar_width_scale_slider.setValue(int(v * 100)))
+        self.bar_width_scale_slider.valueChanged.connect(lambda v: self.bar_width_scale_spin.setValue(v / 100.0))
+        self.bar_width_scale_spin.valueChanged.connect(self._on_bar_width_scale_changed)
+        
         # Connect preset combo
         self.preset_combo.currentTextChanged.connect(self._on_preset_changed)
         
@@ -182,6 +208,10 @@ class SettingsDialog(QDialog):
         self.axis_size_spin.setValue(self.settings.axis_font_size)
         self.tick_size_spin.setValue(self.settings.tick_font_size)
         self.line_thickness_spin.setValue(int(self.settings.line_thickness * 10))
+        
+        # Bar settings
+        self.bar_width_scale_spin.setValue(self.settings.bar_width_scale)
+        self.bar_width_scale_slider.setValue(int(self.settings.bar_width_scale * 100))
         
         self._update_previews()
         
@@ -241,6 +271,11 @@ class SettingsDialog(QDialog):
         self.settings.reset_to_defaults()
         self._load_current_settings()
         self.preset_combo.setCurrentText("Custom")
+
+    def _on_bar_width_scale_changed(self, value: float):
+        """Handle bar width scale change."""
+        self.settings.bar_width_scale = float(value)
+        # No specific preview widget for bars; plot will update live via settingsChanged
 
 
 class FloatingSettingsButton(QPushButton):

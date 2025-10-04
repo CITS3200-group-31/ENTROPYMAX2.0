@@ -35,11 +35,16 @@ class VisualizationSettings(QObject):
         # Default line thickness
         self._line_thickness = 2.0
         
+        # Bar properties
+        self._bar_width_scale = 0.8  # proportion of neighbor gap used as bar width
+        
         # Min and max values for validation
         self.MIN_FONT_SIZE = 6
         self.MAX_FONT_SIZE = 24
         self.MIN_LINE_THICKNESS = 0.5
         self.MAX_LINE_THICKNESS = 10.0
+        self.MIN_BAR_WIDTH_SCALE = 0.3
+        self.MAX_BAR_WIDTH_SCALE = 1.2
         
         self._initialized = True
     
@@ -92,6 +97,25 @@ class VisualizationSettings(QObject):
             'font-size': f'{self._axis_font_size}pt',
             'font-weight': 'bold'
         }
+
+    @property
+    def bar_width_scale(self) -> float:
+        """Get bar width scale (proportion of neighbor gap)."""
+        return self._bar_width_scale
+
+    @bar_width_scale.setter
+    def bar_width_scale(self, value: float):
+        """Set bar width scale with clamping to valid range."""
+        if value is None:
+            return
+        try:
+            v = float(value)
+        except Exception:
+            return
+        v = max(self.MIN_BAR_WIDTH_SCALE, min(self.MAX_BAR_WIDTH_SCALE, v))
+        if v != self._bar_width_scale:
+            self._bar_width_scale = v
+            self.settingsChanged.emit()
     
     def get_tick_style(self):
         """Get formatted style dict for tick labels."""
@@ -105,6 +129,7 @@ class VisualizationSettings(QObject):
         self.axis_font_size = 12
         self.tick_font_size = 10
         self.line_thickness = 2.0
+        self.bar_width_scale = 0.8
     
     def apply_preset(self, preset_name):
         """Apply a preset configuration for specific publication standards."""
