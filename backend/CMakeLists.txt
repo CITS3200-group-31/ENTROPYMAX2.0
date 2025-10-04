@@ -38,8 +38,9 @@ if(BUILD_TOOLS)
   find_package(Arrow CONFIG QUIET)
   if(Arrow_FOUND)
     message(STATUS "Arrow found: enabling compiled Parquet writer")
-    add_library(parquet_io STATIC src/io/parquet_io.cc)
+    add_library(parquet_io STATIC src/io/parquet_arrow.cc)
     target_include_directories(parquet_io PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+    target_compile_definitions(parquet_io PUBLIC ENABLE_ARROW)
 
     # Prefer CMake targets if present
     if(TARGET Arrow::arrow)
@@ -84,10 +85,57 @@ if(BUILD_TOOLS)
     src/algo/sweep.c
     src/util/util.c)
   target_include_directories(run_entropymax PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include)
-  # CSV-only mode: do not link parquet_io
+  # Link parquet_io when Arrow is available; always link core library
+  if(Arrow_FOUND)
+    # Ensure Arrow implementation of parquet_is_available() is preferred over stub
+    target_link_libraries(run_entropymax PRIVATE parquet_io)
+  endif()
   target_link_libraries(run_entropymax PRIVATE entropymax)
 
+  # Centralize runtime DLLs under top-level build/dlls for distribution and PATH-based loading
+  if(WIN32 AND Arrow_FOUND)
+    # Known runtime DLLs required by Arrow/Parquet on Windows (vcpkg triplet x64-windows)
+    set(EMX_DLL_NAMES
+      arrow.dll
+      parquet.dll
+      brotlicommon.dll
+      brotlidec.dll
+      brotlienc.dll
+      bz2.dll
+      lz4.dll
+      snappy.dll
+      zlib1.dll
+      zstd.dll
+      libcrypto-3-x64.dll
+      utf8proc.dll
+      re2.dll
+      abseil_dll.dll
+      gflags.dll
+      libssl-3-x64.dll
+      event.dll
+      event_core.dll
+      event_extra.dll
+    )
+    set(EMX_VCPKG_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../third_party/vcpkg/installed/x64-windows/bin")
+    set(EMX_DLLS_OUT_DIR  "${CMAKE_CURRENT_SOURCE_DIR}/../build/dlls")
+    add_custom_command(TARGET run_entropymax POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E make_directory "${EMX_DLLS_OUT_DIR}")
+    foreach(dll ${EMX_DLL_NAMES})
+      add_custom_command(TARGET run_entropymax POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "${EMX_VCPKG_BIN_DIR}/${dll}"
+                "${EMX_DLLS_OUT_DIR}/${dll}")
+    endforeach()
+  endif()
+
   # Parquet verification disabled in CSV-only mode
+  # Also stage executable to top-level build/bin for convenience
+  set(EMX_STAGE_BIN_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../build/bin")
+  add_custom_command(TARGET run_entropymax POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "${EMX_STAGE_BIN_DIR}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:run_entropymax>"
+            "${EMX_STAGE_BIN_DIR}/run_entropymax.exe")
 endif()
 
 enable_testing()

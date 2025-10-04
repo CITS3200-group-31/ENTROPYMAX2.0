@@ -94,11 +94,14 @@ ifeq ($(ENABLE_ARROW),1)
     # Prefer pkg-config even when ARROW_CFLAGS was set from vcpkg
     ARROW_PKG_CFLAGS := $(shell pkg-config --cflags arrow parquet 2>/dev/null)
     ARROW_PKG_LIBS := $(shell pkg-config --libs arrow parquet 2>/dev/null)
+    # Treat third-party headers as system to avoid emitting their warnings
+    ARROW_PKG_CFLAGS_ISYSTEM := $(patsubst -I%,-isystem %,$(ARROW_PKG_CFLAGS))
     ifneq ($(strip $(ARROW_PKG_LIBS)),)
-      CPPFLAGS += $(ARROW_PKG_CFLAGS) -DENABLE_ARROW
+      CPPFLAGS += $(ARROW_PKG_CFLAGS_ISYSTEM) -DENABLE_ARROW
       LIBS += $(ARROW_PKG_LIBS)
     else
-      CPPFLAGS += $(ARROW_CFLAGS) -DENABLE_ARROW
+      ARROW_CFLAGS_ISYSTEM := $(patsubst -I%,-isystem %,$(ARROW_CFLAGS))
+      CPPFLAGS += $(ARROW_CFLAGS_ISYSTEM) -DENABLE_ARROW
       # Manual fallback: include transitive deps commonly required by Arrow/Parquet
       LIBS += $(ARROW_LIBS)
     endif

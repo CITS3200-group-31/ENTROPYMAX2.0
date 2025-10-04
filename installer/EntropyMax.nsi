@@ -7,7 +7,8 @@
 !include "x64.nsh"
 
 !define APP_NAME "EntropyMax"
-!define PROJ_ROOT "${__FILEDIR__}\..\.."
+  !define PROJ_ROOT "${__FILEDIR__}\..\.."
+!define EMX_DLLS_DIR "${PROJ_ROOT}\build\dlls"
 
 Name "${APP_NAME} Backend"
 OutFile "installer.exe"
@@ -43,9 +44,14 @@ Function .onInit
   ; If a previous install exists, silently run its uninstaller first
   ReadRegStr $0 HKLM "${UNINST_KEY}" "UninstallString"
   ${If} $0 != ""
-    ; Some uninstall strings are quoted and have args; handle both
-    ; Execute silently and wait for completion
+    ; Some uninstall strings are quoted and/or include args; try silent then non-silent fallback
     ExecWait '$0 /S'
+    ExecWait '$0'
+  ${Else}
+    ; Fallback to a well-known path if the registry entry is missing
+    StrCpy $1 "$InstDir\Uninstall.exe"
+    IfFileExists "$1" 0 +2
+      ExecWait '"$1" /S'
   ${EndIf}
 FunctionEnd
 
@@ -63,17 +69,10 @@ Section "Core files" SEC_CORE
   CreateDirectory "$InstDir\data\processed\csv"
   CreateDirectory "$InstDir\data\processed\parquet"
 
-  ; Install backend executable as entropyMax.exe into bin from @bin (build\bin)
+  ; Install backend executable as entropyMax.exe into bin (prefer MSVC build)
   SetOutPath "$InstDir\bin"
-  IfFileExists "${PROJ_ROOT}\build\bin\run_entropymax.exe" 0 +4
-    File /oname=entropyMax.exe "${PROJ_ROOT}\build\bin\run_entropymax.exe"
-    Goto bin_done
-  IfFileExists "${PROJ_ROOT}\build\bin\run_entropymax.exe" 0 +4
-    File /oname=entropyMax.exe "${PROJ_ROOT}\build\bin\run_entropymax.exe"
-    Goto bin_done
-  IfFileExists "${PROJ_ROOT}\build\bin\run_entropymax" 0 +2
-    File /oname=entropyMax.exe "${PROJ_ROOT}\build\bin\run_entropymax.exe"
-  bin_done:
+  ; Embed the staged executable from build/bin (build must stage it before running makensis)
+  File /oname=entropyMax.exe "${PROJ_ROOT}\build\bin\run_entropymax.exe"
 
   ; Copy sample data into raw
   SetOutPath "$InstDir\data\raw\gps"
@@ -107,20 +106,67 @@ Section -Post
   WriteRegStr HKLM "${UNINST_KEY}" "DisplayName" "${APP_NAME}"
   WriteRegStr HKLM "${UNINST_KEY}" "InstallLocation" "$InstDir"
   WriteRegStr HKLM "${UNINST_KEY}" "UninstallString" "$InstDir\\Uninstall.exe"
-  ; Best-effort bundling of Arrow/Parquet DLLs and MinGW runtime.
-  ; Provide paths at build time using: makensis -DARROW_BIN_DIR="C:\\path\\to\\bin" -DMINGW_RUNTIME_DIR="C:\\path\\to\\mingw64\\bin"
+  ; Bundle required runtime DLLs from centralized build/dlls
   SetOutPath "$InstDir\\bin"
-  !ifdef ARROW_BIN_DIR
-    File /nonfatal "${ARROW_BIN_DIR}\\arrow*.dll"
-    File /nonfatal "${ARROW_BIN_DIR}\\parquet*.dll"
-    File /nonfatal "${ARROW_BIN_DIR}\\libarrow*.dll"
-    File /nonfatal "${ARROW_BIN_DIR}\\libparquet*.dll"
-  !endif
-  !ifdef MINGW_RUNTIME_DIR
-    File /nonfatal "${MINGW_RUNTIME_DIR}\\libstdc++-6.dll"
-    File /nonfatal "${MINGW_RUNTIME_DIR}\\libgcc_s_seh-1.dll"
-    File /nonfatal "${MINGW_RUNTIME_DIR}\\libwinpthread-1.dll"
-  !endif
+  ; Fail fast if any are missing
+  IfFileExists "${EMX_DLLS_DIR}\\arrow.dll" +2 0
+    Abort "Missing DLL: arrow.dll in ${EMX_DLLS_DIR}"
+  IfFileExists "${EMX_DLLS_DIR}\\parquet.dll" +2 0
+    Abort "Missing DLL: parquet.dll in ${EMX_DLLS_DIR}"
+  IfFileExists "${EMX_DLLS_DIR}\\brotlicommon.dll" +2 0
+    Abort "Missing DLL: brotlicommon.dll in ${EMX_DLLS_DIR}"
+  IfFileExists "${EMX_DLLS_DIR}\\brotlidec.dll" +2 0
+    Abort "Missing DLL: brotlidec.dll in ${EMX_DLLS_DIR}"
+  IfFileExists "${EMX_DLLS_DIR}\\brotlienc.dll" +2 0
+    Abort "Missing DLL: brotlienc.dll in ${EMX_DLLS_DIR}"
+  IfFileExists "${EMX_DLLS_DIR}\\bz2.dll" +2 0
+    Abort "Missing DLL: bz2.dll in ${EMX_DLLS_DIR}"
+  IfFileExists "${EMX_DLLS_DIR}\\lz4.dll" +2 0
+    Abort "Missing DLL: lz4.dll in ${EMX_DLLS_DIR}"
+  IfFileExists "${EMX_DLLS_DIR}\\snappy.dll" +2 0
+    Abort "Missing DLL: snappy.dll in ${EMX_DLLS_DIR}"
+  IfFileExists "${EMX_DLLS_DIR}\\zlib1.dll" +2 0
+    Abort "Missing DLL: zlib1.dll in ${EMX_DLLS_DIR}"
+  IfFileExists "${EMX_DLLS_DIR}\\zstd.dll" +2 0
+    Abort "Missing DLL: zstd.dll in ${EMX_DLLS_DIR}"
+  IfFileExists "${EMX_DLLS_DIR}\\libcrypto-3-x64.dll" +2 0
+    Abort "Missing DLL: libcrypto-3-x64.dll in ${EMX_DLLS_DIR}"
+  IfFileExists "${EMX_DLLS_DIR}\\utf8proc.dll" +2 0
+    Abort "Missing DLL: utf8proc.dll in ${EMX_DLLS_DIR}"
+  IfFileExists "${EMX_DLLS_DIR}\\re2.dll" +2 0
+    Abort "Missing DLL: re2.dll in ${EMX_DLLS_DIR}"
+  IfFileExists "${EMX_DLLS_DIR}\\abseil_dll.dll" +2 0
+    Abort "Missing DLL: abseil_dll.dll in ${EMX_DLLS_DIR}"
+  IfFileExists "${EMX_DLLS_DIR}\\gflags.dll" +2 0
+    Abort "Missing DLL: gflags.dll in ${EMX_DLLS_DIR}"
+  IfFileExists "${EMX_DLLS_DIR}\\libssl-3-x64.dll" +2 0
+    Abort "Missing DLL: libssl-3-x64.dll in ${EMX_DLLS_DIR}"
+  IfFileExists "${EMX_DLLS_DIR}\\event.dll" +2 0
+    Abort "Missing DLL: event.dll in ${EMX_DLLS_DIR}"
+  IfFileExists "${EMX_DLLS_DIR}\\event_core.dll" +2 0
+    Abort "Missing DLL: event_core.dll in ${EMX_DLLS_DIR}"
+  IfFileExists "${EMX_DLLS_DIR}\\event_extra.dll" +2 0
+    Abort "Missing DLL: event_extra.dll in ${EMX_DLLS_DIR}"
+
+  File "${EMX_DLLS_DIR}\\arrow.dll"
+  File "${EMX_DLLS_DIR}\\parquet.dll"
+  File "${EMX_DLLS_DIR}\\brotlicommon.dll"
+  File "${EMX_DLLS_DIR}\\brotlidec.dll"
+  File "${EMX_DLLS_DIR}\\brotlienc.dll"
+  File "${EMX_DLLS_DIR}\\bz2.dll"
+  File "${EMX_DLLS_DIR}\\lz4.dll"
+  File "${EMX_DLLS_DIR}\\snappy.dll"
+  File "${EMX_DLLS_DIR}\\zlib1.dll"
+  File "${EMX_DLLS_DIR}\\zstd.dll"
+  File "${EMX_DLLS_DIR}\\libcrypto-3-x64.dll"
+  File "${EMX_DLLS_DIR}\\utf8proc.dll"
+  File "${EMX_DLLS_DIR}\\re2.dll"
+  File "${EMX_DLLS_DIR}\\abseil_dll.dll"
+  File "${EMX_DLLS_DIR}\\gflags.dll"
+  File "${EMX_DLLS_DIR}\\libssl-3-x64.dll"
+  File "${EMX_DLLS_DIR}\\event.dll"
+  File "${EMX_DLLS_DIR}\\event_core.dll"
+  File "${EMX_DLLS_DIR}\\event_extra.dll"
 SectionEnd
 
 Section "Uninstall"

@@ -69,3 +69,7 @@ output.csv
 .venv/
 output.parquet
 .cursor
+
+*.tlog
+
+build-msvc/

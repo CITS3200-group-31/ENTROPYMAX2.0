@@ -35,6 +35,49 @@ static void rstrip_newline(char *s) {
     while (n > 0 && (s[n-1] == '\n' || s[n-1] == '\r')) { s[n-1] = '\0'; n--; }
 }
 
+#ifdef _WIN32
+// Proactively check Arrow/Parquet runtime DLL dependencies and report any missing
+static int check_parquet_runtime_deps(int *out_missing_count) {
+    const char *dlls[] = {
+        "arrow.dll",
+        "parquet.dll",
+        "brotlicommon.dll",
+        "brotlidec.dll",
+        "brotlienc.dll",
+        "bz2.dll",
+        "lz4.dll",
+        "snappy.dll",
+        "zlib1.dll",
+        "zstd.dll",
+        "libcrypto-3-x64.dll",
+        "libssl-3-x64.dll",
+        "utf8proc.dll",
+        "re2.dll",
+        "abseil_dll.dll",
+        "gflags.dll",
+        "event.dll",
+        "event_core.dll",
+        "event_extra.dll"
+    };
+    int ok = 1; int missing = 0;
+    for (size_t i = 0; i < sizeof(dlls)/sizeof(dlls[0]); ++i) {
+        HMODULE h = LoadLibraryA(dlls[i]);
+        if (!h) {
+            DWORD err = GetLastError();
+            fprintf(stderr, "Missing runtime dependency: %s (WinError=%lu)\n", dlls[i], (unsigned long)err);
+            ok = 0; missing++;
+        } else {
+            FreeLibrary(h);
+        }
+    }
+    if (out_missing_count) { *out_missing_count = missing; }
+    if (!ok) {
+        fprintf(stderr, "Parquet disabled due to missing dependencies. Install the missing DLLs next to the executable or ensure they are on PATH.\n");
+    }
+    return ok;
+}
+#endif
+
 // Trim leading/trailing ASCII whitespace in-place. Returns the same pointer.
 static char *trim_inplace(char *s) {
     if (!s) return s;
@@ -571,18 +614,29 @@ int main(int argc, char **argv) {
     if (exp_rows) { for (int r = 0; r < exp_rows_n; ++r) { if (exp_rows[r].vals) { for (int b = 0; b < exp_bins_n; ++b) free(exp_rows[r].vals[b]); free(exp_rows[r].vals);} free(exp_rows[r].sample);} free(exp_rows); }
     fclose(out);
 
-    // If Arrow/Parquet is available, write real Parquet from the generated CSV; else create a placeholder
+    // If Arrow/Parquet is available, write real Parquet from the generated CSV; otherwise, report disabled
+    int attempted_parquet = 0;
+    int wrote_parquet = 0;
     if (parquet_is_available()) {
-        int prc = em_csv_to_parquet_with_gps(fixed_output_path, gps_csv_path, fixed_parquet_path);
-        if (prc != 0) {
-            fprintf(stderr, "Parquet write failed (rc=%d), creating placeholder at %s\n", prc, fixed_parquet_path);
-            FILE *pout = fopen(fixed_parquet_path, "wb"); if (pout) fclose(pout);
+#ifdef _WIN32
+        int missing = 0;
+        if (!check_parquet_runtime_deps(&missing)) {
+            // Skip Parquet write when dependencies are missing
+            fprintf(stderr, "Parquet output skipped (%d missing dependency DLLs). See messages above.\n", missing);
+        } else
+#endif
+        {
+            attempted_parquet = 1;
+            int prc = em_csv_to_parquet_with_gps(fixed_output_path, gps_csv_path, fixed_parquet_path);
+            if (prc != 0) {
+                fprintf(stderr, "Parquet write failed (rc=%d). No Parquet file written.\n", prc);
+            } else {
+                wrote_parquet = 1;
+            }
         }
     } else {
-        FILE *pout = fopen(fixed_parquet_path, "wb"); if (pout) fclose(pout);
+        fprintf(stderr, "Parquet support not compiled in. No Parquet file written.\n");
     }
-
-    // Parquet output is intentionally disabled; CSV is the single source of truth for output
 
     // Free memory
     for (int i = 0; i < rows; ++i) free(rownames[i]);
@@ -593,6 +647,12 @@ int main(int argc, char **argv) {
     }
     free(rownames); free(colnames); free(data); free(Y); free(metrics); free(member1); free(group_means); free(all_member1); free(data_proc);
 
-    printf("Done. Output written to %s (csv) and %s (parquet placeholder)\n", fixed_output_path, fixed_parquet_path);
+    if (wrote_parquet) {
+        printf("Done. Output written to %s (csv) and %s (parquet)\n", fixed_output_path, fixed_parquet_path);
+    } else if (attempted_parquet) {
+        printf("Done. Output written to %s (csv). Parquet write failed or was skipped; see stderr.\n", fixed_output_path);
+    } else {
+        printf("Done. Output written to %s (csv). Parquet not generated.\n", fixed_output_path);
+    }
     return 0;
 }
