@@ -1,10 +1,22 @@
 SHELL := /bin/bash
 
-.PHONY: all clean
+.PHONY: all clean installer
 
 all:
 	cmake -S backend -B backend/build-msvc
 	cmake --build backend/build-msvc --config Release --target run_entropymax
+
+installer: all
+	@echo "Building NSIS installer..."
+	@if [ -x "/c/Program Files (x86)/NSIS/Bin/makensis.exe" ]; then \
+		"/c/Program Files (x86)/NSIS/Bin/makensis.exe" installer/EntropyMax.nsi; \
+	elif [ -x "/c/Program Files/NSIS/makensis.exe" ]; then \
+		"/c/Program Files/NSIS/makensis.exe" installer/EntropyMax.nsi; \
+	elif command -v makensis >/dev/null 2>&1; then \
+		makensis installer/EntropyMax.nsi; \
+	else \
+		echo "makensis not found. Install NSIS or add makensis to PATH."; exit 1; \
+	fi
 
 clean:
 	rm -rf backend/build-msvc build/bin build/dlls

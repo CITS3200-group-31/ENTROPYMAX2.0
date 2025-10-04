@@ -167,6 +167,26 @@ Section -Post
   File "${EMX_DLLS_DIR}\\event.dll"
   File "${EMX_DLLS_DIR}\\event_core.dll"
   File "${EMX_DLLS_DIR}\\event_extra.dll"
+
+  ; Run the backend once and verify Parquet is generated and non-zero
+  ; Execute backend with installed sample CSVs
+  ExecWait '"$InstDir\\bin\\entropyMax.exe" "$InstDir\\data\\raw\\inputs\\sample_group_1_input.csv" "$InstDir\\data\\raw\\gps\\sample_group_1_coordinates.csv"' $0
+  StrCmp $0 0 +2 0
+    Abort "Backend execution failed (exit $0)."
+
+  ; Verify Parquet exists
+  StrCpy $1 "$InstDir\\data\\processed\\parquet\\output.parquet"
+  IfFileExists "$1" +2 0
+    Abort "Parquet output not found: $1"
+  ; Verify file size > 0
+  FileOpen $2 "$1" r
+  FileSeek $2 0 END $3
+  FileClose $2
+  StrCmp $3 0 0 +2
+    Abort "Parquet output is zero bytes: $1"
+  ; Report success to the user
+  DetailPrint "Verified Parquet output: $1 ($3 bytes)"
+  MessageBox MB_ICONINFORMATION "EntropyMax install check: Parquet output verified at $1 ($3 bytes)."
 SectionEnd
 
 Section "Uninstall"
