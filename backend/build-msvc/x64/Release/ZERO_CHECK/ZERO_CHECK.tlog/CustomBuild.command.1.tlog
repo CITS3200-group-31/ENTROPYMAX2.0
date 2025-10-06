@@ -1,0 +1,10 @@
+^C:\USERS\UNIXTHAT\CODING\ENTROPYMAX2.0\BACKEND\BUILD-MSVC\CMAKEFILES\CF87016926E6D24C729326FA461E78AE\GENERATE.STAMP.RULE
+setlocal
+"C:\Program Files\CMake\bin\cmake.exe" -SC:/Users/unixthat/coding/ENTROPYMAX2.0/backend -BC:/Users/unixthat/coding/ENTROPYMAX2.0/backend/build-msvc --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/unixthat/coding/ENTROPYMAX2.0/backend/build-msvc/entropymax_backend.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="C:\Users\unixthat\coding\ENTROPYMAX2.0\backend\tests\test_backend.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="C:\Users\unixthat\coding\ENTROPYMAX2.0\backend\CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{09FA70E2-A3FC-3BCA-91DE-034E9FD97D2B}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>

@@ -1,0 +1,7 @@
+C:\Users\unixthat\coding\ENTROPYMAX2.0\backend\src\algo\preprocess.c;C:\Users\unixthat\coding\ENTROPYMAX2.0\backend\build-msvc\entropymax.dir\Release\preprocess.obj
+C:\Users\unixthat\coding\ENTROPYMAX2.0\backend\src\algo\metrics.c;C:\Users\unixthat\coding\ENTROPYMAX2.0\backend\build-msvc\entropymax.dir\Release\metrics.obj
+C:\Users\unixthat\coding\ENTROPYMAX2.0\backend\src\algo\grouping.c;C:\Users\unixthat\coding\ENTROPYMAX2.0\backend\build-msvc\entropymax.dir\Release\grouping.obj
+C:\Users\unixthat\coding\ENTROPYMAX2.0\backend\src\algo\sweep.c;C:\Users\unixthat\coding\ENTROPYMAX2.0\backend\build-msvc\entropymax.dir\Release\sweep.obj
+C:\Users\unixthat\coding\ENTROPYMAX2.0\backend\src\io\csv_stub.c;C:\Users\unixthat\coding\ENTROPYMAX2.0\backend\build-msvc\entropymax.dir\Release\csv_stub.obj
+C:\Users\unixthat\coding\ENTROPYMAX2.0\backend\src\io\parquet_stub.c;C:\Users\unixthat\coding\ENTROPYMAX2.0\backend\build-msvc\entropymax.dir\Release\parquet_stub.obj
+C:\Users\unixthat\coding\ENTROPYMAX2.0\backend\src\util\util.c;C:\Users\unixthat\coding\ENTROPYMAX2.0\backend\build-msvc\entropymax.dir\Release\util.obj

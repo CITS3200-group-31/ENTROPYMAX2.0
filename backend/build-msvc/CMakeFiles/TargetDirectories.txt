@@ -1,0 +1,8 @@
+C:/Users/unixthat/coding/ENTROPYMAX2.0/backend/build-msvc/CMakeFiles/entropymax.dir
+C:/Users/unixthat/coding/ENTROPYMAX2.0/backend/build-msvc/CMakeFiles/emx_cli.dir
+C:/Users/unixthat/coding/ENTROPYMAX2.0/backend/build-msvc/CMakeFiles/parquet_io.dir
+C:/Users/unixthat/coding/ENTROPYMAX2.0/backend/build-msvc/CMakeFiles/run_entropymax.dir
+C:/Users/unixthat/coding/ENTROPYMAX2.0/backend/build-msvc/CMakeFiles/test_backend.dir
+C:/Users/unixthat/coding/ENTROPYMAX2.0/backend/build-msvc/CMakeFiles/RUN_TESTS.dir
+C:/Users/unixthat/coding/ENTROPYMAX2.0/backend/build-msvc/CMakeFiles/ALL_BUILD.dir
+C:/Users/unixthat/coding/ENTROPYMAX2.0/backend/build-msvc/CMakeFiles/ZERO_CHECK.dir
