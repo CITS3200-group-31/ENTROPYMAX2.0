@@ -18,9 +18,11 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
     [],
-    exclude_binaries=True,
-    name='main',
+    name='EntropyMax',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -31,20 +33,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    # icon=['../icons/'],
-)
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
-    name='EntropyMax',
-)
-app = BUNDLE(
-    coll,
-    name='EntropyMax.exe',
-    # icon='../icons/emaxlight.icons',
-    bundle_identifier=None,
+    icon='../icons/emaxlight.ico',
 )

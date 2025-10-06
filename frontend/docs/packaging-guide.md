@@ -46,7 +46,7 @@ make windows
 1. Activate the project environment (PowerShell or CMD).
 2. From `frontend\`, run:
 	```powershell
-	.\build_win.sh
+	pyinstaller --clean -y win.spec
 	```
 3. Output: `dist/EntropyMax.exe`
 
