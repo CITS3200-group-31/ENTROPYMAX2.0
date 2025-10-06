@@ -1,7 +1,23 @@
 """
-Utility functions for EntropyMax frontend.
+Convenient exports for EntropyMax frontend utilities.
 """
 
-from .csv_export import export_analysis_results, generate_sample_input_csv
+from .temp_manager import TempFileManager
+from .cli_integration import CLIIntegration
+from .data_pipeline import DataPipeline
+from .parquet_extractor import ParquetDataExtractor
+from .csv_validator import (
+	validate_raw_data_csv,
+	validate_gps_csv,
+	quick_check_csv,
+)
 
-__all__ = ['export_analysis_results', 'generate_sample_input_csv']
+__all__ = [
+	'TempFileManager',
+	'CLIIntegration',
+	'DataPipeline',
+	'ParquetDataExtractor',
+	'validate_raw_data_csv',
+	'validate_gps_csv',
+	'quick_check_csv',
+]

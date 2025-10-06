@@ -14,11 +14,13 @@ class StandaloneWindow(QMainWindow):
     
     closed = Signal()
     exportRequested = Signal()
+    exportKMLRequested = Signal()  # New signal for KML export
     
-    def __init__(self, title, widget, parent=None):
+    def __init__(self, title, widget, parent=None, enable_kml_export=False):
         super().__init__(parent)
         self.setWindowTitle(title)
         self.content_widget = widget
+        self.enable_kml_export = enable_kml_export
         
         # Set as independent window
         self.setWindowFlags(Qt.WindowType.Window)
@@ -61,6 +63,13 @@ class StandaloneWindow(QMainWindow):
         export_action.setToolTip("Export current view as PNG")
         export_action.triggered.connect(self.exportRequested.emit)
         toolbar.addAction(export_action)
+        
+        # KML Export action (only for map window)
+        if self.enable_kml_export:
+            export_kml_action = QAction("Export as KML", self)
+            export_kml_action.setToolTip("Export map data as KML file for Google Earth")
+            export_kml_action.triggered.connect(self.exportKMLRequested.emit)
+            toolbar.addAction(export_kml_action)
     
     def _show_settings(self):
         """Show visualization settings dialog."""

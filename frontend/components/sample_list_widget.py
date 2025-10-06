@@ -4,9 +4,76 @@ Sample list widget with checkboxes for selection and map navigation.
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, 
                              QTreeWidgetItem, QPushButton, QLabel, QHeaderView,
-                             QAbstractItemView)
+                             QAbstractItemView, QLineEdit)
 from PyQt6.QtCore import Qt
 from PyQt6.QtCore import pyqtSignal as Signal
+import shlex
+
+# Parse query: free text, group, selected
+
+def _parse_query(text: str):
+    tokens = shlex.split(text)
+    result = {
+        "text": [],
+        "groups": [],
+        "selected": None,
+    }
+
+    def _parse_bool(v: str):
+        s = v.lower()
+        if s in ("true", "yes", "1", "on"):
+            return True
+        if s in ("false", "no", "0", "off"):
+            return False
+        return None
+
+    for t in tokens:
+        if ":" in t:
+            key, val = t.split(":", 1)
+            k = key.lower()
+            v = val.strip()
+            if k in ("group", "grp", "g"):
+                if v:
+                    result["groups"].append(v)
+                continue
+            if k in ("selected", "sel", "checked"):
+                b = _parse_bool(v)
+                if b is not None:
+                    result["selected"] = b
+                continue
+        # otherwise treat as free text
+        result["text"].append(t)
+
+    result["text"] = " ".join(result["text"]).strip().lower()
+    return result
+
+
+class CustomSortTreeWidgetItem(QTreeWidgetItem):
+    """Custom QTreeWidgetItem with sorting support for checkbox column."""
+    
+    def __lt__(self, other):
+        """Custom comparison for sorting.
+        
+        Column 0 (checkbox): Checked items appear first
+        Other columns: Default string/numeric comparison
+        """
+        column = self.treeWidget().sortColumn()
+        
+        if column == 0:  # Checkbox column
+            # Get check states
+            self_checked = self.checkState(0) == Qt.CheckState.Checked
+            other_checked = other.checkState(0) == Qt.CheckState.Checked
+            
+            # If same state, maintain stable order
+            if self_checked == other_checked:
+                return False
+            
+            # Checked items should appear first (be "less than" unchecked)
+            # Return True if self is unchecked and other is checked
+            return not self_checked and other_checked
+        
+        # For other columns, use default comparison
+        return super().__lt__(other)
 
 
 class SampleListWidget(QWidget):
@@ -30,6 +97,13 @@ class SampleListWidget(QWidget):
         layout.setSpacing(10)
         
         # Removed title label for cleaner interface
+        
+        # Search input (minimal search bar)
+        self.search_edit = QLineEdit()
+        self.search_edit.setPlaceholderText("Search... e.g. group:2 selected:true")
+        self.search_edit.setClearButtonEnabled(True)
+        self.search_edit.textChanged.connect(self._filter_items)
+        layout.addWidget(self.search_edit)
         
         # Create tree widget for sample list
         self.tree_widget = QTreeWidget()
@@ -92,7 +166,7 @@ class SampleListWidget(QWidget):
         self.tree_widget.clear()
         
         for sample in samples_data:
-            item = QTreeWidgetItem()
+            item = CustomSortTreeWidgetItem()
             
             # Add checkbox in first column
             item.setCheckState(0, Qt.CheckState.Unchecked)
@@ -148,24 +222,52 @@ class SampleListWidget(QWidget):
         self.selectionChanged.emit(self.selected_samples)
         
     def _select_all(self):
-        """Select all samples."""
+        """Select all visible samples (respects search filter)."""
+        # Temporarily disable sorting to avoid row reordering during iteration
+        prev_sort = self.tree_widget.isSortingEnabled()
+        if prev_sort:
+            self.tree_widget.setSortingEnabled(False)
+        
         # Block signals during batch update to prevent recursion
         self.tree_widget.blockSignals(True)
         for i in range(self.tree_widget.topLevelItemCount()):
             item = self.tree_widget.topLevelItem(i)
-            item.setCheckState(0, Qt.CheckState.Checked)
+            # Only select visible items (not hidden by search filter)
+            if not item.isHidden():
+                item.setCheckState(0, Qt.CheckState.Checked)
         self.tree_widget.blockSignals(False)
+        
+        # Restore sorting
+        if prev_sort:
+            self.tree_widget.setSortingEnabled(True)
+        
         self._update_selection()
         
     def _clear_all(self):
-        """Clear all selections."""
+        """Clear all visible selections (respects search filter)."""
+        # Temporarily disable sorting to avoid row reordering during iteration
+        prev_sort = self.tree_widget.isSortingEnabled()
+        if prev_sort:
+            self.tree_widget.setSortingEnabled(False)
+        
         # Block signals during batch update to prevent recursion
         self.tree_widget.blockSignals(True)
         for i in range(self.tree_widget.topLevelItemCount()):
             item = self.tree_widget.topLevelItem(i)
-            item.setCheckState(0, Qt.CheckState.Unchecked)
+            # Only clear visible items (not hidden by search filter)
+            if not item.isHidden():
+                item.setCheckState(0, Qt.CheckState.Unchecked)
         self.tree_widget.blockSignals(False)
+        
+        # Restore sorting
+        if prev_sort:
+            self.tree_widget.setSortingEnabled(True)
+        
         self._update_selection()
+        
+    def clear_all(self):
+        """Public API to clear selection (external callers)."""
+        self._clear_all()
         
     def get_selected_samples(self):
         """Return list of selected sample names."""
@@ -192,6 +294,11 @@ class SampleListWidget(QWidget):
         first_selected_item = None
         last_changed_item = None
         
+        # Temporarily disable sorting to avoid row reordering during iteration
+        prev_sort = self.tree_widget.isSortingEnabled()
+        if prev_sort:
+            self.tree_widget.setSortingEnabled(False)
+        
         # Block signals during batch update to prevent recursion
         self.tree_widget.blockSignals(True)
         
@@ -216,8 +323,10 @@ class SampleListWidget(QWidget):
                     if prev_state == Qt.CheckState.Checked:
                         last_changed_item = item
         
-        # Re-enable signals
+        # Re-enable signals and restore sorting
         self.tree_widget.blockSignals(False)
+        if prev_sort:
+            self.tree_widget.setSortingEnabled(True)
         
         # Focus and scroll logic
         if focus_last and last_changed_item:
@@ -269,6 +378,44 @@ class SampleListWidget(QWidget):
                 self.tree_widget.setFocus()
                 break
     
+    def _filter_items(self, text: str):
+        """Filter by free text, group, and selected."""
+        parsed = _parse_query(text)
+        free_text = parsed["text"]
+        groups = [g.lower() for g in parsed["groups"]]
+        selected = parsed["selected"]
+
+        first_match = None
+        for i in range(self.tree_widget.topLevelItemCount()):
+            item = self.tree_widget.topLevelItem(i)
+            name = item.text(1).lower()
+            group_text = item.text(2).lower()
+
+            # text match
+            text_ok = True
+            if free_text:
+                text_ok = (free_text in name) or (free_text in group_text)
+
+            # group match (OR)
+            group_ok = True
+            if groups:
+                group_ok = any(g in group_text for g in groups)
+
+            # selected match
+            selected_ok = True
+            if selected is not None:
+                checked = (item.checkState(0) == Qt.CheckState.Checked)
+                selected_ok = (checked == selected)
+
+            is_match = text_ok and group_ok and selected_ok
+            item.setHidden(not is_match)
+
+            if first_match is None and is_match and (free_text or groups or selected is not None):
+                first_match = item
+
+        if first_match is not None:
+            self.tree_widget.scrollToItem(first_match, QTreeWidget.ScrollHint.PositionAtTop)
+
     def _apply_styles(self):
         """Apply modern styling to the widget."""
         self.tree_widget.setStyleSheet("""
