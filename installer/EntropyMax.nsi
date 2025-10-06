@@ -94,6 +94,25 @@ Section "Core files" SEC_CORE
   System::Call 'USER32::SendMessageTimeoutW(p 0xffff, i 0x1A, p 0, t "Environment", i 0, i 5000, *i .r0)'
 SectionEnd
 
+; Optionally install frontend executable if present (PyInstaller output)
+Section "Frontend (optional)" SEC_FRONTEND
+  ; Prefer one-file build at frontend/dist/EntropyMax.exe
+  IfFileExists "${PROJ_ROOT}\frontend\dist\EntropyMax.exe" 0 +7
+    SetOutPath "$InstDir\frontend"
+    File /oname=EntropyMax.exe "${PROJ_ROOT}\frontend\dist\EntropyMax.exe"
+    ; Create Desktop shortcut to launch frontend
+    CreateShortcut "$DESKTOP\${APP_NAME} Frontend.lnk" "$InstDir\frontend\EntropyMax.exe"
+    Goto done_frontend
+  ; Fallback: one-folder build at frontend/dist/EntropyMax/*
+  IfFileExists "${PROJ_ROOT}\frontend\dist\EntropyMax\EntropyMax.exe" 0 +6
+    SetOutPath "$InstDir\frontend"
+    File /r "${PROJ_ROOT}\frontend\dist\EntropyMax\*.*"
+    CreateShortcut "$DESKTOP\${APP_NAME} Frontend.lnk" "$InstDir\frontend\EntropyMax.exe"
+    Goto done_frontend
+  DetailPrint "Frontend build not found; skipping frontend install."
+  done_frontend:
+SectionEnd
+
 Section "Install shortcut" SEC_SHORTCUT
   ; Create Desktop shortcut that points directly to the install directory
   CreateShortcut "$DESKTOP\${APP_NAME}.lnk" "$InstDir" "" "$InstDir" 0

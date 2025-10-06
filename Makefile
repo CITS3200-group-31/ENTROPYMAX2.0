@@ -123,7 +123,7 @@ IO_OBJ_C     := $(IO_SRC_C:%.c=$(OBJ_DIR)/%.o)
 
 RUNNER_BIN := $(BIN_DIR)/run_entropymax
 
-.PHONY: all runner clean distclean windows
+.PHONY: all runner clean distclean windows installer frontend-win frontend-build
 
 all: runner
 
@@ -145,6 +145,15 @@ windows:
 	        runner
 	@echo "[windows] Windows binary created at: $(BIN_DIR)/run_entropymax.exe"
 	@echo "[windows] Copy this file to your frontend/ directory for Windows deployment"
+
+# Build frontend Windows EXE with PyInstaller (requires Windows or Wine)
+frontend-win:
+	@echo "[frontend-win] Building Windows frontend EXE via PyInstaller..."
+	cd frontend && pyinstaller --clean -y win.spec
+	@echo "[frontend-win] Output at frontend/dist/EntropyMax.exe"
+
+# Convenience: build backend (Windows), then frontend EXE, then stage installer
+frontend-build: windows frontend-win
 
 runner: $(CORE_OBJS_C) $(CORE_OBJS_CC) $(IO_OBJ_C) $(RUNNER_OBJ)
 	@mkdir -p $(BIN_DIR)
