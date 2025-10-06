@@ -334,16 +334,7 @@ class ControlPanel(QWidget):
                 font-weight: 500;
             }
         """)
-        self.define_export_btn.clicked.connect(self._on_select_output_kml)
-        self.define_export_btn.setEnabled(False)
-        
-        self.output_label_kml = QLabel("No output file defined")
-        self.output_label_kml.setStyleSheet("color: gray; padding: 5px;")
-        output_layout.addWidget(self.k_output)
-        output_layout.addWidget(self.define_export_btn)
-        output_layout.addWidget(self.output_label_kml)
-        output_group_kml.setLayout(output_layout)
-        layout.addWidget(output_group_kml)
+        layout.addWidget(self.export_btn)
         
         layout.addStretch()
         
