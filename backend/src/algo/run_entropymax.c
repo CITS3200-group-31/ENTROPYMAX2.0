@@ -66,15 +66,18 @@ static int read_gps_csv(const char *filename, gps_entry_t **out_entries, int *ou
     if (!filename || !out_entries || !out_count) return -1;
     *out_entries = NULL; *out_count = 0;
     FILE *fp = fopen(filename, "r");
-    if (!fp) return -1;
+    // I/O Issue
+    if (!fp) return -2;
     char line[16384];
-    if (!fgets(line, sizeof(line), fp)) { fclose(fp); return -1; }
+    // Empty/unreadable CSV header issue
+    if (!fgets(line, sizeof(line), fp)) { fclose(fp); return -2; }
     rstrip_newline(line);
     char *saveptr = NULL; int col_idx = 0;
     int idx_sample = -1, idx_lat = -1, idx_lon = -1;
     for (char *tok = strtok_r(line, ",", &saveptr); tok; tok = strtok_r(NULL, ",", &saveptr)) {
         char *h = strdup_trim(tok);
-        if (!h) { fclose(fp); return -1; }
+        // Memory allocation failure
+        if (!h) { fclose(fp); return -3; }
         for (char *p=h; *p; ++p) if (*p>='A' && *p<='Z') *p = (char)(*p + 32);
         if (idx_sample < 0 && (strstr(h, "sample") != NULL)) idx_sample = col_idx;
         if (idx_lat < 0 && strstr(h, "latitude") != NULL) idx_lat = col_idx;
@@ -85,14 +88,23 @@ static int read_gps_csv(const char *filename, gps_entry_t **out_entries, int *ou
     if (idx_sample < 0 || idx_lat < 0 || idx_lon < 0) { fclose(fp); return -2; }
     int cap = 128; int n = 0;
     gps_entry_t *arr = (gps_entry_t*)calloc((size_t)cap, sizeof(gps_entry_t));
-    if (!arr) { fclose(fp); return -1; }
+    // Memory Issue
+    if (!arr) { fclose(fp); return -3; }
     while (fgets(line, sizeof(line), fp)) {
         rstrip_newline(line);
         if (line[0] == '\0') continue;
         char *sp = NULL; int c = 0; char *tok = strtok_r(line, ",", &sp);
         char *s_sample = NULL; double lat = 0.0, lon = 0.0;
         while (tok) {
-            if (c == idx_sample) s_sample = strdup_trim(tok);
+            if (c == idx_sample) {
+                s_sample = strdup_trim(tok);
+                // Checks for NULL
+                if (!s_sample) {
+                    free(arr);
+                    fclose(fp);
+                    // Out of memory issue
+                    return -3;
+                }
             if (c == idx_lat) lat = atof(tok);
             if (c == idx_lon) lon = atof(tok);
             c++; tok = strtok_r(NULL, ",", &sp);
@@ -164,7 +176,8 @@ static int read_expected_csv(const char *filename, expected_entry_t **out_entrie
     }
     if (idx_group < 0 || idx_sample < 0) { fclose(fp); return -2; }
     int cap = 256, n = 0; expected_entry_t *arr = (expected_entry_t*)calloc((size_t)cap, sizeof(expected_entry_t));
-    if (!arr) { fclose(fp); return -1; }
+    // Memory allocation failure
+    if (!arr) { fclose(fp); return -3; }
     int uniq_k = -1; int has_k = 0; int first_row_metrics_captured = 0;
     while (fgets(line, sizeof(line), fp)) {
         rstrip_newline(line); if (line[0] == '\0') continue;
@@ -187,7 +200,8 @@ static int read_expected_csv(const char *filename, expected_entry_t **out_entrie
         if (!s_sample) continue;
         if (n >= cap) {
             int new_cap = cap * 2; expected_entry_t *tmp = (expected_entry_t*)realloc(arr, (size_t)new_cap * sizeof(expected_entry_t));
-            if (!tmp) { free(s_sample); break; }
+            // Realloc Failure
+            if (!tmp) { free(s_sample); free(arr); fclose(fp); return -3; }
             arr = tmp; cap = new_cap;
         }
         arr[n].sample = s_sample; arr[n].group_label = g; n++;
@@ -220,11 +234,17 @@ int read_csv(const char *filename, double **data, int *rows, int *cols, char ***
     int hdr_bins_cap = 128;
     int hdr_bins_count = 0;
     char **hdr_bins = (char**)calloc((size_t)hdr_bins_cap, sizeof(char*));
+    if (!hdr_bins) {
+        fclose(fp);
+        // Memory allocation failure
+        return -3;
+    }
     while ((tok_hdr = strtok_r(NULL, ",", &saveptr_hdr)) != NULL) {
         if (hdr_bins_count >= hdr_bins_cap) {
             int new_cap = hdr_bins_cap * 2;
             char **new_bins = (char**)realloc(hdr_bins, (size_t)new_cap * sizeof(char*));
-            if (!new_bins) { fclose(fp); free(hdr_bins); return -1; }
+            // Memory Allocation failure
+            if (!new_bins) { fclose(fp); free(hdr_bins); return -3; }
             hdr_bins = new_bins; hdr_bins_cap = new_cap;
         }
         hdr_bins[hdr_bins_count++] = strdup_trim(tok_hdr);
@@ -243,9 +263,11 @@ int read_csv(const char *filename, double **data, int *rows, int *cols, char ***
     char **raw_values = NULL;
     if (raw_values_out) {
         raw_values = (char**)calloc((size_t)cap_rows * (size_t)(*cols), sizeof(char*));
-        if (!raw_values) { fclose(fp); return -1; }
+        // Memory allocation failure
+        if (!raw_values) { fclose(fp); return -3; }
     }
-    if (!*rownames || !*data) { fclose(fp); return -1; }
+    // Internal memory allocation failure
+    if (!*rownames || !*data) { fclose(fp); return -3; }
 
     // Read data rows
     while (fgets(line, sizeof(line), fp)) {
@@ -258,7 +280,8 @@ int read_csv(const char *filename, double **data, int *rows, int *cols, char ***
             char **new_rows = (char**)realloc(*rownames, (size_t)new_cap * sizeof(char*));
             double *new_data = (double*)realloc(*data, (size_t)new_cap * (size_t)(*cols) * sizeof(double));
             char **new_raw = raw_values ? (char**)realloc(raw_values, (size_t)new_cap * (size_t)(*cols) * sizeof(char*)) : NULL;
-            if (!new_rows || !new_data || (raw_values && !new_raw)) { fclose(fp); return -1; }
+            // Internal memory allocation failure 
+            if (!new_rows || !new_data || (raw_values && !new_raw)) { fclose(fp); return -3; }
             *rownames = new_rows; *data = new_data; if (raw_values) raw_values = new_raw; cap_rows = new_cap;
         }
 
@@ -270,7 +293,8 @@ int read_csv(const char *filename, double **data, int *rows, int *cols, char ***
             tok = strtok_r(NULL, ",", &saveptr);
             // Trim token for robust parsing and storage
             char *tok_copy = tok ? strdup(tok) : strdup("0");
-            if (!tok_copy) { fclose(fp); return -1; }
+            // Internal memory allocation failure
+            if (!tok_copy) { fclose(fp); return -3; }
             trim_inplace(tok_copy);
             (*data)[(size_t)(*rows) * (size_t)(*cols) + (size_t)j] = tok_copy[0] ? atof(tok_copy) : 0.0;
             if (raw_values) {
@@ -291,9 +315,8 @@ int read_csv(const char *filename, double **data, int *rows, int *cols, char ***
 int main(int argc, char **argv) {
     // Require two CLI arguments: sample_data CSV and coordinate_data CSV
     if (argc < 3) {
-        fprintf(stderr, "Usage: %s <sample_data_csv> <coordinate_data_csv> [--EM_K_MIN N] [--EM_K_MAX N] [--EM_FORCE_K N]\n", argv[0]);
-        fprintf(stderr, "Example: %s data/raw/inputs/sample_group_1_input.csv data/raw/gps/sample_group_1_coordinates.csv --EM_K_MAX 15\n", argv[0]);
-        return 2;
+        // Invalid parameters
+        return -1;
     }
 
     const char *fixed_input_path = argv[1];
@@ -307,20 +330,34 @@ int main(int argc, char **argv) {
     char **raw_values = NULL;
 
     if (read_csv(fixed_input_path, &data, &rows, &cols, &rownames, &colnames, NULL, &raw_values) != 0) {
-        fprintf(stderr, "Failed to read input CSV\n");
-        return 1;
+        // CSV processing error
+        return -2;
     }
 
     // Make a processed working copy for algorithm; keep raw data for output
     double *data_proc = malloc((size_t)rows * (size_t)cols * sizeof(double));
     if (!data_proc) {
-        fprintf(stderr, "OOM\n");
-        return 1;
+        // CSV processing error
+        return -2;
     }
     memcpy(data_proc, data, (size_t)rows * (size_t)cols * sizeof(double));
 
-    // Preprocess for algorithm: grand-total percent only (match working commit behavior)
-    em_gdtl_percent(data_proc, rows, cols);
+    // Preprocess options (defaults match CSV-only flow):
+    // - row proportions: OFF (0)
+    // - grand-total percent: ON (1)
+    int opt_row_proportions = 0;
+    int opt_gdtl_percent = 1;
+
+    // First pass: capture preprocessing flags (and tolerate both --name=V and "--name V")
+    for (int ai = 3; ai < argc; ++ai) {
+        const char *a = argv[ai]; if (!a) continue;
+        if (strncmp(a, "--row_proportions=", 19) == 0) { opt_row_proportions = atoi(a + 19) ? 1 : 0; continue; }
+        if (strncmp(a, "--em_proportion=", 17) == 0) { opt_row_proportions = atoi(a + 17) ? 1 : 0; continue; }
+        if (strncmp(a, "--em_gdtl_percent=", 19) == 0) { opt_gdtl_percent = atoi(a + 19) ? 1 : 0; continue; }
+        if (strcmp(a, "--row_proportions") == 0 && ai + 1 < argc) { opt_row_proportions = atoi(argv[++ai]) ? 1 : 0; continue; }
+        if (strcmp(a, "--em_proportion") == 0 && ai + 1 < argc) { opt_row_proportions = atoi(argv[++ai]) ? 1 : 0; continue; }
+        if (strcmp(a, "--em_gdtl_percent") == 0 && ai + 1 < argc) { opt_gdtl_percent = atoi(argv[++ai]) ? 1 : 0; continue; }
+    }
 
     // Compute metrics
     double *Y = malloc((size_t)cols * sizeof(double));
@@ -341,7 +378,7 @@ int main(int argc, char **argv) {
         if (env_kmax && *env_kmax) { int v = atoi(env_kmax); if (v >= k_min) k_max = v; }
         if (k_max < k_min) k_max = k_min;
     }
-    // CLI flags take precedence over env
+    // CLI flags take precedence over env (K bounds)
     for (int ai = 3; ai < argc; ++ai) {
         const char *a = argv[ai];
         if (!a) continue;
@@ -365,6 +402,20 @@ int main(int argc, char **argv) {
         }
     }
     if (k_max < k_min) k_max = k_min;
+
+    // Apply preprocessing according to toggles
+    if (opt_row_proportions) {
+        if (em_proportion(data_proc, rows, cols) != 0) {
+            // Processing error
+            return -2;
+        }
+    }
+    if (opt_gdtl_percent) {
+        if (em_gdtl_percent(data_proc, rows, cols) != 0) {
+            // Processing error
+            return -2;
+        }
+    }
     // If an expected CSV is provided, prefer its unique K for sweep bounds
     const char *env_expected = getenv("EM_EXPECTED_CSV");
     expected_entry_t *exp_entries = NULL; int exp_n = 0; int exp_unique_k = 0; double exp_metrics[6] = {0};
@@ -385,14 +436,14 @@ int main(int argc, char **argv) {
     int rc = em_sweep_k(data_proc, rows, cols, Y, tineq, k_min, k_max, &out_opt_k, perms_n, seed,
                         metrics, metrics_cap, member1, group_means, all_member1);
     if (rc <= 0) {
-        fprintf(stderr, "Sweep failed or returned no metrics (rc=%d)\n", rc);
-        return 2;
+        // Processing error
+        return -2;
     }
     // Write CSV in frontend order for optimal K only (Group, Sample, bins…, metrics…, K)
     FILE *out = fopen(fixed_output_path, "w");
     if (!out) {
-        fprintf(stderr, "Failed to open output file\n");
-        return 1;
+        // Processing error
+        return -2;
     }
 
     // Single header line at top; use input header exactly as bin columns
@@ -509,6 +560,7 @@ int main(int argc, char **argv) {
     }
     free(rownames); free(colnames); free(data); free(Y); free(metrics); free(member1); free(group_means); free(all_member1); free(data_proc);
 
-    printf("Done. Output written to %s (csv)\n", fixed_output_path);
+    //printf("Done. Output written to %s (csv)\n", fixed_output_path);
+    // On success just returns 0
     return 0;
 }
