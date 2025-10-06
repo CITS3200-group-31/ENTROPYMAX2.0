@@ -11,6 +11,16 @@ pip install -r requirements.txt
 python main.py
 ```
 
+### CSV → Parquet converter
+
+Convert any processed CSV (for example, `output.csv` from the backend) into Parquet for inspection or UI workflows:
+
+```shell
+python -m frontend.csv_to_parquet --input output.csv --output data/parquet/output.parquet
+```
+
+Optional compression flag: `--compression snappy|gzip|brotli|zstd|none` (default: `snappy`).
+
 ## Tests
 
 ### Group Details Module
