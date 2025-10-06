@@ -9,6 +9,7 @@ from components.simple_map_sample_widget import SimpleMapSampleWidget
 from components.chart_widget import ChartWidget
 from components.settings_dialog import SettingsDialog
 from help import FormatExamplesDialog
+from utils.create_kml import create_kml
 
 
 class BentoBox(QFrame):
@@ -122,10 +123,11 @@ class EntropyMaxFinal(QMainWindow):
     
     def _init_standalone_windows(self):
         """Initialize standalone window components"""
-        # Map window
+        # Map window with KML export enabled
         self.map_sample_widget = SimpleMapSampleWidget()
-        self.map_window = StandaloneWindow("Map & Sample List", self.map_sample_widget)
+        self.map_window = StandaloneWindow("Map & Sample List", self.map_sample_widget, enable_kml_export=True)
         self.map_window.exportRequested.connect(lambda: self._export_window_content(self.map_sample_widget, "map"))
+        self.map_window.exportKMLRequested.connect(self._on_export_kml)
         self.map_widget = self.map_sample_widget.map_widget
         self.sample_list = self.map_sample_widget.sample_list
         
@@ -283,6 +285,55 @@ class EntropyMaxFinal(QMainWindow):
             self.control_panel.gps_label.setStyleSheet("color: gray; padding: 5px;")
             self.control_panel._update_button_states()
         
+    def _apply_map_for_k(self, k_value, announce=True):
+        """
+        Rebuild markers from analysis_data['gps_data'][k] and redraw the map.
+        Preserves current sample selection.
+        
+        Args:
+            k_value: K value to display
+            announce: Whether to show status bar message
+        """
+        if not hasattr(self, 'current_analysis_data') or not self.current_analysis_data:
+            QMessageBox.warning(self, "No Analysis Data", 
+                              "Please run analysis first.")
+            return
+        
+        gps_data_all = self.current_analysis_data.get('gps_data', {})
+        gps_data = gps_data_all.get(int(k_value))
+        
+        if not gps_data:
+            QMessageBox.warning(self, "No GPS Data", 
+                              f"No GPS/group data found for K={k_value}.")
+            return
+        
+        # Save current selection
+        current_selection = list(self.selected_samples) if hasattr(self, 'selected_samples') else []
+        
+        # Convert to markers format
+        markers = []
+        for sample_id, info in gps_data.items():
+            markers.append({
+                'name': sample_id,
+                'lat': info['lat'],
+                'lon': info['lon'],
+                'group': info['group'],
+                'selected': sample_id in current_selection
+            })
+        
+        # Load map with grouped data
+        self.map_sample_widget.load_data(markers)
+        
+        # Restore selection
+        if current_selection:
+            self.map_sample_widget.sample_list.set_selection(current_selection)
+        
+        # Update preview card
+        self.map_preview_card.update_status(f"Loaded {len(markers)} samples (K={k_value})")
+        
+        if announce:
+            self.statusBar().showMessage(f"Map updated for K={k_value}", 3000)
+    
     def _on_show_map(self):
         """Load map data from Parquet and display."""
         try:
@@ -291,31 +342,22 @@ class EntropyMaxFinal(QMainWindow):
                                   "Please run analysis first.")
                 return
             
-            # Get optimal K GPS data from analysis
+            k_values = self.current_analysis_data.get('k_values', [])
             optimal_k = self.current_analysis_data.get('optimal_k')
-            if not optimal_k:
-                raise Exception("No optimal K found in analysis data")
             
-            gps_data = self.current_analysis_data['gps_data'][optimal_k]
+            # Prefer the user's selected K when valid; otherwise fall back to optimal_k
+            k_to_show = None
+            if hasattr(self, 'selected_k_for_details') and self.selected_k_for_details in k_values:
+                k_to_show = int(self.selected_k_for_details)
+            elif optimal_k in k_values:
+                k_to_show = int(optimal_k)
+            elif k_values:
+                k_to_show = int(max(k_values))
             
-            # Convert to markers format
-            markers = []
-            for sample_id, info in gps_data.items():
-                markers.append({
-                    'name': sample_id,
-                    'lat': info['lat'],
-                    'lon': info['lon'],
-                    'group': info['group'],
-                    'selected': False
-                })
+            if k_to_show is None:
+                raise Exception("No valid K value to display on the map.")
             
-            # Load map with grouped data
-            self.map_sample_widget.load_data(markers)
-            
-            # Update preview card - show sample count only
-            self.map_preview_card.update_status(f"Loaded {len(markers)} samples")
-            
-            self.statusBar().showMessage(f"Map loaded with {len(markers)} samples (K={optimal_k})", 3000)
+            self._apply_map_for_k(k_to_show, announce=True)
             
         except Exception as e:
             QMessageBox.critical(self, "Error Loading Map", str(e))
@@ -336,23 +378,30 @@ class EntropyMaxFinal(QMainWindow):
     
     def _on_k_value_selected_and_show_details(self, k_value):
         """Handle K value selection from charts and automatically show group details."""
-        self.selected_k_for_details = k_value
+        self.selected_k_for_details = int(k_value)
         optimal_k = self.current_analysis_data.get('optimal_k', None)
         
         # Update status bar
         if k_value == optimal_k:
             self.statusBar().showMessage(
-                f"Selected K={k_value} (Optimal). Loading group details...", 
+                f"Selected K={k_value} (Optimal). Loading details and updating map...", 
                 3000
             )
         else:
             self.statusBar().showMessage(
-                f"Selected K={k_value}. Loading group details...", 
+                f"Selected K={k_value}. Loading details and updating map...", 
                 3000
             )
         
-        # Automatically show group details for selected K
+        # 1) Show group details for selected K
         self._on_show_group_details()
+        
+        # 2) Update map grouping for selected K (refresh map if already loaded)
+        try:
+            self._apply_map_for_k(int(k_value), announce=False)
+        except Exception as e:
+            # Map may not be loaded yet, that's OK
+            pass
         
     def _update_map_groups(self, gps_data):
         """Update map markers with group assignments from analysis"""
@@ -559,6 +608,126 @@ class EntropyMaxFinal(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Export Error", 
                               f"Failed to export results:\n{str(e)}")
+    
+    def _on_export_kml(self):
+        """Export map data as KML file using teammate's implementation."""
+        if not self.current_analysis_data:
+            QMessageBox.warning(self, "No Results", 
+                              "Please run analysis first before exporting KML.")
+            return
+        
+        from PyQt6.QtWidgets import QInputDialog, QDialog, QVBoxLayout, QLabel, QComboBox, QDialogButtonBox
+        
+        # Get parquet path from analysis data
+        parquet_path = self.current_analysis_data.get('parquet_path')
+        if not parquet_path:
+            QMessageBox.critical(self, "KML Export Error", 
+                              "Parquet file path not found in analysis data.")
+            return
+        
+        # Get available K values
+        k_values = self.current_analysis_data.get('k_values', [])
+        optimal_k = self.current_analysis_data.get('optimal_k')
+        
+        if not k_values:
+            QMessageBox.critical(self, "KML Export Error", 
+                              "No K values found in analysis data.")
+            return
+        
+        # Step 1: Ask user for K value (default to selected K when available, otherwise optimal K)
+        selected_k = getattr(self, 'selected_k_for_details', None)
+        if isinstance(selected_k, (int, float)) and selected_k in k_values:
+            default_k = int(selected_k)
+        elif isinstance(optimal_k, (int, float)) and optimal_k in k_values:
+            default_k = int(optimal_k)
+        else:
+            default_k = int(max(k_values))
+        
+        prompt_opt_text = f", Optimal: {optimal_k}" if (isinstance(optimal_k, (int, float)) and optimal_k in k_values) else ""
+        k_value, ok = QInputDialog.getInt(
+            self,
+            "Select K Value",
+            f"Enter K value for KML export:\n(Available: {min(k_values)}-{max(k_values)}{prompt_opt_text})",
+            default_k,  # default value
+            min(k_values),  # minimum
+            max(k_values),  # maximum
+            1  # step
+        )
+        
+        if not ok:
+            return
+        
+        # Validate K value
+        if k_value not in k_values:
+            QMessageBox.warning(self, "Invalid K Value", 
+                              f"K={k_value} is not in the analysis results.\nAvailable values: {k_values}")
+            return
+        
+        # Step 2: Ask user to choose: All groups or specific group (use actual group ids from analysis data)
+        try:
+            group_map = self.current_analysis_data.get('groupings', {}).get(int(k_value), {})
+            actual_groups = sorted(int(gid) for gid in group_map.keys()) if group_map else []
+        except Exception:
+            actual_groups = []
+        
+        group_options = ["All groups"]
+        if actual_groups:
+            for gid in actual_groups:
+                group_options.append(f"Group {gid} only")
+        else:
+            for i in range(1, k_value + 1):
+                group_options.append(f"Group {i} only")
+        
+        group_choice, ok = QInputDialog.getItem(
+            self,
+            "Select Groups to Export",
+            f"Choose which group(s) to export for K={k_value}:",
+            group_options,
+            0,  # default to "All groups"
+            False  # not editable
+        )
+        
+        if not ok:
+            return
+        
+        # Parse group choice (0 = all, 1-k = specific group)
+        if group_choice == "All groups":
+            group_number = 0
+            filename_suffix = f"k{k_value}_all"
+            export_description = "All groups"
+        else:
+            group_number = int(group_choice.split()[1])  # Extract number from "Group X only"
+            filename_suffix = f"k{k_value}_group{group_number}"
+            export_description = f"Group {group_number} only"
+        
+        # Step 3: Let user choose output file location
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export KML File",
+            f"map_{filename_suffix}.kml",
+            "KML Files (*.kml)"
+        )
+        
+        if not file_path:  # User cancelled
+            return
+        
+        try:
+            # Ensure .kml extension
+            if not file_path.endswith('.kml'):
+                file_path += '.kml'
+            
+            # Use teammate's create_kml function with group_number parameter
+            # Parameters: file_name (parquet), k_value, group_number (0 = all groups), output_file_name
+            create_kml(parquet_path, k_value, group_number, file_path.replace('.kml', ''))
+            
+            QMessageBox.information(self, "Export Successful", 
+                                f"KML file exported successfully:\n{file_path}\n\nK-value: {k_value}\n{export_description}")
+            
+            self.statusBar().showMessage(f"KML exported: K={k_value}, {export_description}", 3000)
+            
+        except Exception as e:
+            QMessageBox.critical(self, "KML Export Error", 
+                              f"Failed to export KML:\n{str(e)}")
             
     def _plot_analysis_results(self):
         """Plot the analysis results."""

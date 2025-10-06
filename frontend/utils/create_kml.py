@@ -21,7 +21,7 @@ def create_kml(file_name, k_value, group_number, output_file_name):
             KML.name(row["Sample"]),
             KML.description("group number : %i" %(row["Group"])),
             KML.Point(
-                KML.coordinates("%f,%f,0" %(row["Longitude"], row["Latitude"]))
+                KML.coordinates("%f,%f,0" %(row["longitude"], row["latitude"]))
             )
         )
         doc.Document.append(placemark)
