@@ -74,4 +74,4 @@ backend/build-msvc/*
 backend/build-msvs/
 backend/build-msvc/**
 
-installer.exe
+*.exe
