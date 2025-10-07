@@ -532,11 +532,17 @@ class EntropyMaxFinal(QMainWindow):
         try:
             from utils.data_pipeline import DataPipeline
             
-            # Use user-selected K if available, otherwise use optimal K
-            if self.selected_k_for_details is not None:
-                k_value = self.selected_k_for_details
+            # Use user-selected K if available; otherwise prefer optimal K when valid; else fall back to max available K
+            k_values = self.current_analysis_data.get('k_values', [])
+            optimal_k = self.current_analysis_data.get('optimal_k', None)
+            if self.selected_k_for_details is not None and (not k_values or int(self.selected_k_for_details) in k_values):
+                k_value = int(self.selected_k_for_details)
+            elif optimal_k is not None and (not k_values or int(optimal_k) in k_values):
+                k_value = int(optimal_k)
+            elif k_values:
+                k_value = int(max(k_values))
             else:
-                k_value = self.current_analysis_data.get('optimal_k', 4)
+                raise Exception("No available K values in analysis data")
             
             parquet_path = self.current_analysis_data.get('parquet_path')
             
