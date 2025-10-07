@@ -497,6 +497,15 @@ class EntropyMaxFinal(QMainWindow):
                 **analysis_data,
                 'parquet_path': parquet_path
             }
+            # Default selection: show highest available K (e.g., 20) unless user selects otherwise
+            try:
+                k_values_extracted = self.current_analysis_data.get('k_values', [])
+                if k_values_extracted:
+                    self.selected_k_for_details = int(max(k_values_extracted))
+                else:
+                    self.selected_k_for_details = None
+            except Exception:
+                self.selected_k_for_details = None
             
             # Plot results
             self._plot_analysis_results()
@@ -537,10 +546,10 @@ class EntropyMaxFinal(QMainWindow):
             optimal_k = self.current_analysis_data.get('optimal_k', None)
             if self.selected_k_for_details is not None and (not k_values or int(self.selected_k_for_details) in k_values):
                 k_value = int(self.selected_k_for_details)
-            elif optimal_k is not None and (not k_values or int(optimal_k) in k_values):
-                k_value = int(optimal_k)
             elif k_values:
-                k_value = int(max(k_values))
+                k_value = int(max(k_values))  # default to highest K (e.g., 20)
+            elif optimal_k is not None:
+                k_value = int(optimal_k)
             else:
                 raise Exception("No available K values in analysis data")
             
