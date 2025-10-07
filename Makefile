@@ -1,10 +1,14 @@
-.PHONY: all installer clean
+.PHONY: all installer clean frontend
 
 all:
 	cmake -S backend -B backend/build-msvc
 	cmake --build backend/build-msvc --config Release --target run_entropymax
 	cmake -E make_directory build/bin
 	cmake -E copy backend/build-msvc/Release/run_entropymax.exe build/bin/run_entropymax.exe
+
+frontend: all
+	cmake -E copy build/bin/run_entropymax.exe frontend/run_entropymax.exe
+	cd frontend && py -3.11 -m PyInstaller --clean -y win.spec
 
 installer:
 	@$(MAKE) clean
