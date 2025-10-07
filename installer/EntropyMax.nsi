@@ -7,7 +7,10 @@
 !include "x64.nsh"
 
 !define APP_NAME "EntropyMax"
-!define PROJ_ROOT "${__FILEDIR__}\..\.."
+; Project root (can be overridden via /DPROJ_ROOT on makensis command line)
+!ifndef PROJ_ROOT
+!define PROJ_ROOT "${__FILEDIR__}\.."
+!endif
 !define EMX_DLLS_DIR "${PROJ_ROOT}\build\dlls"
 
 Name "${APP_NAME} Backend"
@@ -97,19 +100,24 @@ SectionEnd
 ; Optionally install frontend executable if present (PyInstaller output)
 Section "Frontend (optional)" SEC_FRONTEND
   ; Prefer one-file build at frontend/dist/EntropyMax.exe
-  IfFileExists "${PROJ_ROOT}\frontend\dist\EntropyMax.exe" 0 +7
+  IfFileExists "${PROJ_ROOT}\frontend\dist\EntropyMax.exe" do_onefile do_check_folder
+
+  do_check_folder:
+  ; Fallback disabled to avoid spurious warnings when folder build is not used
+  Goto do_skip_frontend
+
+  do_onefile:
     SetOutPath "$InstDir\frontend"
-    File /oname=EntropyMax.exe "${PROJ_ROOT}\frontend\dist\EntropyMax.exe"
+    File /nonfatal /oname=EntropyMax.exe "${PROJ_ROOT}\frontend\dist\EntropyMax.exe"
     ; Create Desktop shortcut to launch frontend
     CreateShortcut "$DESKTOP\${APP_NAME} Frontend.lnk" "$InstDir\frontend\EntropyMax.exe"
     Goto done_frontend
-  ; Fallback: one-folder build at frontend/dist/EntropyMax/*
-  IfFileExists "${PROJ_ROOT}\frontend\dist\EntropyMax\EntropyMax.exe" 0 +6
-    SetOutPath "$InstDir\frontend"
-    File /r "${PROJ_ROOT}\frontend\dist\EntropyMax\*.*"
-    CreateShortcut "$DESKTOP\${APP_NAME} Frontend.lnk" "$InstDir\frontend\EntropyMax.exe"
-    Goto done_frontend
-  DetailPrint "Frontend build not found; skipping frontend install."
+
+  ; do_onefolder: (removed)
+
+  do_skip_frontend:
+    DetailPrint "Frontend build not found; skipping frontend install."
+
   done_frontend:
 SectionEnd
 
@@ -174,25 +182,26 @@ Section -Post
     Goto loop_dlls
   done_dlls:
 
-  ; Run the backend once and verify Parquet is generated and non-zero
-  ; Execute backend with installed sample CSVs
+  ; Run the backend once and verify CSV is generated and non-zero
+  ; Set working directory so output.csv lands in processed\csv
+  SetOutPath "$InstDir\\data\\processed\\csv"
   ExecWait '"$InstDir\\bin\\entropyMax.exe" "$InstDir\\data\\raw\\inputs\\sample_group_1_input.csv" "$InstDir\\data\\raw\\gps\\sample_group_1_coordinates.csv"' $0
   StrCmp $0 0 +2 0
     Abort "Backend execution failed (exit $0)."
 
-  ; Verify Parquet exists
-  StrCpy $1 "$InstDir\\data\\processed\\parquet\\output.parquet"
+  ; Verify CSV exists
+  StrCpy $1 "$InstDir\\data\\processed\\csv\\output.csv"
   IfFileExists "$1" +2 0
-    Abort "Parquet output not found: $1"
+    Abort "CSV output not found: $1"
   ; Verify file size > 0
   FileOpen $2 "$1" r
   FileSeek $2 0 END $3
   FileClose $2
   StrCmp $3 0 0 +2
-    Abort "Parquet output is zero bytes: $1"
+    Abort "CSV output is zero bytes: $1"
   ; Report success to the user
-  DetailPrint "Verified Parquet output: $1 ($3 bytes)"
-  MessageBox MB_ICONINFORMATION "EntropyMax install check: Parquet output verified at $1 ($3 bytes)."
+  DetailPrint "Verified CSV output: $1 ($3 bytes)"
+  MessageBox MB_ICONINFORMATION "EntropyMax install check: CSV output verified at $1 ($3 bytes)."
 SectionEnd
 
 Section "Uninstall"

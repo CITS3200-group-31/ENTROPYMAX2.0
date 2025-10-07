@@ -6,14 +6,19 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-# Enable warnings in non-Release builds
-if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
-  add_compile_options(-Wall -Wextra -Wconversion -Wshadow -Wpedantic)
+# Enable warnings in non-Release builds (compiler-appropriate)
+if(MSVC)
+  # Visual Studio multi-config: use generator expression to exclude Release
+  add_compile_options($<$<NOT:$<CONFIG:Release>>:/W4>)
+else()
+  if(NOT CMAKE_BUILD_TYPE STREQUAL "Release")
+    add_compile_options(-Wall -Wextra -Wconversion -Wshadow -Wpedantic)
+  endif()
 endif()
 
 # Optional sanitizers for dev builds (enable by setting -DSANITIZE=ON)
 option(SANITIZE "Enable Address/UB sanitizers" OFF)
-if(SANITIZE AND NOT CMAKE_BUILD_TYPE STREQUAL "Release")
+if(SANITIZE AND NOT CMAKE_BUILD_TYPE STREQUAL "Release" AND NOT MSVC)
   add_compile_options(-fsanitize=address,undefined)
   add_link_options(-fsanitize=address,undefined)
 endif()
