@@ -14,7 +14,7 @@
 !define EMX_DLLS_DIR "${PROJ_ROOT}\build\dlls"
 
 Name "${APP_NAME} Backend"
-OutFile "installer.exe"
+OutFile "full_installer.exe"
 ; Icon for the installer UI
 Icon "${PROJ_ROOT}\icons\emaxlight.ico"
 
@@ -124,6 +124,9 @@ SectionEnd
 Section "Install shortcut" SEC_SHORTCUT
   ; Create Desktop shortcut that points directly to the install directory
   CreateShortcut "$DESKTOP\${APP_NAME}.lnk" "$InstDir" "" "$InstDir" 0
+  ; If frontend is included, add a shortcut to the frontend launcher
+  IfFileExists "$InstDir\frontend\EntropyMax.exe" 0 +2
+    CreateShortcut "$DESKTOP\${APP_NAME} Frontend.lnk" "$InstDir\frontend\EntropyMax.exe" "" "$InstDir\frontend\EntropyMax.exe" 0
 SectionEnd
 
 ; ---------------- Uninstaller ----------------
@@ -154,6 +157,13 @@ Section -Post
   File "${EMX_DLLS_DIR}\\event.dll"
   File "${EMX_DLLS_DIR}\\event_core.dll"
   File "${EMX_DLLS_DIR}\\event_extra.dll"
+
+  ; Include frontend distribution if present (only staged one-file build)
+  SetOutPath "$InstDir\frontend"
+  IfFileExists "${PROJ_ROOT}\build\EntropyMax.exe" +2 0
+    File "${PROJ_ROOT}\build\EntropyMax.exe"
+  IfFileExists "${PROJ_ROOT}\build\EntropyMax.exe" 0 +2
+    DetailPrint "No frontend build found at ${PROJ_ROOT}\build\EntropyMax.exe; skipping frontend packaging"
 
   ; Post-install: verify every DLL landed in $InstDir\bin
   !macro VerifyDll _name
@@ -212,8 +222,10 @@ Section "Uninstall"
   ; Note: keeping it simple per user's instruction to avoid complex logic
   ; Cleanup files and directories
   Delete "$DESKTOP\\${APP_NAME}.lnk"
+  Delete "$DESKTOP\\${APP_NAME} Frontend.lnk"
   RMDir /r "$InstDir\data"
   RMDir /r "$InstDir\bin"
+  RMDir /r "$InstDir\frontend"
   Delete "$InstDir\\Uninstall.exe"
   RMDir "$InstDir"
   DeleteRegKey HKLM "${UNINST_KEY}"
