@@ -1,1 +1,0 @@
-sudo pyinstaller --clean -y macos.spec

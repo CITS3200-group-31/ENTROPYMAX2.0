@@ -1,5 +1,0 @@
-pytest>=7.0
-pytest-qt>=4.4
-coverage>=7.6
-ruff>=0.5
-mypy>=1.10
