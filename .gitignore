@@ -43,7 +43,13 @@ data/processed/sample_outputt.csv
 *.wim
 *.iso
 
-*.xlsx
+
+# Python bytecode and caches
+__pycache__/
+
+# Environment files
+.env
+.env.*
 
 
 
@@ -68,4 +74,9 @@ output.csv
 
 .venv/
 output.parquet
+*.parquet
 .cursor
+
+# ExcelScript outputs (do not track generated artifacts)
+excelScript/output/
+
