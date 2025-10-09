@@ -1,6 +1,7 @@
 import sys
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QFrame, QMessageBox, QMenu, QFileDialog)
+from PyQt6 import QtGui
 from components.control_panel import ControlPanel
 from components.group_detail_popup import GroupDetailPopup
 from components.module_preview_card import ModulePreviewCard
@@ -9,6 +10,7 @@ from components.simple_map_sample_widget import SimpleMapSampleWidget
 from components.chart_widget import ChartWidget
 from components.settings_dialog import SettingsDialog
 from help import FormatExamplesDialog
+from help import UsageGuideDialog
 from utils.create_kml import create_kml
 
 
@@ -33,6 +35,7 @@ class EntropyMaxFinal(QMainWindow):
     
     def __init__(self):
         super().__init__()
+        self.setWindowIcon(QtGui.QIcon('icons\emaxlight.svg'))
         self.setWindowTitle("EntropyMax 2.0")
         self.setGeometry(100, 100, 1200, 700)
         self.setStyleSheet("""
@@ -93,23 +96,7 @@ class EntropyMaxFinal(QMainWindow):
         right_layout = QVBoxLayout(right_container)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(15)
-        
-        # Map preview card
-        self.map_preview_card = ModulePreviewCard(
-            title="Map & Sample List",
-            description="View GPS locations and manage sample selection"
-        )
-        self.map_preview_card.openRequested.connect(self._open_map_window)
-        right_layout.addWidget(self.map_preview_card)
-        
-        # CH analysis preview card
-        self.ch_preview_card = ModulePreviewCard(
-            title="CH Analysis",
-            description="Calinski-Harabasz Index visualization"
-        )
-        self.ch_preview_card.openRequested.connect(self._open_ch_window)
-        right_layout.addWidget(self.ch_preview_card)
-        
+
         # RS analysis preview card
         self.rs_preview_card = ModulePreviewCard(
             title="Rs Analysis", 
@@ -120,6 +107,29 @@ class EntropyMaxFinal(QMainWindow):
         
         right_layout.addStretch()
         main_layout.addWidget(right_container)
+
+        # CH analysis preview card
+        self.ch_preview_card = ModulePreviewCard(
+            title="CH Analysis",
+            description="Calinski-Harabasz Index visualization"
+        )
+        self.ch_preview_card.openRequested.connect(self._open_ch_window)
+        right_layout.addWidget(self.ch_preview_card)
+
+        right_layout.addStretch()
+        main_layout.addWidget(right_container)
+        
+        # Map preview card
+        self.map_preview_card = ModulePreviewCard(
+            title="Map & Sample List",
+            description="View GPS locations and manage sample selection"
+        )
+        self.map_preview_card.openRequested.connect(self._open_map_window)
+        right_layout.addWidget(self.map_preview_card)
+        
+        
+        
+        
     
     def _init_standalone_windows(self):
         """Initialize standalone window components"""
@@ -215,6 +225,7 @@ class EntropyMaxFinal(QMainWindow):
             QMenu::item {
                 padding: 8px 25px;
                 background: transparent;
+                position: right;
             }
             QMenu::item:selected {
                 background-color: #e0f2f1;
@@ -224,12 +235,20 @@ class EntropyMaxFinal(QMainWindow):
         # Add Format Examples action
         format_action = help_menu.addAction('Format Examples')
         format_action.triggered.connect(self._show_format_examples)
+
+        format_action = help_menu.addAction('Usage Guide')
+        format_action.triggered.connect(self._show_usage_guide)
         
         menubar.addMenu(help_menu)
     
     def _show_format_examples(self):
         """Show dialog with format examples for CSV files."""
         dialog = FormatExamplesDialog(self)
+        dialog.exec()
+
+    def _show_usage_guide(self):
+        """Show guide for how to use the program, with a user flow. """
+        dialog = UsageGuideDialog(self)
         dialog.exec()
         
     def _connect_signals(self):
@@ -520,13 +539,13 @@ class EntropyMaxFinal(QMainWindow):
             self.control_panel.export_btn.setEnabled(True)
             
             progress.close()
-            self.statusBar().showMessage(f"Analysis complete. Optimal K={optimal_k}. Click 'Show Map View' to see results.", 5000)
+            self.statusBar().showMessage(f"Analysis complete. Optimal K={optimal_k}. Click 'Show Map View' to see results.")
             
         except Exception as e:
             if 'progress' in locals():
                 progress.close()
             QMessageBox.critical(self, "Analysis Error", str(e))
-            self.statusBar().showMessage("Analysis failed.", 3000)
+            self.statusBar().showMessage("Analysis failed.")
             # Cleanup on error
             if hasattr(self, 'temp_manager'):
                 self.temp_manager.cleanup()
@@ -535,7 +554,7 @@ class EntropyMaxFinal(QMainWindow):
         """Show group detail popups with line charts for each group."""
         if not hasattr(self, 'current_analysis_data') or not self.current_analysis_data:
             QMessageBox.warning(self, "No Analysis Data", 
-                              "Please run analysis first.")
+                              "Please run analysis first by clicking Step 3.")
             return
         
         try:
@@ -572,9 +591,9 @@ class EntropyMaxFinal(QMainWindow):
             
             optimal_k = self.current_analysis_data.get('optimal_k', None)
             if k_value == optimal_k:
-                self.statusBar().showMessage(f"Showing details for K={k_value} groups (Optimal).", 3000)
+                self.statusBar().showMessage(f"Showing details for K={k_value} groups (Optimal).")
             else:
-                self.statusBar().showMessage(f"Showing details for K={k_value} groups.", 3000)
+                self.statusBar().showMessage(f"Showing details for K={k_value} groups.")
             
         except Exception as e:
             QMessageBox.critical(self, "Error Showing Group Details", str(e))
@@ -618,7 +637,7 @@ class EntropyMaxFinal(QMainWindow):
             QMessageBox.information(self, "Export Successful", 
                                 f"Results saved to:\n{file_path}\n\nTemporary files have been cleaned up.")
             
-            self.statusBar().showMessage(f"Results exported to {Path(file_path).name}", 3000)
+            self.statusBar().showMessage(f"Results exported to {Path(file_path).name}")
             
         except Exception as e:
             QMessageBox.critical(self, "Export Error", 
@@ -637,7 +656,7 @@ class EntropyMaxFinal(QMainWindow):
         parquet_path = self.current_analysis_data.get('parquet_path')
         if not parquet_path:
             QMessageBox.critical(self, "KML Export Error", 
-                              "Parquet file path not found in analysis data.")
+                              "Parquet file path not found in analysis data. Please run analysis.")
             return
         
         # Get available K values
@@ -661,8 +680,8 @@ class EntropyMaxFinal(QMainWindow):
         prompt_opt_text = f", Optimal: {optimal_k}" if (isinstance(optimal_k, (int, float)) and optimal_k in k_values) else ""
         k_value, ok = QInputDialog.getInt(
             self,
-            "Select K Value",
-            f"Enter K value for KML export:\n(Available: {min(k_values)}-{max(k_values)}{prompt_opt_text})",
+            "Select Group Number",
+            f"Select number of groups for KML export:\n(Available K-Values: {min(k_values)}-{max(k_values)}{prompt_opt_text})",
             default_k,  # default value
             min(k_values),  # minimum
             max(k_values),  # maximum
