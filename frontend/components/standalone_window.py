@@ -7,6 +7,7 @@ from PyQt6.QtWidgets import QMainWindow, QWidget, QVBoxLayout, QToolBar
 from PyQt6.QtCore import pyqtSignal as Signal, Qt
 from PyQt6.QtGui import QAction
 from .settings_dialog import SettingsDialog
+from .visualization_settings import VisualizationSettings
 
 
 class StandaloneWindow(QMainWindow):
@@ -49,6 +50,22 @@ class StandaloneWindow(QMainWindow):
         toolbar.setMovable(False)
         self.addToolBar(toolbar)
         
+        # First, allow content widget to add its own actions (module-specific) on the left
+        try:
+            if hasattr(self.content_widget, 'augment_toolbar') and callable(self.content_widget.augment_toolbar):
+                self.content_widget.augment_toolbar(toolbar)
+                # Separator before standard actions
+                toolbar.addSeparator()
+        except Exception:
+            # Do not break window if augmentation fails
+            pass
+        
+        # Reset all visuals to defaults
+        reset_action = QAction("Reset", self)
+        reset_action.setToolTip("Reset all visuals to defaults")
+        reset_action.triggered.connect(self._reset_all_visuals)
+        toolbar.addAction(reset_action)
+        
         # Visualization Settings action
         settings_action = QAction("Settings", self)
         settings_action.setToolTip("Adjust visualization settings for publication standards")
@@ -78,6 +95,21 @@ class StandaloneWindow(QMainWindow):
         self.settings_dialog.show()
         self.settings_dialog.raise_()
         self.settings_dialog.activateWindow()
+        
+    def _reset_all_visuals(self):
+        """Reset global visualization settings and let content reset its own view."""
+        try:
+            # Reset shared styling
+            VisualizationSettings().reset_to_defaults()
+        except Exception:
+            pass
+        
+        # Let content widget reset its own state (scale/chart type/view)
+        try:
+            if hasattr(self.content_widget, 'reset_to_defaults') and callable(self.content_widget.reset_to_defaults):
+                self.content_widget.reset_to_defaults()
+        except Exception:
+            pass
         
     def closeEvent(self, event):
         """Handle window close"""

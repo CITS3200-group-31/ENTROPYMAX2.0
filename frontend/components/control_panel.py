@@ -53,7 +53,7 @@ class ControlPanel(QWidget):
         input_layout = QVBoxLayout()
         input_layout.setContentsMargins(10, 15, 10, 10)
         
-        self.select_input_btn = QPushButton("Select Input CSV")
+        self.select_input_btn = QPushButton("Select PSD CSV")
         self.select_input_btn.setStyleSheet("""
             QPushButton {
                 background-color: #009688;
