@@ -271,68 +271,17 @@ class ChartWidget(QWidget):
         self.optimal_k = None
         self.scatter_plot = None
         self.selected_marker = None
-
-
-class DualChartWidget(QWidget):
-    """Widget containing both CH and Rs charts side by side."""
     
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self._setup_ui()
+    def reset_to_defaults(self):
+        """Reset styling to defaults and rerender last data."""
+        try:
+            self.settings.reset_to_defaults()
+        except Exception:
+            pass
+        # Replot handled by settingsChanged, but ensure autorange
+        try:
+            self.plot_widget.autoRange()
+        except Exception:
+            pass
         
-    def _setup_ui(self):
-        """Initialize the UI components."""
-        layout = QVBoxLayout(self)
         
-        # Create CH chart
-        self.ch_chart = ChartWidget(
-            title="Calinski-Harabasz Index",
-            ylabel="CH Index"
-        )
-        
-        # Create Rs chart
-        self.rs_chart = ChartWidget(
-            title="Rs Percentage",
-            ylabel="Rs %"
-        )
-        
-    def plot_analysis_results(self, k_values, ch_values, rs_values, optimal_k=None):
-        """
-        Plot both CH and Rs analysis results.
-        
-        Args:
-            k_values: Array of k values
-            ch_values: Array of CH values
-            rs_values: Array of Rs values
-            optimal_k: Optimal k value to highlight
-        """
-        # Plot CH values
-        self.ch_chart.plot_data(
-            k_values, 
-            ch_values, 
-            color='b', 
-            symbol='o', 
-            name='CH Index'
-        )
-        
-        # Plot Rs values
-        self.rs_chart.plot_data(
-            k_values, 
-            rs_values, 
-            color='r', 
-            symbol='s', 
-            name='Rs %'
-        )
-        
-        # Add optimal marker if provided
-        if optimal_k is not None:
-            # Find the index of optimal k
-            optimal_idx = np.where(k_values == optimal_k)[0]
-            if len(optimal_idx) > 0:
-                optimal_idx = optimal_idx[0]
-                self.ch_chart.add_optimal_marker(optimal_k, ch_values[optimal_idx])
-                
-    def clear(self):
-        """Clear both charts."""
-        self.ch_chart.clear()
-        self.rs_chart.clear()

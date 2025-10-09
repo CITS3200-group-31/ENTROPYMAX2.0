@@ -5,17 +5,15 @@ Settings dialog for adjusting visualization parameters for publication standards
 from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGroupBox, 
     QLabel, QSlider, QSpinBox, QPushButton, QComboBox,
-    QDialogButtonBox, QWidget, QGridLayout, QDoubleSpinBox
+    QGridLayout, QDoubleSpinBox
 )
-from PyQt6.QtCore import Qt, pyqtSignal as Signal
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from .visualization_settings import VisualizationSettings
 
 
 class SettingsDialog(QDialog):
     """Dialog for adjusting visualization settings for publication standards."""
-    
-    settingsApplied = Signal()
     
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -278,26 +276,3 @@ class SettingsDialog(QDialog):
         # No specific preview widget for bars; plot will update live via settingsChanged
 
 
-class FloatingSettingsButton(QPushButton):
-    """A floating button to open settings dialog."""
-    
-    def __init__(self, parent=None):
-        super().__init__("Settings", parent)
-        self.setStyleSheet("""
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                padding: 8px 15px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-            QPushButton:pressed {
-                background-color: #0D47A1;
-            }
-        """)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.setToolTip("Adjust visualization settings for publication standards")
