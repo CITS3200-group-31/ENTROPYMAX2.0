@@ -3,8 +3,7 @@ Sample list widget with checkboxes for selection and map navigation.
 """
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTreeWidget, 
-                             QTreeWidgetItem, QPushButton, QLabel, QHeaderView,
-                             QAbstractItemView, QLineEdit)
+                             QTreeWidgetItem, QPushButton, QLabel, QLineEdit)
 from PyQt6.QtCore import Qt
 from PyQt6.QtCore import pyqtSignal as Signal
 import shlex
@@ -71,14 +70,6 @@ class CustomSortTreeWidgetItem(QTreeWidgetItem):
             # Checked items should appear first (be "less than" unchecked)
             # Return True if self is unchecked and other is checked
             return not self_checked and other_checked
-        
-        if column == 2: # Number column
-            key1 = self.text(2)
-            key2 = other.text(2)
-            try: 
-                return float(key1) < float(key2)
-            except ValueError:
-                return key1 < key2
         
         # For other columns, use default comparison
         return super().__lt__(other)

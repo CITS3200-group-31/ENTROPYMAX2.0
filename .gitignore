@@ -76,3 +76,4 @@ backend/build-msvc/**
 third_party/
 
 *.exe
+data/raw/inputs/sample_group_1_input.csv

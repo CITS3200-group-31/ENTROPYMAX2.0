@@ -287,16 +287,3 @@ class ParquetDataExtractor:
         return True
 
 
-# Convenience function for backward compatibility
-def create_data(input_file: str) -> Dict[int, List[Dict]]:
-    """
-    Legacy function for backward compatibility.
-    
-    Args:
-        input_file: Path to Parquet file
-        
-    Returns:
-        Group data dictionary
-    """
-    extractor = ParquetDataExtractor(input_file)
-    return extractor.group_data_dict

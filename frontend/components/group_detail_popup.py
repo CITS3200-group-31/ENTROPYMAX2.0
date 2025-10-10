@@ -4,10 +4,9 @@ Group detail popup component for displaying line charts for each group.
 
 import numpy as np
 import pyqtgraph as pg
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QHBoxLayout, QToolTip, QPushButton, QMainWindow, QToolBar, QFileDialog
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QMainWindow, QToolBar, QFileDialog, QApplication
 from PyQt6.QtCore import Qt, pyqtSignal as Signal, QObject, QTimer
 from PyQt6.QtGui import QAction
-from collections import defaultdict
 from .visualization_settings import VisualizationSettings
 from .settings_dialog import SettingsDialog
 
@@ -48,12 +47,13 @@ class GroupDetailPopup(QObject):
         
         return np.array(numeric_values)
     
-    def _create_popup_windows(self, grouped_samples, x_unit='μm', y_unit='a.u.'):
+    def _create_popup_windows(self, grouped_samples, total_groups, x_unit='μm', y_unit='a.u.'):
         """
         Create popup windows for each group showing line charts.
         
         Args:
             grouped_samples: Dictionary with group data
+            total_groups: Total number of groups (K)
             x_unit: Unit label for x-axis
             y_unit: Unit label for y-axis
         """
@@ -68,26 +68,26 @@ class GroupDetailPopup(QObject):
             # Create window for this group
             window = GroupDetailWindow(
                 group_id=group_id,
+                total_groups=int(total_groups),
                 samples=samples,
                 x_labels=self.x_labels,
                 x_values=self.x_values,
                 color=base_colors[group_idx % len(base_colors)],
                 x_unit=x_unit,
-                y_unit=y_unit
+                y_unit=y_unit,
+                manager=self  # Pass manager reference for layout sync
             )
             
-            # Position windows in a cascade
-            window.setGeometry(
-                150 + group_idx * 30,
-                150 + group_idx * 30,
-                900, 550
-            )
+            # Don't set geometry yet - will be done by tiling
             
             # Connect the lineClicked signal from each window to our sampleLineClicked signal
             window.lineClicked.connect(self.sampleLineClicked)
             
             window.show()
             self.detail_windows.append(window)
+        
+        # After all windows created, tile them automatically
+        self._tile_windows_vertically()
     
     def load_and_show_popups_from_data(self, group_details, k_value, x_unit='μm', y_unit='a.u.'):
         """
@@ -115,7 +115,48 @@ class GroupDetailPopup(QObject):
                 print(f"DEBUG Group {group_id}: first sample values length={len(details['samples'][0]['values'])}")
         
         # Create popup windows
-        self._create_popup_windows(grouped_samples, x_unit=x_unit, y_unit=y_unit)
+        self._create_popup_windows(grouped_samples, total_groups=int(k_value), x_unit=x_unit, y_unit=y_unit)
+    
+    def _tile_windows_vertically(self):
+        """Tile windows vertically (stacked) with shorter heights to fit on one screen."""
+        if not self.detail_windows:
+            return
+        
+        # Get screen geometry
+        screen = QApplication.primaryScreen()
+        avail = screen.availableGeometry()
+        screen_width = avail.width()
+        screen_height = avail.height()
+        screen_x = avail.x()
+        screen_y = avail.y()
+        
+        n_windows = len(self.detail_windows)
+        
+        # Reserve margins
+        top_margin = 40
+        bottom_margin = 20
+        side_margin = 20
+        spacing = 8
+        
+        # Calculate window dimensions
+        window_width = screen_width - 2 * side_margin
+        available_height = screen_height - top_margin - bottom_margin - (n_windows - 1) * spacing
+        window_height = max(180, int(available_height / n_windows))  # Minimum 180px per window
+        
+        # Position each window
+        for i, window in enumerate(self.detail_windows):
+            x = screen_x + side_margin
+            y = screen_y + top_margin + i * (window_height + spacing)
+            window.setGeometry(x, y, window_width, window_height)
+    
+    def apply_layout_to_all(self, source_settings):
+        """Apply layout settings from one window to all windows.
+        
+        Args:
+            source_settings: dict with keys 'is_log_scale', 'show_as_bar', 'y_range'
+        """
+        for window in self.detail_windows:
+            window.apply_layout_settings(source_settings)
     
     def close_all(self):
         """Close all open detail windows."""
@@ -130,16 +171,18 @@ class GroupDetailWindow(QMainWindow):
     # Signal emitted when a line is clicked
     lineClicked = Signal(str)  # sample_name
 
-    def __init__(self, group_id, samples, x_labels, x_values, color, x_unit='\u03bcm', y_unit='a.u.'):
+    def __init__(self, group_id, total_groups, samples, x_labels, x_values, color, x_unit='\u03bcm', y_unit='a.u.', manager=None):
         super().__init__()
         self.setWindowFlags(Qt.WindowType.Window)
-        self.group_id = group_id
+        self.group_id = int(group_id)
+        self.total_groups = int(total_groups)
         self.samples = samples
         self.x_labels = x_labels
         self.x_values = x_values
         self.base_color = color
         self.x_unit = x_unit
         self.y_unit = y_unit
+        self.manager = manager  # Reference to GroupDetailPopup for layout sync
         self.plot_items = []  # plot items and meta per sample
         self.is_log_scale = True  # default to logarithmic x
         self.show_as_bar = True  # default to bar chart per request
@@ -164,7 +207,8 @@ class GroupDetailWindow(QMainWindow):
         
     def _setup_ui(self):
         """Initialize the UI for the popup window."""
-        self.setWindowTitle(f"Group {self.group_id} - Grain Size Distribution")
+        # Title: include total groups (e.g., "Group 2 of 5")
+        self.setWindowTitle(f"Group {self.group_id} of {self.total_groups}")
         
         # Setup toolbar first
         self._setup_toolbar()
@@ -179,6 +223,8 @@ class GroupDetailWindow(QMainWindow):
         # Create plot widget directly without header
         self.plot_widget = pg.PlotWidget()
         self.plot_widget.setBackground('w')
+        # Plot header inside the chart area as well
+        self.plot_widget.setTitle(f"Group {self.group_id} of {self.total_groups}")
         
         # Apply initial styling from settings
         self._apply_plot_styling()
@@ -197,7 +243,7 @@ class GroupDetailWindow(QMainWindow):
         tick_style = self.settings.get_tick_style()
         
         # Apply axis labels with settings
-        self.plot_widget.setLabel('left', 'Value', units=self.y_unit, **axis_style)
+        self.plot_widget.setLabel('left', 'Frequency', units=self.y_unit, **axis_style)
         self.plot_widget.setLabel('bottom', 'Grain Size', units=self.x_unit, **axis_style)
         
         # Apply tick font styling
@@ -255,6 +301,33 @@ class GroupDetailWindow(QMainWindow):
         # Separator
         toolbar.addSeparator()
         
+        # Apply Layout to All action
+        apply_layout_action = QAction("Apply Layout to All", self)
+        apply_layout_action.setToolTip("Apply current scale, chart type, and view range to all group windows")
+        apply_layout_action.triggered.connect(self._apply_layout_to_all)
+        toolbar.addAction(apply_layout_action)
+        
+        # Retile action
+        retile_action = QAction("Retile Windows", self)
+        retile_action.setToolTip("Retile all windows vertically")
+        retile_action.triggered.connect(self._retile_windows)
+        toolbar.addAction(retile_action)
+        
+        # Close all group detail windows
+        close_all_action = QAction("Close All", self)
+        close_all_action.setToolTip("Close all group detail windows")
+        close_all_action.triggered.connect(self._close_all_windows)
+        toolbar.addAction(close_all_action)
+        
+        # Separator
+        toolbar.addSeparator()
+        
+        # Reset action (global style + all group windows to defaults)
+        reset_action = QAction("Reset", self)
+        reset_action.setToolTip("Reset all group detail windows and styles to defaults")
+        reset_action.triggered.connect(self._reset_all_defaults)
+        toolbar.addAction(reset_action)
+        
         # Settings action
         settings_action = QAction("Settings", self)
         settings_action.setToolTip("Adjust visualization settings for publication standards")
@@ -305,6 +378,89 @@ class GroupDetailWindow(QMainWindow):
         # Replot and autorange
         self._plot_data()
         self.plot_widget.autoRange()
+        
+    def _reset_all_defaults(self):
+        """Reset styles and all group detail windows to defaults."""
+        # Reset shared visualization styles
+        try:
+            self.settings.reset_to_defaults()
+        except Exception:
+            pass
+        # Reset this window's toggles
+        self.is_log_scale = True
+        self.show_as_bar = True
+        # Update toolbar texts
+        try:
+            self.scale_action.setText("Switch to Linear")
+            self.chart_type_action.setText("Switch to Line")
+        except Exception:
+            pass
+        # Replot and reset view
+        self._clear_all_points()
+        self._plot_data()
+        self.plot_widget.autoRange()
+        
+        # Apply same layout to all windows via manager
+        try:
+            if self.manager:
+                self.manager.apply_layout_to_all(self.get_layout_settings())
+        except Exception:
+            pass
+        
+    def _apply_layout_to_all(self):
+        """Apply current window's layout settings to all group windows."""
+        if not self.manager:
+            return
+        
+        # Gather current layout settings
+        settings = self.get_layout_settings()
+        
+        # Apply to all windows via manager
+        self.manager.apply_layout_to_all(settings)
+        
+        # Show confirmation in window title temporarily
+        original_title = self.windowTitle()
+        self.setWindowTitle(f"{original_title} - Layout applied to all!")
+        QTimer.singleShot(2000, lambda: self.setWindowTitle(original_title))
+    
+    def _retile_windows(self):
+        """Retile all windows."""
+        if not self.manager:
+            return
+        self.manager._tile_windows_vertically()
+    
+    def _close_all_windows(self):
+        """Close all group detail windows via manager."""
+        if not self.manager:
+            return
+        self.manager.close_all()
+    
+    def get_layout_settings(self):
+        """Get current layout settings as a dictionary."""
+        view_range = self.plot_widget.viewRange()
+        return {
+            'is_log_scale': self.is_log_scale,
+            'show_as_bar': self.show_as_bar,
+            'x_range': view_range[0],
+            'y_range': view_range[1]
+        }
+    
+    def apply_layout_settings(self, settings):
+        """Apply layout settings from another window.
+        
+        Args:
+            settings: dict with 'is_log_scale', 'show_as_bar', 'x_range', 'y_range'
+        """
+        # Apply scale and chart type
+        if settings.get('is_log_scale') != self.is_log_scale:
+            self._toggle_scale()
+        
+        if settings.get('show_as_bar') != self.show_as_bar:
+            self._toggle_chart_type()
+        
+        # Apply view range
+        if 'x_range' in settings and 'y_range' in settings:
+            self.plot_widget.setRange(xRange=settings['x_range'], yRange=settings['y_range'], padding=0)
     
     def _export_as_png(self):
         """Export the current plot as PNG image."""
@@ -357,92 +513,101 @@ class GroupDetailWindow(QMainWindow):
             # Filter out NaN values
             valid_mask = ~np.isnan(x_plot_values)
             
-            for sample in self.samples:
+            for si, sample in enumerate(self.samples):
+                    y_values = np.array(sample['values'])
+                    
+                    # Ensure y_values and x_plot_values have the same length
+                    if len(y_values) != len(x_plot_values):
+                        # Truncate or pad to match
+                        min_len = min(len(y_values), len(x_plot_values))
+                        y_values = y_values[:min_len]
+                        x_plot_subset = x_plot_values[:min_len]
+                        valid_mask_subset = valid_mask[:min_len]
+                    else:
+                        x_plot_subset = x_plot_values
+                        valid_mask_subset = valid_mask
+                    
+                    if self.show_as_bar:
+                        # Bar chart rendering (semi-transparent fill + thin outline)
+                        base_w = self._compute_bar_widths(x_plot_subset[valid_mask_subset])
+                        w = base_w * float(self.settings.bar_width_scale)
+                        default_brush = pg.mkBrush(r, g, b, 120)
+                        hover_brush = pg.mkBrush(r, g, b, 220)
+                        bar_pen = pg.mkPen(r, g, b, 180)
+                        bar_item = pg.BarGraphItem(
+                            x=x_plot_subset[valid_mask_subset],
+                            height=y_values[valid_mask_subset],
+                            width=w,
+                            brush=default_brush,
+                            pen=bar_pen
+                        )
+                        self.plot_widget.addItem(bar_item)
+                        
+                        # Invisible line for interaction hit-testing
+                        line_pen = pg.mkPen(color=(0, 0, 0, 0), width=0.001)
+                        plot_item = self.plot_widget.plot(
+                            x_plot_subset[valid_mask_subset],
+                            y_values[valid_mask_subset],
+                            pen=line_pen
+                        )
+                        hover_width = self.settings.line_thickness + 1.5
+                        click_width = self.settings.line_thickness + 1.0
+                        self.plot_items.append({
+                            'plot_item': plot_item,
+                            'bar_item': bar_item,
+                            'sample_name': sample['name'],
+                            'original_pen': line_pen,
+                            'hover_pen': pg.mkPen(color=(r, g, b, 255), width=hover_width),
+                            'click_pen': pg.mkPen(color=(255, 165, 0, 255), width=click_width),
+                            'default_brush': default_brush,
+                            'hover_brush': hover_brush,
+                            'default_bar_pen': bar_pen,
+                            'bar_x': x_plot_subset[valid_mask_subset],
+                            'bar_w': w,
+                            'bar_h': y_values[valid_mask_subset],
+                            'y0': 0.0
+                        })
+                    else:
+                        # Line chart rendering with distinct color per sample
+                        line_color = pg.intColor(si, hues=max(10, len(self.samples)), alpha=255)
+                        pen = pg.mkPen(color=line_color, width=self.settings.line_thickness)
+                        plot_item = self.plot_widget.plot(x_plot_subset[valid_mask_subset], 
+                                                         y_values[valid_mask_subset], 
+                                                         pen=pen)
+                        
+                        # Store plot item with sample name and original pen for click detection
+                        hover_width = self.settings.line_thickness + 1.5
+                        click_width = self.settings.line_thickness + 1.0
+                        self.plot_items.append({
+                            'plot_item': plot_item,
+                            'sample_name': sample['name'],
+                            'original_pen': pen,
+                            'hover_pen': pg.mkPen(color=line_color, width=hover_width),  # Thicker for hover
+                            'click_pen': pg.mkPen(color=(255, 165, 0, 255), width=click_width)  # Orange for click feedback
+                        })
+        else:
+            # Linear scale - use actual grain-size x-values instead of indices
+            x_plot_values = self.original_x_values.astype(float)
+            
+            for si, sample in enumerate(self.samples):
                 y_values = np.array(sample['values'])
-                
-                # Ensure y_values and x_plot_values have the same length
+                # Ensure lengths match
                 if len(y_values) != len(x_plot_values):
-                    # Truncate or pad to match
                     min_len = min(len(y_values), len(x_plot_values))
                     y_values = y_values[:min_len]
                     x_plot_subset = x_plot_values[:min_len]
-                    valid_mask_subset = valid_mask[:min_len]
                 else:
                     x_plot_subset = x_plot_values
-                    valid_mask_subset = valid_mask
                 
                 if self.show_as_bar:
-                    # Bar chart rendering (semi-transparent fill + thin outline)
-                    base_w = self._compute_bar_widths(x_plot_subset[valid_mask_subset])
+                    # Bar chart rendering on actual x positions
+                    base_w = self._compute_bar_widths(x_plot_subset)
                     w = base_w * float(self.settings.bar_width_scale)
                     default_brush = pg.mkBrush(r, g, b, 120)
                     hover_brush = pg.mkBrush(r, g, b, 220)
                     bar_pen = pg.mkPen(r, g, b, 180)
                     bar_item = pg.BarGraphItem(
-                        x=x_plot_subset[valid_mask_subset],
-                        height=y_values[valid_mask_subset],
-                        width=w,
-                        brush=default_brush,
-                        pen=bar_pen
-                    )
-                    self.plot_widget.addItem(bar_item)
-                    
-                    # Invisible line for interaction hit-testing
-                    line_pen = pg.mkPen(color=(0, 0, 0, 0), width=0.001)
-                    plot_item = self.plot_widget.plot(
-                        x_plot_subset[valid_mask_subset],
-                        y_values[valid_mask_subset],
-                        pen=line_pen
-                    )
-                    hover_width = self.settings.line_thickness + 1.5
-                    click_width = self.settings.line_thickness + 1.0
-                    self.plot_items.append({
-                        'plot_item': plot_item,
-                        'bar_item': bar_item,
-                        'sample_name': sample['name'],
-                        'original_pen': line_pen,
-                        'hover_pen': pg.mkPen(color=(r, g, b, 255), width=hover_width),
-                        'click_pen': pg.mkPen(color=(255, 165, 0, 255), width=click_width),
-                        'default_brush': default_brush,
-                        'hover_brush': hover_brush,
-                        'default_bar_pen': bar_pen,
-                        'bar_x': x_plot_subset[valid_mask_subset],
-                        'bar_w': w,
-                        'bar_h': y_values[valid_mask_subset],
-                        'y0': 0.0
-                    })
-                else:
-                    # Line chart rendering
-                    pen = pg.mkPen(color=(r, g, b, 255), width=self.settings.line_thickness)
-                    plot_item = self.plot_widget.plot(x_plot_subset[valid_mask_subset], 
-                                                     y_values[valid_mask_subset], 
-                                                     pen=pen)
-                    
-                    # Store plot item with sample name and original pen for click detection
-                    hover_width = self.settings.line_thickness + 1.5
-                    click_width = self.settings.line_thickness + 1.0
-                    self.plot_items.append({
-                        'plot_item': plot_item,
-                        'sample_name': sample['name'],
-                        'original_pen': pen,
-                        'hover_pen': pg.mkPen(color=(r, g, b, 255), width=hover_width),  # Thicker for hover
-                        'click_pen': pg.mkPen(color=(255, 165, 0, 255), width=click_width)  # Orange for click feedback
-                    })
-        else:
-            # Linear scale - use indices as x-values
-            x_indices = np.arange(len(self.original_x_values))
-            
-            for sample in self.samples:
-                y_values = np.array(sample['values'])
-                if self.show_as_bar:
-                    # Bar chart rendering on linear index axis
-                    base_w = self._compute_bar_widths(x_indices)
-                    w = base_w * float(self.settings.bar_width_scale)
-                    default_brush = pg.mkBrush(r, g, b, 120)
-                    hover_brush = pg.mkBrush(r, g, b, 220)
-                    bar_pen = pg.mkPen(r, g, b, 180)
-                    bar_item = pg.BarGraphItem(
-                        x=x_indices,
+                        x=x_plot_subset,
                         height=y_values,
                         width=w,
                         brush=default_brush,
@@ -452,7 +617,7 @@ class GroupDetailWindow(QMainWindow):
                     
                     # Invisible line for interaction
                     line_pen = pg.mkPen(color=(0, 0, 0, 0), width=0.001)
-                    plot_item = self.plot_widget.plot(x_indices, y_values, pen=line_pen)
+                    plot_item = self.plot_widget.plot(x_plot_subset, y_values, pen=line_pen)
                     hover_width = self.settings.line_thickness + 1.5
                     click_width = self.settings.line_thickness + 1.0
                     self.plot_items.append({
@@ -465,15 +630,16 @@ class GroupDetailWindow(QMainWindow):
                         'default_brush': default_brush,
                         'hover_brush': hover_brush,
                         'default_bar_pen': bar_pen,
-                        'bar_x': x_indices,
+                        'bar_x': x_plot_subset,
                         'bar_w': w,
                         'bar_h': y_values,
                         'y0': 0.0
                     })
                 else:
-                    # Line chart rendering on linear index axis
-                    pen = pg.mkPen(color=(r, g, b, 255), width=self.settings.line_thickness)
-                    plot_item = self.plot_widget.plot(x_indices, y_values, pen=pen)
+                    # Line chart rendering on actual x positions with per-sample color
+                    line_color = pg.intColor(si, hues=max(10, len(self.samples)), alpha=255)
+                    pen = pg.mkPen(color=line_color, width=self.settings.line_thickness)
+                    plot_item = self.plot_widget.plot(x_plot_subset, y_values, pen=pen)
                     
                     hover_width = self.settings.line_thickness + 1.5
                     click_width = self.settings.line_thickness + 1.0
@@ -481,7 +647,7 @@ class GroupDetailWindow(QMainWindow):
                         'plot_item': plot_item,
                         'sample_name': sample['name'],
                         'original_pen': pen,
-                        'hover_pen': pg.mkPen(color=(r, g, b, 255), width=hover_width),  # Thicker for hover
+                        'hover_pen': pg.mkPen(color=line_color, width=hover_width),  # Thicker for hover
                         'click_pen': pg.mkPen(color=(255, 165, 0, 255), width=click_width)  # Orange for click feedback
                     })
         
@@ -550,38 +716,56 @@ class GroupDetailWindow(QMainWindow):
             
             ax.setTicks([ticks])
         else:
-            # Linear scale - create ticks based on actual grain size values
+            # Linear scale - use nice numeric ticks instead of raw sample positions
             if self.original_x_values is not None and len(self.original_x_values) > 0:
-                # Get actual data range
-                min_val = np.min(self.original_x_values)
-                max_val = np.max(self.original_x_values)
+                data_min = float(np.min(self.original_x_values))
+                data_max = float(np.max(self.original_x_values))
+                if not np.isfinite(data_min) or not np.isfinite(data_max) or data_max <= data_min:
+                    return
+                # Use current view range, clamped to data range
+                vr = vb.viewRange()[0]
+                min_val = max(data_min, float(vr[0]))
+                max_val = min(data_max, float(vr[1]))
+                if max_val <= min_val:
+                    min_val, max_val = data_min, data_max
                 
-                # Create tick values in the actual grain size range
-                num_ticks = min(10, len(self.original_x_values))
-                
-                # Select evenly spaced indices
-                indices = np.linspace(0, len(self.original_x_values) - 1, num_ticks, dtype=int)
-                ticks = []
-                
-                for idx in indices:
-                    pos = idx  # Position in the array
-                    val = self.original_x_values[idx]  # Actual grain size value
-                    
-                    # Format label based on value magnitude
-                    if val >= 100:
-                        label = f"{int(val)}"
-                    elif val >= 1:
-                        label = f"{val:.1f}" if val != int(val) else f"{int(val)}"
-                    elif val >= 0.1:
-                        label = f"{val:.2f}"
-                    else:
-                        label = f"{val:.3f}"
-                    
-                    ticks.append((pos, label))
-                
+                ticks = self._nice_linear_ticks(min_val, max_val, desired=7)
                 ax.setTicks([ticks])
         
         ax.setTextPen('#333')
+
+    def _nice_linear_ticks(self, vmin: float, vmax: float, desired: int = 7):
+        """Compute 'nice' evenly spaced linear ticks for [vmin, vmax].
+        Returns list[(pos,label)].
+        """
+        import math
+        span = vmax - vmin
+        if span <= 0:
+            return []
+        # Initial rough step
+        raw = span / max(2, desired)
+        exp = math.floor(math.log10(raw))
+        base = 10 ** exp
+        candidates = [1, 2, 5, 10]
+        step = min(candidates, key=lambda m: abs(raw - m * base)) * base
+        # Snap start to multiple of step
+        start = math.floor(vmin / step) * step
+        end = math.ceil(vmax / step) * step
+        
+        # Generate ticks
+        ticks = []
+        x = start
+        # Guard against infinite loop due to FP error
+        max_iter = 100
+        it = 0
+        while x <= end + 1e-9 and it < max_iter:
+            if vmin - 1e-9 <= x <= vmax + 1e-9:
+                # Adaptive label format
+                label = self._format_number(x)
+                ticks.append((x, label))
+            x += step
+            it += 1
+        return ticks
     
     def _compute_bar_widths(self, x_positions: np.ndarray) -> np.ndarray:
         """Compute bar widths based on neighbor gaps in plotted x-coordinates.
@@ -715,9 +899,7 @@ class GroupDetailWindow(QMainWindow):
                         if self.is_log_scale:
                             x_disp = 10 ** x_plot
                         else:
-                            x_index = int(round(xs[idx]))
-                            x_index = max(0, min(x_index, len(self.original_x_values)-1))
-                            x_disp = float(self.original_x_values[x_index])
+                            x_disp = float(xs[idx])
                         y_disp = float(y_top)
                         # Flash and pin
                         plot_item = item_data['plot_item']
@@ -764,10 +946,8 @@ class GroupDetailWindow(QMainWindow):
             if self.is_log_scale:
                 x_disp = 10 ** x_plot
             else:
-                # linear mode uses index positions -> map to original grain size
-                x_index = int(round(x_plot))
-                x_index = max(0, min(x_index, len(self.original_x_values)-1))
-                x_disp = float(self.original_x_values[x_index])
+                # linear mode plots at actual grain sizes, so x_plot is the value
+                x_disp = float(x_plot)
             y_disp = float(y_plot)
             
             # Visual click feedback
@@ -853,9 +1033,7 @@ class GroupDetailWindow(QMainWindow):
                         if self.is_log_scale:
                             x_disp = 10 ** x_plot
                         else:
-                            x_index = int(round(xs[idx]))
-                            x_index = max(0, min(x_index, len(self.original_x_values)-1))
-                            x_disp = float(self.original_x_values[x_index])
+                            x_disp = float(xs[idx])
                         y_disp = float(y_top)
                         self._update_hover_display(x_plot, y_plot, x_disp, y_disp, item_data['sample_name'])
                         return
@@ -877,9 +1055,7 @@ class GroupDetailWindow(QMainWindow):
             if self.is_log_scale:
                 x_disp = 10 ** x_plot
             else:
-                x_index = int(round(x_plot))
-                x_index = max(0, min(x_index, len(self.original_x_values)-1))
-                x_disp = float(self.original_x_values[x_index])
+                x_disp = float(x_plot)
             y_disp = float(y_plot)
             
             # Update transient hover marker + text

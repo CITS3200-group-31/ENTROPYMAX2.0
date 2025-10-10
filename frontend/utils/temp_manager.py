@@ -114,12 +114,6 @@ class TempFileManager:
             'dir_exists': self.session_dir.exists()
         }
     
-    def get_binary_path(self, binary_name: str = "run_entropymax") -> Path:
-        """Get path to binary in cache directory"""
-        # Add .exe extension on Windows
-        if platform.system() == "Windows" and not binary_name.endswith(".exe"):
-            binary_name = f"{binary_name}.exe"
-        return self.binary_dir / binary_name
     
     def setup_binary_from_bundle(self, binary_name: str = "run_entropymax") -> Path:
         """Setup binary file from PyInstaller bundle or source directory.
@@ -183,27 +177,6 @@ class TempFileManager:
             logger.error(f"Failed to setup binary: {e}")
             raise
         
-    @classmethod
-    def cleanup_old_sessions(cls, keep_recent: int = 5):
-        """Clean up old session directories (keep N most recent)"""
-        cache_dir = resolve_cache_root() / "cache"
-        if not cache_dir.exists():
-            return
-            
-        session_dirs = sorted(
-            [d for d in cache_dir.iterdir() if d.is_dir() and d.name.startswith("session_")],
-            key=lambda d: d.stat().st_mtime,
-            reverse=True
-        )
-        
-        # Remove old session directories
-        for old_dir in session_dirs[keep_recent:]:
-            try:
-                shutil.rmtree(old_dir)
-                logger.info(f"Removed old session: {old_dir}")
-            except Exception as e:
-                logger.error(f"Failed to remove old session {old_dir}: {e}")
-    
     @classmethod
     def cleanup_entire_cache(cls):
         """Clean up cache directory only (preserve binary) on app exit"""

@@ -3,6 +3,6 @@ Help module
 """
 
 from .format_examples_dialog import FormatExamplesDialog
-from .user_guide_dialog import UsageGuideDialog
+from .validation_rules_dialog import ValidationRulesDialog
 
-__all__ = ['FormatExamplesDialog', 'UsageGuideDialog']
+__all__ = ['FormatExamplesDialog', 'ValidationRulesDialog']
