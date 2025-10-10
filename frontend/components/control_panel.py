@@ -53,7 +53,7 @@ class ControlPanel(QWidget):
         input_layout = QVBoxLayout()
         input_layout.setContentsMargins(10, 15, 10, 10)
         
-        self.select_input_btn = QPushButton("Select PSD CSV")
+        self.select_input_btn = QPushButton("Select Input CSV")
         self.select_input_btn.setStyleSheet("""
             QPushButton {
                 background-color: #009688;
@@ -273,7 +273,7 @@ class ControlPanel(QWidget):
         layout.addWidget(self.run_analysis_btn)
         
         # Step 4: Show Map View
-        self.show_map_btn = QPushButton("Step 4: Show Map View")
+        self.show_map_btn = QPushButton("Step 4: Generate Map View")
         self.show_map_btn.setEnabled(False)
         self.show_map_btn.clicked.connect(self._on_show_map)
         self.show_map_btn.setStyleSheet("""
