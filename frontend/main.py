@@ -100,21 +100,8 @@ class EntropyMaxFinal(QMainWindow):
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(15)
         
-        # Map preview card
-        self.map_preview_card = ModulePreviewCard(
-            title="Map & Sample List",
-            description="View GPS locations and manage sample selection"
-        )
-        self.map_preview_card.openRequested.connect(self._open_map_window)
-        right_layout.addWidget(self.map_preview_card)
-        
-        # CH analysis preview card
-        self.ch_preview_card = ModulePreviewCard(
-            title="CH Analysis",
-            description="Calinski-Harabasz Index visualization"
-        )
-        self.ch_preview_card.openRequested.connect(self._open_ch_window)
-        right_layout.addWidget(self.ch_preview_card)
+        rs_ch_row = QHBoxLayout()
+        rs_ch_row.setSpacing(15)
         
         # RS analysis preview card
         self.rs_preview_card = ModulePreviewCard(
@@ -122,7 +109,24 @@ class EntropyMaxFinal(QMainWindow):
             description="Rs Percentage visualization"
         )
         self.rs_preview_card.openRequested.connect(self._open_rs_window)
-        right_layout.addWidget(self.rs_preview_card)
+        rs_ch_row.addWidget(self.rs_preview_card)
+
+        # CH analysis preview card
+        self.ch_preview_card = ModulePreviewCard(
+            title="CH Analysis",
+            description="Calinski-Harabasz Index visualization"
+        )
+        self.ch_preview_card.openRequested.connect(self._open_ch_window)
+        rs_ch_row.addWidget(self.ch_preview_card)
+        
+        right_layout.addLayout(rs_ch_row)
+        # Map preview card
+        self.map_preview_card = ModulePreviewCard(
+            title="Map & Sample List",
+            description="View GPS locations and manage sample selection"
+        )
+        self.map_preview_card.openRequested.connect(self._open_map_window)
+        right_layout.addWidget(self.map_preview_card)
         
         # Selected PSD preview card
         self.selected_psd_preview_card = ModulePreviewCard(
