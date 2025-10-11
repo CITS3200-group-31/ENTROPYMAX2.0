@@ -148,6 +148,7 @@ class EntropyMaxFinal(QMainWindow):
         self.map_widget = self.map_sample_widget.map_widget
         self.sample_list = self.map_sample_widget.sample_list
         
+        
         # CH chart window
         self.ch_chart = ChartWidget(
             title="CH Index",
@@ -377,6 +378,7 @@ class EntropyMaxFinal(QMainWindow):
         # Connect signals from map-sample widget
         self.map_sample_widget.selectionChanged.connect(self._on_selection_changed)
         self.map_sample_widget.sampleLocateRequested.connect(self._on_locate_sample)
+        self.sample_list.openPsdWindowRequested.connect(self._open_selected_psd_window)
         
         # Connect signal from group detail popup to sample list
         self.group_detail_popup.sampleLineClicked.connect(self._on_sample_line_clicked)

@@ -89,7 +89,8 @@ class SampleListWidget(QWidget):
     # Signals
     selectionChanged = Signal(list)  # List of selected sample names
     sampleLocateRequested = Signal(str, float, float)  # name, lat, lon for map centering
-    
+    openPsdWindowRequested = Signal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.samples_data = []
@@ -144,9 +145,15 @@ class SampleListWidget(QWidget):
         self.clear_all_btn = QPushButton("Clear All")
         self.clear_all_btn.setFixedHeight(32)
         self.clear_all_btn.clicked.connect(self._clear_all)
+
+        self.open_psd_btn = QPushButton("Plot Selected")
+        self.open_psd_btn.setFixedHeight(32)
+        self.open_psd_btn.clicked.connect(self._on_open_psd_clicked)    
+    
         
         button_layout.addWidget(self.select_all_btn)
         button_layout.addWidget(self.clear_all_btn)
+        button_layout.addWidget(self.open_psd_btn)
         layout.addLayout(button_layout)
         
         # Selection count label
@@ -271,6 +278,10 @@ class SampleListWidget(QWidget):
             self.tree_widget.setSortingEnabled(True)
         
         self._update_selection()
+    
+    def _on_open_psd_clicked(self):
+        """Emit signal to request opening PSD window."""
+        self.openPsdWindowRequested.emit()
         
     def clear_all(self):
         """Public API to clear selection (external callers)."""
@@ -503,6 +514,25 @@ class SampleListWidget(QWidget):
         """)
         
         self.clear_all_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #ffffff;
+                color: #333;
+                border: 1px solid #d0d0d0;
+                border-radius: 4px;
+                padding: 6px 15px;
+                font-size: 13px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: #f5f5f5;
+                border-color: #f44336;
+            }
+            QPushButton:pressed {
+                background-color: #e0e0e0;
+            }
+        """)
+
+        self.open_psd_btn.setStyleSheet("""
             QPushButton {
                 background-color: #ffffff;
                 color: #333;
