@@ -22,7 +22,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='EntropyMax',
+    name='EntropyMax2',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -33,5 +33,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='../icons/emaxlight.ico',
+    icon='emaxlight.ico'
 )

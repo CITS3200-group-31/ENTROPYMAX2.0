@@ -3,6 +3,7 @@ import os
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QFrame, QMessageBox, QMenu, QFileDialog, QLabel)
 from PyQt6.QtCore import Qt
+from PyQt6 import QtGui
 from components.control_panel import ControlPanel
 from components.group_detail_popup import GroupDetailPopup
 from components.module_preview_card import ModulePreviewCard
@@ -36,6 +37,7 @@ class EntropyMaxFinal(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("EntropyMax2")
+        self.setWindowIcon(QtGui.QIcon("emaxlight.ico"))
         self.setGeometry(100, 100, 1200, 700)
         self.setStyleSheet("""
             QMainWindow { 
@@ -390,7 +392,7 @@ class EntropyMaxFinal(QMainWindow):
         
         valid, error_msg = validate_raw_data_csv(file_path)
         if valid:
-            self.statusBar().showMessage("Raw data file loaded successfully.", 3000)
+            self.statusBar().showMessage("Raw data file loaded successfully")
         else:
             QMessageBox.warning(self, "Invalid Raw Data File", 
                               f"File validation failed:\n{error_msg}")
@@ -407,7 +409,7 @@ class EntropyMaxFinal(QMainWindow):
         
         valid, error_msg = validate_gps_csv(file_path)
         if valid:
-            self.statusBar().showMessage("GPS file loaded successfully.", 3000)
+            self.statusBar().showMessage("GPS file loaded successfully.")
         else:
             QMessageBox.warning(self, "Invalid GPS File", 
                               f"File validation failed:\n{error_msg}")
@@ -464,7 +466,7 @@ class EntropyMaxFinal(QMainWindow):
         self.map_preview_card.update_status(f"Loaded {len(markers)} samples (K={k_value})")
         
         if announce:
-            self.statusBar().showMessage(f"Map updated for K={k_value}", 3000)
+            self.statusBar().showMessage(f"Map updated for K={k_value}")
     
     def _on_show_map(self):
         """Load map data from Parquet and display."""
@@ -511,7 +513,7 @@ class EntropyMaxFinal(QMainWindow):
         """Handle sample line click from group detail popup."""
         # Just highlight the sample normally in the sample list
         self.sample_list.highlight_sample(sample_name)
-        self.statusBar().showMessage(f"Highlighted sample: {sample_name}", 3000)
+        self.statusBar().showMessage(f"Highlighted sample: {sample_name}")
     
     def _on_k_value_selected_and_show_details(self, k_value):
         """Handle K value selection from charts and automatically show group details."""
@@ -522,12 +524,12 @@ class EntropyMaxFinal(QMainWindow):
         if k_value == optimal_k:
             self.statusBar().showMessage(
                 f"Selected K={k_value} (Optimal). Loading details and updating map...", 
-                3000
+                
             )
         else:
             self.statusBar().showMessage(
                 f"Selected K={k_value}. Loading details and updating map...", 
-                3000
+                
             )
         
         # 1) Show group details for selected K
@@ -691,13 +693,13 @@ class EntropyMaxFinal(QMainWindow):
             self.control_panel.export_btn.setEnabled(True)
             
             progress.close()
-            self.statusBar().showMessage(f"Analysis complete. Optimal K={optimal_k}. Click 'Show Map View' to see results.", 5000)
+            self.statusBar().showMessage(f"Analysis complete. Optimal K={optimal_k}. Click 'Show Map View' to see results")
             
         except Exception as e:
             if 'progress' in locals():
                 progress.close()
             QMessageBox.critical(self, "Analysis Error", str(e))
-            self.statusBar().showMessage("Analysis failed.", 3000)
+            self.statusBar().showMessage("Analysis failed.")
             # Cleanup on error
             if hasattr(self, 'temp_manager'):
                 self.temp_manager.cleanup()
@@ -743,9 +745,9 @@ class EntropyMaxFinal(QMainWindow):
             
             optimal_k = self.current_analysis_data.get('optimal_k', None)
             if k_value == optimal_k:
-                self.statusBar().showMessage(f"Showing details for K={k_value} groups (Optimal).", 3000)
+                self.statusBar().showMessage(f"Showing details for K={k_value} groups (Optimal).")
             else:
-                self.statusBar().showMessage(f"Showing details for K={k_value} groups.", 3000)
+                self.statusBar().showMessage(f"Showing details for K={k_value} groups.")
             
         except Exception as e:
             QMessageBox.critical(self, "Error Showing Group Details", str(e))
@@ -789,7 +791,7 @@ class EntropyMaxFinal(QMainWindow):
             QMessageBox.information(self, "Export Successful", 
                                 f"Results saved to:\n{file_path}\n\nTemporary files have been cleaned up.")
             
-            self.statusBar().showMessage(f"Results exported to {Path(file_path).name}", 3000)
+            self.statusBar().showMessage(f"Results exported to {Path(file_path).name}")
             
         except Exception as e:
             QMessageBox.critical(self, "Export Error", 
@@ -909,7 +911,7 @@ class EntropyMaxFinal(QMainWindow):
             QMessageBox.information(self, "Export Successful", 
                                 f"KML file exported successfully:\n{file_path}\n\nK-value: {k_value}\n{export_description}")
             
-            self.statusBar().showMessage(f"KML exported: K={k_value}, {export_description}", 3000)
+            self.statusBar().showMessage(f"KML exported: K={k_value}, {export_description}")
             
         except Exception as e:
             QMessageBox.critical(self, "KML Export Error", 
@@ -970,7 +972,7 @@ class EntropyMaxFinal(QMainWindow):
         if hasattr(self, 'selected_psd_preview_card'):
             self.selected_psd_preview_card.update_status("Not loaded")
         
-        self.statusBar().showMessage("Workflow reset. Select input files to begin.", 5000)
+        self.statusBar().showMessage("Workflow reset. Select input files to begin.")
     
     def closeEvent(self, event):
         """Handle window close event and cleanup entire cache directory."""
