@@ -702,14 +702,14 @@ class EntropyMaxFinal(QMainWindow):
             # Update status (don't update map yet, wait for Step 4)
             self.ch_preview_card.update_status("Analysis complete")
             self.rs_preview_card.update_status("Analysis complete")
-            self.map_preview_card.update_status("Ready - Click 'Show Map View' to display results")
+            self.map_preview_card.update_status("Ready - Click 'Update Map View' to display results")
             
             # Enable next step buttons
             self.control_panel.show_map_btn.setEnabled(True)
             self.control_panel.export_btn.setEnabled(True)
             
             progress.close()
-            self.statusBar().showMessage(f"Analysis complete. Optimal K={optimal_k}. Click 'Show Map View' to see results")
+            self.statusBar().showMessage(f"Analysis complete. Optimal K={optimal_k}. Click 'Update Map View' to see results")
             
         except Exception as e:
             if 'progress' in locals():

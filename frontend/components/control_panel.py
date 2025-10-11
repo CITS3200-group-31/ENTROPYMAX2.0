@@ -273,7 +273,7 @@ class ControlPanel(QWidget):
         layout.addWidget(self.run_analysis_btn)
         
         # Step 4: Show Map View
-        self.show_map_btn = QPushButton("Step 4: Show Map View")
+        self.show_map_btn = QPushButton("Step 4: Update Map View")
         self.show_map_btn.setEnabled(False)
         self.show_map_btn.clicked.connect(self._on_show_map)
         self.show_map_btn.setStyleSheet("""
