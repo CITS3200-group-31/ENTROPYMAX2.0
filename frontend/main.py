@@ -37,7 +37,8 @@ class EntropyMaxFinal(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("EntropyMax2")
-        self.setWindowIcon(QtGui.QIcon("emaxlight.ico"))
+        basedir = os.path.dirname(__file__)
+        self.setWindowIcon(QtGui.QIcon(os.path.join(basedir, 'emaxlight.ico')))
         self.setGeometry(100, 100, 1200, 700)
         self.setStyleSheet("""
             QMainWindow { 
@@ -1104,6 +1105,8 @@ class EntropyMaxFinal(QMainWindow):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+    basedir = os.path.dirname(__file__)
+    app.setWindowIcon(QtGui.QIcon(os.path.join(basedir, 'emaxlight.ico')))
     app.setStyle('Fusion')
     window = EntropyMaxFinal()
     window.show()
