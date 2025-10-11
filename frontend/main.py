@@ -12,7 +12,7 @@ from components.simple_map_sample_widget import SimpleMapSampleWidget
 from components.chart_widget import ChartWidget
 from components.settings_dialog import SettingsDialog
 from components.selected_psd_widget import SelectedPSDWidget
-from help import FormatExamplesDialog, ValidationRulesDialog
+from help import FormatExamplesDialog, ValidationRulesDialog, UsageGuideDialog
 from utils.create_kml import create_kml
 from utils.recent_files import save_recent_files, load_recent_files
 class BentoBox(QFrame):
@@ -268,6 +268,10 @@ class EntropyMaxFinal(QMainWindow):
         rules_action = help_menu.addAction('Validation Quick Rules')
         rules_action.triggered.connect(self._show_validation_rules)
         
+        # Add Usage Guide  action
+        usage_action = help_menu.addAction('Usage Guide')
+        usage_action.triggered.connect(self._show_usage_guide)
+
         # Session menu with "Save & Exit" (shown to the left of Help on macOS)
         session_menu = QMenu('Session', self)
         session_menu.setStyleSheet("""
@@ -299,6 +303,11 @@ class EntropyMaxFinal(QMainWindow):
     def _show_validation_rules(self):
         """Show dialog with validation quick rules."""
         dialog = ValidationRulesDialog(self)
+        dialog.exec()
+
+    def _show_usage_guide(self):
+        """Show user guide for how the steps work, with a user flow."""
+        dialog = UsageGuideDialog(self)
         dialog.exec()
         
     def _on_save_and_exit(self):
@@ -840,8 +849,8 @@ class EntropyMaxFinal(QMainWindow):
         prompt_opt_text = f", Optimal: {optimal_k}" if (isinstance(optimal_k, (int, float)) and optimal_k in k_values) else ""
         k_value, ok = QInputDialog.getInt(
             self,
-            "Select K Value",
-            f"Enter K value for KML export:\n(Available: {min(k_values)}-{max(k_values)}{prompt_opt_text})",
+            "Select Group Number",
+            f"Enter number of groups:\n(Available: {min(k_values)}-{max(k_values)}{prompt_opt_text})",
             default_k,  # default value
             min(k_values),  # minimum
             max(k_values),  # maximum
@@ -864,7 +873,7 @@ class EntropyMaxFinal(QMainWindow):
         except Exception:
             actual_groups = []
         
-        group_options = ["All groups"]
+        group_options = ["All groups separate", "All groups"]
         if actual_groups:
             for gid in actual_groups:
                 group_options.append(f"Group {gid} only")
@@ -885,6 +894,29 @@ class EntropyMaxFinal(QMainWindow):
             return
         
         # Parse group choice (0 = all, 1-k = specific group)
+        if group_choice == "All groups separate":
+            if actual_groups:
+                groups_to_export = actual_groups
+            else:
+                groups_to_export = list(range(1, k_value + 1))
+            for group_number in groups_to_export:
+                filename_suffix = f"k{k_value}_group{group_number}"
+                file_path, _ = QFileDialog.getSaveFileName(
+                    self, 
+                    f"Export KML for Group {group_number}",
+                    f"map_{filename_suffix}.kml",
+                    "KML Files (*.kml)"
+                )
+                if not file_path:
+                    continue
+                if not file_path.endswith('.kml'):
+                    file_path += '.kml'
+                try:
+                    create_kml(parquet_path, k_value, group_number, file_path.replace('.kml', ''))
+                except Exception as e:
+                    QMessageBox.critical(self, "KML Export Error", f"Failed to export KML for group {group_number};\n{str(e)}")
+            self.statusBar().showMessage(f"KML exported: K = {k_value}, all groups separately")
+            return
         if group_choice == "All groups":
             group_number = 0
             filename_suffix = f"k{k_value}_all"
