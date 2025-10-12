@@ -105,13 +105,20 @@ class SampleListWidget(QWidget):
         layout.setSpacing(10)
         
         # Removed title label for cleaner interface
-        
+        search_layout = QHBoxLayout(self)
+        search_layout.setSpacing(10)
+
         # Search input (minimal search bar)
-        self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("Search... e.g. group:2 selected:true")
-        self.search_edit.setClearButtonEnabled(True)
-        self.search_edit.textChanged.connect(self._filter_items)
-        layout.addWidget(self.search_edit)
+        self.search_name_edit = QLineEdit()
+        self.search_name_edit.setPlaceholderText("Search by name...")
+        self.search_name_edit.setClearButtonEnabled(True)
+        self.search_name_edit.textChanged.connect(self._filter_items)
+        self.search_group_edit = QLineEdit()
+        self.search_group_edit.setPlaceholderText("Search by group...")
+        self.search_group_edit.setClearButtonEnabled(True)
+        self.search_group_edit.textChanged.connect(self._filter_items)
+        layout.addWidget(self.search_name_edit)
+        layout.addWidget(self.search_group_edit)
         
         # Create tree widget for sample list
         self.tree_widget = QTreeWidget()
@@ -397,45 +404,53 @@ class SampleListWidget(QWidget):
                 break
     
     def _filter_items(self, text: str):
-        """Filter by free text, group, and selected."""
-        parsed = _parse_query(text)
-        free_text = parsed["text"]
-        groups = [g.lower() for g in parsed["groups"]]
-        selected = parsed["selected"]
+        """Filter by name and group from separate search boxes."""
+        name_text = self.search_name_edit.text().strip().lower()
+        group_text = self.search_group_edit.text().strip().lower()
 
         first_match = None
         for i in range(self.tree_widget.topLevelItemCount()):
             item = self.tree_widget.topLevelItem(i)
             name = item.text(1).lower()
-            group_text = item.text(2).lower()
-
-            # text match
-            text_ok = True
-            if free_text:
-                text_ok = (free_text in name) or (free_text in group_text)
-
-            # group match (OR)
-            group_ok = True
-            if groups:
-                group_ok = any(g in group_text for g in groups)
-
-            # selected match
-            selected_ok = True
-            if selected is not None:
-                checked = (item.checkState(0) == Qt.CheckState.Checked)
-                selected_ok = (checked == selected)
-
-            is_match = text_ok and group_ok and selected_ok
+            group = item.text(2).lower()
+            
+            # Match both fields (AND)
+            name_ok = not name_text or name_text in name
+            group_ok = not group_text or group == group_text
+            is_match = name_ok and group_ok
+            
             item.setHidden(not is_match)
-
-            if first_match is None and is_match and (free_text or groups or selected is not None):
+            
+            if first_match is None and is_match:
                 first_match = item
 
-        if first_match is not None:
+        if first_match:
             self.tree_widget.scrollToItem(first_match, QTreeWidget.ScrollHint.PositionAtTop)
 
     def _apply_styles(self):
         """Apply modern styling to the widget."""
+        self.search_name_edit.setStyleSheet("""
+            QLineEdit {
+                padding: 6px;
+                border: 1px solid #ccc;
+                border-radius: 4px
+                font-size: 13px;
+                }
+            QLineEdit:focus {
+                border-color: #2196F3
+                }
+        """)
+        self.search_group_edit.setStyleSheet("""
+            QLineEdit {
+                padding: 6px;
+                border: 1px solid #ccc;
+                border-radius: 4px
+                font-size: 13px;
+                }
+            QLineEdit:focus {
+                border-color: #2196F3
+                }
+        """)
         self.tree_widget.setStyleSheet("""
             QTreeWidget {
                 background-color: #ffffff;
