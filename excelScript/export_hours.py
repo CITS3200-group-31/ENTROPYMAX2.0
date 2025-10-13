@@ -28,6 +28,7 @@ from rich.logging import RichHandler
 import os
 import yaml
 from dotenv import load_dotenv
+from datetime import datetime
 
 
 # ---------- Logging ----------
@@ -71,6 +72,13 @@ class AppConfig:
         "--low-level-retries", "10",
         "--transfers", "1",
     ])
+    # Behavior when Week<week> already exists on secondary remote (Teams/SharePoint)
+    # Options: "subfolder" (create WeekY/<prefix>-<timestamp> and upload there),
+    #          "overwrite" (upload directly into WeekY),
+    #          "skip" (skip secondary upload)
+    existing_week_policy: str = "subfolder"
+    existing_week_subfolder_prefix: str = "run"
+    existing_week_timestamp_format: str = "%Y%m%d-%H%M%S"
 
 
 def load_config(config_path: Optional[Path]) -> AppConfig:
@@ -91,6 +99,9 @@ def load_config(config_path: Optional[Path]) -> AppConfig:
             cfg.secondary_remote_name = data.get("secondary_remote_name", cfg.secondary_remote_name)
             cfg.secondary_remote_base_path = data.get("secondary_remote_base_path", cfg.secondary_remote_base_path)
             cfg.secondary_remote_copy_flags = data.get("secondary_remote_copy_flags", cfg.secondary_remote_copy_flags)
+            cfg.existing_week_policy = data.get("existing_week_policy", cfg.existing_week_policy)
+            cfg.existing_week_subfolder_prefix = data.get("existing_week_subfolder_prefix", cfg.existing_week_subfolder_prefix)
+            cfg.existing_week_timestamp_format = data.get("existing_week_timestamp_format", cfg.existing_week_timestamp_format)
         except Exception as e:
             logger.warning(f"[yellow]⚠️  Failed to read config file:[/yellow] {e}")
 
@@ -105,6 +116,9 @@ def load_config(config_path: Optional[Path]) -> AppConfig:
     cfg.secondary_remote_name = os.getenv("SECONDARY_REMOTE_NAME", cfg.secondary_remote_name)
     cfg.secondary_remote_base_path = os.getenv("SECONDARY_REMOTE_BASE_PATH", cfg.secondary_remote_base_path)
     cfg.secondary_remote_copy_flags = os.getenv("SECONDARY_REMOTE_COPY_FLAGS", cfg.secondary_remote_copy_flags)
+    cfg.existing_week_policy = os.getenv("EXISTING_WEEK_POLICY", cfg.existing_week_policy)
+    cfg.existing_week_subfolder_prefix = os.getenv("EXISTING_WEEK_SUBFOLDER_PREFIX", cfg.existing_week_subfolder_prefix)
+    cfg.existing_week_timestamp_format = os.getenv("EXISTING_WEEK_TIMESTAMP_FORMAT", cfg.existing_week_timestamp_format)
 
     team_members_env = os.getenv("TEAM_MEMBERS")
     if team_members_env:
@@ -335,6 +349,15 @@ class CITS3200Automation:
             if "BookedHours" in output_wb.sheetnames:
                 output_sheet = output_wb["BookedHours"]
 
+                # Unmerge all merged ranges to ensure target cells are writable
+                try:
+                    if output_sheet.merged_cells.ranges:
+                        for rng in list(output_sheet.merged_cells.ranges):
+                            output_sheet.unmerge_cells(range_string=str(rng))
+                        logger.info("    🔓 Unmerged merged cell ranges in BookedHours sheet")
+                except Exception as e:
+                    logger.warning(f"    ⚠️  Failed to unmerge some ranges: {e}")
+
                 # Update the title with the member's name
                 title_cell = output_sheet.cell(row=1, column=1)
                 if title_cell.value:
@@ -359,7 +382,11 @@ class CITS3200Automation:
                                 master_cell = master_sheet.cell(row=row, column=col)
                                 output_cell = output_sheet.cell(row=row, column=col)
                                 if master_cell.value is not None:
-                                    output_cell.value = master_cell.value
+                                    try:
+                                        output_cell.value = master_cell.value
+                                    except Exception as e:
+                                        cell_addr = f"{output_sheet.title}!{output_cell.coordinate}"
+                                        raise RuntimeError(f"Failed to write {cell_addr} for {member_name}: {e}") from e
 
                 logger.info(f"    ✅ {member_name} data transferred")
             else:
@@ -539,19 +566,56 @@ class CITS3200Automation:
                 logger.error(f"  ❌ Failed to create directory: {mkdir_result.stderr}")
                 return False
 
+            # If the Week directory already contains files, handle according to policy
+            dest_path = remote_week_path
+            try:
+                lsf = subprocess.run(["rclone", "lsf", remote_week_path], capture_output=True, text=True)
+                # Treat non-zero exit as empty (freshly created path or permission issue)
+                existing_entries = []
+                if lsf.returncode == 0:
+                    existing_entries = [ln for ln in lsf.stdout.splitlines() if ln.strip()]
+                if existing_entries:
+                    policy = (self.config.existing_week_policy or "subfolder").lower()
+                    if policy == "skip":
+                        logger.info("📦 Teams/SharePoint upload skipped: Week folder already contains files (policy=skip)")
+                        return True
+                    if policy == "subfolder":
+                        ts = datetime.now().strftime(self.config.existing_week_timestamp_format)
+                        sub = f"{self.config.existing_week_subfolder_prefix}-{ts}" if self.config.existing_week_subfolder_prefix else ts
+                        dest_path = f"{remote_week_path}/{sub}"
+                        mk_sub = subprocess.run(["rclone", "mkdir", dest_path], capture_output=True, text=True)
+                        if mk_sub.returncode != 0:
+                            logger.error(f"  ❌ Failed to create subfolder '{dest_path}': {mk_sub.stderr}")
+                            return False
+                        logger.info(f"📁 Week folder not empty; uploading to subfolder: {dest_path}")
+                    elif policy == "overwrite":
+                        logger.info("⚠️  Week folder not empty; proceeding with overwrite into existing Week folder (policy=overwrite)")
+                    else:
+                        logger.warning(f"⚠️  Unknown existing_week_policy '{self.config.existing_week_policy}', defaulting to subfolder")
+                        ts = datetime.now().strftime(self.config.existing_week_timestamp_format)
+                        sub = f"{self.config.existing_week_subfolder_prefix}-{ts}" if self.config.existing_week_subfolder_prefix else ts
+                        dest_path = f"{remote_week_path}/{sub}"
+                        mk_sub = subprocess.run(["rclone", "mkdir", dest_path], capture_output=True, text=True)
+                        if mk_sub.returncode != 0:
+                            logger.error(f"  ❌ Failed to create subfolder '{dest_path}': {mk_sub.stderr}")
+                            return False
+                        logger.info(f"📁 Week folder not empty; uploading to subfolder: {dest_path}")
+            except Exception as e:
+                logger.warning(f"⚠️  Could not inspect existing Week folder contents: {e}")
+
             logger.info("  📤 Uploading group timesheet...")
-            up1 = subprocess.run(["rclone", "copy", str(group_file), remote_week_path, * (self.config.secondary_remote_copy_flags or [])], capture_output=True, text=True)
+            up1 = subprocess.run(["rclone", "copy", str(group_file), dest_path, * (self.config.secondary_remote_copy_flags or [])], capture_output=True, text=True)
             if up1.returncode != 0:
                 logger.error(f"    ❌ Error uploading group timesheet: {up1.stderr}")
                 return False
 
             logger.info("  📤 Uploading zip file...")
-            up2 = subprocess.run(["rclone", "copy", str(zip_file), remote_week_path, * (self.config.secondary_remote_copy_flags or [])], capture_output=True, text=True)
+            up2 = subprocess.run(["rclone", "copy", str(zip_file), dest_path, * (self.config.secondary_remote_copy_flags or [])], capture_output=True, text=True)
             if up2.returncode != 0:
                 logger.error(f"    ❌ Error uploading zip file: {up2.stderr}")
                 return False
 
-            logger.info(f"✅ Files uploaded to {remote_week_path}")
+            logger.info(f"✅ Files uploaded to {dest_path}")
             return True
         except Exception as e:
             logger.error(f"❌ Error uploading to {remote_name}: {e}")

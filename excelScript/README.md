@@ -67,6 +67,19 @@ python export_hours.py --week 7 --config config.yaml
   - `Booked_Group<group>_Wk<week>.zip`
 - Cloud: uploaded to `REMOTE_NAME:REMOTE_BASE_PATH/Week<week>/`.
 
+Teams/SharePoint upload behavior when `Week<week>` already exists can be controlled via config/env:
+- `existing_week_policy`: `subfolder` (default) | `overwrite` | `skip`
+- `existing_week_subfolder_prefix`: prefix for auto-created subfolder when using `subfolder` policy (default: `run`)
+- `existing_week_timestamp_format`: timestamp format used in subfolder name (default: `%Y%m%d-%H%M%S`)
+
+Example env overrides:
+```bash
+EXISTING_WEEK_POLICY=subfolder \
+EXISTING_WEEK_SUBFOLDER_PREFIX=attempt \
+EXISTING_WEEK_TIMESTAMP_FORMAT="%Y%m%d-%H%M" \
+python export_hours.py --week 10
+```
+
 ### Behaviour and guarantees
 - Exact, case‑insensitive matching for member names between master and templates.
 - Value‑only reads from the master (no formula copying).
