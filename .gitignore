@@ -1,82 +1,16 @@
-# Build directories
-backend/build/
-build-make/
-build/
-out/
-dist/
-
-# Binaries and tools
-# run_entropymax
-run_entropymax_asan
-emx_cli
-# *.exe
-
-# Debug symbols (macOS)
-*.dSYM/
-
-# Objects and libraries
-*.o
-*.obj
-*.a
-*.lib
-*.so
-*.dylib
-*.dll
-*.pyc
-
-# Generated CSV (keep baseline CORRECT; ignore transient)
-data/processed/sample_outputt.csv
-
-# OS/editor noise
-.DS_Store
-*.swp
-*.swo
-
-*.chm
-*.zip
-*.7z
-*.rar
-*.tar
-*.gz
-*.bz2
-*.xz
-*.wim
-*.iso
-
-
-# Python bytecode and caches
+# Python
 __pycache__/
-
-# Environment files
-.env
-.env.*
-
-
-
-# Vcpkg build directory
-backend/build-vcpkg/
-build-vcpkg/
-
-# Third-party build artifacts
-third_party/vcpkg/
-
-# GIS artifacts
-*.kml
-*.kmz
-
-# Generated interactive maps and images
-frontend/interactive_map*.html
-frontend/*.png
-frontend/*.jpg
-frontend/*.jpeg
-output_maps/
-output.csv
-
+*.pyc
 .venv/
-output.parquet
-*.parquet
-.cursor
 
-# ExcelScript outputs (do not track generated artifacts)
-excelScript/output/
+# OS
+.DS_Store
+Thumbs.db
 
+# Build
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
