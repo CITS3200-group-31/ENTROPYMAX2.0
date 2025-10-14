@@ -71,6 +71,14 @@ class CustomSortTreeWidgetItem(QTreeWidgetItem):
             # Return True if self is unchecked and other is checked
             return not self_checked and other_checked
         
+        if column == 2: # Number column
+            key1 = self.text(2)
+            key2 = other.text(2)
+            try: 
+                return float(key1) < float(key2)
+            except ValueError:
+                return key1 < key2
+        
         # For other columns, use default comparison
         return super().__lt__(other)
 
@@ -81,7 +89,8 @@ class SampleListWidget(QWidget):
     # Signals
     selectionChanged = Signal(list)  # List of selected sample names
     sampleLocateRequested = Signal(str, float, float)  # name, lat, lon for map centering
-    
+    openPsdWindowRequested = Signal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.samples_data = []
@@ -96,13 +105,20 @@ class SampleListWidget(QWidget):
         layout.setSpacing(10)
         
         # Removed title label for cleaner interface
-        
+        search_layout = QHBoxLayout(self)
+        search_layout.setSpacing(10)
+
         # Search input (minimal search bar)
-        self.search_edit = QLineEdit()
-        self.search_edit.setPlaceholderText("Search... e.g. group:2 selected:true")
-        self.search_edit.setClearButtonEnabled(True)
-        self.search_edit.textChanged.connect(self._filter_items)
-        layout.addWidget(self.search_edit)
+        self.search_name_edit = QLineEdit()
+        self.search_name_edit.setPlaceholderText("Search by name...")
+        self.search_name_edit.setClearButtonEnabled(True)
+        self.search_name_edit.textChanged.connect(self._filter_items)
+        self.search_group_edit = QLineEdit()
+        self.search_group_edit.setPlaceholderText("Search by group...")
+        self.search_group_edit.setClearButtonEnabled(True)
+        self.search_group_edit.textChanged.connect(self._filter_items)
+        layout.addWidget(self.search_name_edit)
+        layout.addWidget(self.search_group_edit)
         
         # Create tree widget for sample list
         self.tree_widget = QTreeWidget()
@@ -136,9 +152,15 @@ class SampleListWidget(QWidget):
         self.clear_all_btn = QPushButton("Clear All")
         self.clear_all_btn.setFixedHeight(32)
         self.clear_all_btn.clicked.connect(self._clear_all)
+
+        self.open_psd_btn = QPushButton("Plot Selected")
+        self.open_psd_btn.setFixedHeight(32)
+        self.open_psd_btn.clicked.connect(self._on_open_psd_clicked)    
+    
         
         button_layout.addWidget(self.select_all_btn)
         button_layout.addWidget(self.clear_all_btn)
+        button_layout.addWidget(self.open_psd_btn)
         layout.addLayout(button_layout)
         
         # Selection count label
@@ -263,6 +285,10 @@ class SampleListWidget(QWidget):
             self.tree_widget.setSortingEnabled(True)
         
         self._update_selection()
+    
+    def _on_open_psd_clicked(self):
+        """Emit signal to request opening PSD window."""
+        self.openPsdWindowRequested.emit()
         
     def clear_all(self):
         """Public API to clear selection (external callers)."""
@@ -378,45 +404,53 @@ class SampleListWidget(QWidget):
                 break
     
     def _filter_items(self, text: str):
-        """Filter by free text, group, and selected."""
-        parsed = _parse_query(text)
-        free_text = parsed["text"]
-        groups = [g.lower() for g in parsed["groups"]]
-        selected = parsed["selected"]
+        """Filter by name and group from separate search boxes."""
+        name_text = self.search_name_edit.text().strip().lower()
+        group_text = self.search_group_edit.text().strip().lower()
 
         first_match = None
         for i in range(self.tree_widget.topLevelItemCount()):
             item = self.tree_widget.topLevelItem(i)
             name = item.text(1).lower()
-            group_text = item.text(2).lower()
-
-            # text match
-            text_ok = True
-            if free_text:
-                text_ok = (free_text in name) or (free_text in group_text)
-
-            # group match (OR)
-            group_ok = True
-            if groups:
-                group_ok = any(g in group_text for g in groups)
-
-            # selected match
-            selected_ok = True
-            if selected is not None:
-                checked = (item.checkState(0) == Qt.CheckState.Checked)
-                selected_ok = (checked == selected)
-
-            is_match = text_ok and group_ok and selected_ok
+            group = item.text(2).lower()
+            
+            # Match both fields (AND)
+            name_ok = not name_text or name_text in name
+            group_ok = not group_text or group == group_text
+            is_match = name_ok and group_ok
+            
             item.setHidden(not is_match)
-
-            if first_match is None and is_match and (free_text or groups or selected is not None):
+            
+            if first_match is None and is_match:
                 first_match = item
 
-        if first_match is not None:
+        if first_match:
             self.tree_widget.scrollToItem(first_match, QTreeWidget.ScrollHint.PositionAtTop)
 
     def _apply_styles(self):
         """Apply modern styling to the widget."""
+        self.search_name_edit.setStyleSheet("""
+            QLineEdit {
+                padding: 6px;
+                border: 1px solid #ccc;
+                border-radius: 4px
+                font-size: 13px;
+                }
+            QLineEdit:focus {
+                border-color: #2196F3
+                }
+        """)
+        self.search_group_edit.setStyleSheet("""
+            QLineEdit {
+                padding: 6px;
+                border: 1px solid #ccc;
+                border-radius: 4px
+                font-size: 13px;
+                }
+            QLineEdit:focus {
+                border-color: #2196F3
+                }
+        """)
         self.tree_widget.setStyleSheet("""
             QTreeWidget {
                 background-color: #ffffff;
@@ -495,6 +529,25 @@ class SampleListWidget(QWidget):
         """)
         
         self.clear_all_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #ffffff;
+                color: #333;
+                border: 1px solid #d0d0d0;
+                border-radius: 4px;
+                padding: 6px 15px;
+                font-size: 13px;
+                font-weight: 500;
+            }
+            QPushButton:hover {
+                background-color: #f5f5f5;
+                border-color: #f44336;
+            }
+            QPushButton:pressed {
+                background-color: #e0e0e0;
+            }
+        """)
+
+        self.open_psd_btn.setStyleSheet("""
             QPushButton {
                 background-color: #ffffff;
                 color: #333;

@@ -3,6 +3,7 @@ import os
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QFrame, QMessageBox, QMenu, QFileDialog, QLabel)
 from PyQt6.QtCore import Qt
+from PyQt6 import QtGui
 from components.control_panel import ControlPanel
 from components.group_detail_popup import GroupDetailPopup
 from components.module_preview_card import ModulePreviewCard
@@ -11,7 +12,7 @@ from components.simple_map_sample_widget import SimpleMapSampleWidget
 from components.chart_widget import ChartWidget
 from components.settings_dialog import SettingsDialog
 from components.selected_psd_widget import SelectedPSDWidget
-from help import FormatExamplesDialog, ValidationRulesDialog
+from help import FormatExamplesDialog, ValidationRulesDialog, UsageGuideDialog
 from utils.create_kml import create_kml
 from utils.recent_files import save_recent_files, load_recent_files
 class BentoBox(QFrame):
@@ -36,6 +37,8 @@ class EntropyMaxFinal(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("EntropyMax2")
+        basedir = os.path.dirname(__file__)
+        self.setWindowIcon(QtGui.QIcon(os.path.join(basedir, 'emaxlight.ico')))
         self.setGeometry(100, 100, 1200, 700)
         self.setStyleSheet("""
             QMainWindow { 
@@ -98,21 +101,8 @@ class EntropyMaxFinal(QMainWindow):
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(15)
         
-        # Map preview card
-        self.map_preview_card = ModulePreviewCard(
-            title="Map & Sample List",
-            description="View GPS locations and manage sample selection"
-        )
-        self.map_preview_card.openRequested.connect(self._open_map_window)
-        right_layout.addWidget(self.map_preview_card)
-        
-        # CH analysis preview card
-        self.ch_preview_card = ModulePreviewCard(
-            title="CH Analysis",
-            description="Calinski-Harabasz Index visualization"
-        )
-        self.ch_preview_card.openRequested.connect(self._open_ch_window)
-        right_layout.addWidget(self.ch_preview_card)
+        rs_ch_row = QHBoxLayout()
+        rs_ch_row.setSpacing(15)
         
         # RS analysis preview card
         self.rs_preview_card = ModulePreviewCard(
@@ -120,7 +110,24 @@ class EntropyMaxFinal(QMainWindow):
             description="Rs Percentage visualization"
         )
         self.rs_preview_card.openRequested.connect(self._open_rs_window)
-        right_layout.addWidget(self.rs_preview_card)
+        rs_ch_row.addWidget(self.rs_preview_card)
+
+        # CH analysis preview card
+        self.ch_preview_card = ModulePreviewCard(
+            title="CH Analysis",
+            description="Calinski-Harabasz Index visualization"
+        )
+        self.ch_preview_card.openRequested.connect(self._open_ch_window)
+        rs_ch_row.addWidget(self.ch_preview_card)
+        
+        right_layout.addLayout(rs_ch_row)
+        # Map preview card
+        self.map_preview_card = ModulePreviewCard(
+            title="Map & Sample List",
+            description="View GPS locations and manage sample selection"
+        )
+        self.map_preview_card.openRequested.connect(self._open_map_window)
+        right_layout.addWidget(self.map_preview_card)
         
         # Selected PSD preview card
         self.selected_psd_preview_card = ModulePreviewCard(
@@ -145,6 +152,7 @@ class EntropyMaxFinal(QMainWindow):
         self.map_window.exportKMLRequested.connect(self._on_export_kml)
         self.map_widget = self.map_sample_widget.map_widget
         self.sample_list = self.map_sample_widget.sample_list
+        
         
         # CH chart window
         self.ch_chart = ChartWidget(
@@ -261,6 +269,10 @@ class EntropyMaxFinal(QMainWindow):
         rules_action = help_menu.addAction('Validation Quick Rules')
         rules_action.triggered.connect(self._show_validation_rules)
         
+        # Add Usage Guide  action
+        usage_action = help_menu.addAction('Usage Guide')
+        usage_action.triggered.connect(self._show_usage_guide)
+
         # Session menu with "Save & Exit" (shown to the left of Help on macOS)
         session_menu = QMenu('Session', self)
         session_menu.setStyleSheet("""
@@ -292,6 +304,11 @@ class EntropyMaxFinal(QMainWindow):
     def _show_validation_rules(self):
         """Show dialog with validation quick rules."""
         dialog = ValidationRulesDialog(self)
+        dialog.exec()
+
+    def _show_usage_guide(self):
+        """Show user guide for how the steps work, with a user flow."""
+        dialog = UsageGuideDialog(self)
         dialog.exec()
         
     def _on_save_and_exit(self):
@@ -375,6 +392,7 @@ class EntropyMaxFinal(QMainWindow):
         # Connect signals from map-sample widget
         self.map_sample_widget.selectionChanged.connect(self._on_selection_changed)
         self.map_sample_widget.sampleLocateRequested.connect(self._on_locate_sample)
+        self.sample_list.openPsdWindowRequested.connect(self._open_selected_psd_window)
         
         # Connect signal from group detail popup to sample list
         self.group_detail_popup.sampleLineClicked.connect(self._on_sample_line_clicked)
@@ -390,7 +408,7 @@ class EntropyMaxFinal(QMainWindow):
         
         valid, error_msg = validate_raw_data_csv(file_path)
         if valid:
-            self.statusBar().showMessage("Raw data file loaded successfully.", 3000)
+            self.statusBar().showMessage("Raw data file loaded successfully")
         else:
             QMessageBox.warning(self, "Invalid Raw Data File", 
                               f"File validation failed:\n{error_msg}")
@@ -407,7 +425,7 @@ class EntropyMaxFinal(QMainWindow):
         
         valid, error_msg = validate_gps_csv(file_path)
         if valid:
-            self.statusBar().showMessage("GPS file loaded successfully.", 3000)
+            self.statusBar().showMessage("GPS file loaded successfully.")
         else:
             QMessageBox.warning(self, "Invalid GPS File", 
                               f"File validation failed:\n{error_msg}")
@@ -464,7 +482,7 @@ class EntropyMaxFinal(QMainWindow):
         self.map_preview_card.update_status(f"Loaded {len(markers)} samples (K={k_value})")
         
         if announce:
-            self.statusBar().showMessage(f"Map updated for K={k_value}", 3000)
+            self.statusBar().showMessage(f"Map updated for K={k_value}")
     
     def _on_show_map(self):
         """Load map data from Parquet and display."""
@@ -511,7 +529,7 @@ class EntropyMaxFinal(QMainWindow):
         """Handle sample line click from group detail popup."""
         # Just highlight the sample normally in the sample list
         self.sample_list.highlight_sample(sample_name)
-        self.statusBar().showMessage(f"Highlighted sample: {sample_name}", 3000)
+        self.statusBar().showMessage(f"Highlighted sample: {sample_name}")
     
     def _on_k_value_selected_and_show_details(self, k_value):
         """Handle K value selection from charts and automatically show group details."""
@@ -522,12 +540,12 @@ class EntropyMaxFinal(QMainWindow):
         if k_value == optimal_k:
             self.statusBar().showMessage(
                 f"Selected K={k_value} (Optimal). Loading details and updating map...", 
-                3000
+                
             )
         else:
             self.statusBar().showMessage(
                 f"Selected K={k_value}. Loading details and updating map...", 
-                3000
+                
             )
         
         # 1) Show group details for selected K
@@ -684,20 +702,20 @@ class EntropyMaxFinal(QMainWindow):
             # Update status (don't update map yet, wait for Step 4)
             self.ch_preview_card.update_status("Analysis complete")
             self.rs_preview_card.update_status("Analysis complete")
-            self.map_preview_card.update_status("Ready - Click 'Show Map View' to display results")
+            self.map_preview_card.update_status("Ready - Click 'Update Map View' to display results")
             
             # Enable next step buttons
             self.control_panel.show_map_btn.setEnabled(True)
             self.control_panel.export_btn.setEnabled(True)
             
             progress.close()
-            self.statusBar().showMessage(f"Analysis complete. Optimal K={optimal_k}. Click 'Show Map View' to see results.", 5000)
+            self.statusBar().showMessage(f"Analysis complete. Optimal K={optimal_k}. Click 'Update Map View' to see results")
             
         except Exception as e:
             if 'progress' in locals():
                 progress.close()
             QMessageBox.critical(self, "Analysis Error", str(e))
-            self.statusBar().showMessage("Analysis failed.", 3000)
+            self.statusBar().showMessage("Analysis failed.")
             # Cleanup on error
             if hasattr(self, 'temp_manager'):
                 self.temp_manager.cleanup()
@@ -743,9 +761,9 @@ class EntropyMaxFinal(QMainWindow):
             
             optimal_k = self.current_analysis_data.get('optimal_k', None)
             if k_value == optimal_k:
-                self.statusBar().showMessage(f"Showing details for K={k_value} groups (Optimal).", 3000)
+                self.statusBar().showMessage(f"Showing details for K={k_value} groups (Optimal).")
             else:
-                self.statusBar().showMessage(f"Showing details for K={k_value} groups.", 3000)
+                self.statusBar().showMessage(f"Showing details for K={k_value} groups.")
             
         except Exception as e:
             QMessageBox.critical(self, "Error Showing Group Details", str(e))
@@ -789,7 +807,7 @@ class EntropyMaxFinal(QMainWindow):
             QMessageBox.information(self, "Export Successful", 
                                 f"Results saved to:\n{file_path}\n\nTemporary files have been cleaned up.")
             
-            self.statusBar().showMessage(f"Results exported to {Path(file_path).name}", 3000)
+            self.statusBar().showMessage(f"Results exported to {Path(file_path).name}")
             
         except Exception as e:
             QMessageBox.critical(self, "Export Error", 
@@ -832,8 +850,8 @@ class EntropyMaxFinal(QMainWindow):
         prompt_opt_text = f", Optimal: {optimal_k}" if (isinstance(optimal_k, (int, float)) and optimal_k in k_values) else ""
         k_value, ok = QInputDialog.getInt(
             self,
-            "Select K Value",
-            f"Enter K value for KML export:\n(Available: {min(k_values)}-{max(k_values)}{prompt_opt_text})",
+            "Select Group Number",
+            f"Enter number of groups:\n(Available: {min(k_values)}-{max(k_values)}{prompt_opt_text})",
             default_k,  # default value
             min(k_values),  # minimum
             max(k_values),  # maximum
@@ -856,7 +874,7 @@ class EntropyMaxFinal(QMainWindow):
         except Exception:
             actual_groups = []
         
-        group_options = ["All groups"]
+        group_options = ["All groups separate", "All groups"]
         if actual_groups:
             for gid in actual_groups:
                 group_options.append(f"Group {gid} only")
@@ -877,6 +895,29 @@ class EntropyMaxFinal(QMainWindow):
             return
         
         # Parse group choice (0 = all, 1-k = specific group)
+        if group_choice == "All groups separate":
+            if actual_groups:
+                groups_to_export = actual_groups
+            else:
+                groups_to_export = list(range(1, k_value + 1))
+            for group_number in groups_to_export:
+                filename_suffix = f"k{k_value}_group{group_number}"
+                file_path, _ = QFileDialog.getSaveFileName(
+                    self, 
+                    f"Export KML for Group {group_number}",
+                    f"map_{filename_suffix}.kml",
+                    "KML Files (*.kml)"
+                )
+                if not file_path:
+                    continue
+                if not file_path.endswith('.kml'):
+                    file_path += '.kml'
+                try:
+                    create_kml(parquet_path, k_value, group_number, file_path.replace('.kml', ''))
+                except Exception as e:
+                    QMessageBox.critical(self, "KML Export Error", f"Failed to export KML for group {group_number};\n{str(e)}")
+            self.statusBar().showMessage(f"KML exported: K = {k_value}, all groups separately")
+            return
         if group_choice == "All groups":
             group_number = 0
             filename_suffix = f"k{k_value}_all"
@@ -909,7 +950,7 @@ class EntropyMaxFinal(QMainWindow):
             QMessageBox.information(self, "Export Successful", 
                                 f"KML file exported successfully:\n{file_path}\n\nK-value: {k_value}\n{export_description}")
             
-            self.statusBar().showMessage(f"KML exported: K={k_value}, {export_description}", 3000)
+            self.statusBar().showMessage(f"KML exported: K={k_value}, {export_description}")
             
         except Exception as e:
             QMessageBox.critical(self, "KML Export Error", 
@@ -970,7 +1011,7 @@ class EntropyMaxFinal(QMainWindow):
         if hasattr(self, 'selected_psd_preview_card'):
             self.selected_psd_preview_card.update_status("Not loaded")
         
-        self.statusBar().showMessage("Workflow reset. Select input files to begin.", 5000)
+        self.statusBar().showMessage("Workflow reset. Select input files to begin.")
     
     def closeEvent(self, event):
         """Handle window close event and cleanup entire cache directory."""
@@ -1064,6 +1105,8 @@ class EntropyMaxFinal(QMainWindow):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
+    basedir = os.path.dirname(__file__)
+    app.setWindowIcon(QtGui.QIcon(os.path.join(basedir, 'emaxlight.ico')))
     app.setStyle('Fusion')
     window = EntropyMaxFinal()
     window.show()

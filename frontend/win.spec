@@ -4,7 +4,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('run_entropymax.exe', '.'), ('components', 'components'), ('help', 'help'), ('utils', 'utils')],
+    datas=[('run_entropymax.exe', '.'), ('components', 'components'), ('help', 'help'), ('utils', 'utils'), ('emaxlight.ico', '.')],
     hiddenimports=['PyQt6.QtCore', 'PyQt6.QtWidgets', 'PyQt6.QtGui', 'PyQt6.QtWebEngineWidgets', 'pyqtgraph', 'pandas', 'numpy', 'pyarrow', 'folium', 'OpenGL'],
     hookspath=[],
     hooksconfig={},
@@ -22,7 +22,7 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='EntropyMax',
+    name='EntropyMax2',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -33,5 +33,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='../icons/emaxlight.ico',
+    icon='emaxlight.ico'
 )
